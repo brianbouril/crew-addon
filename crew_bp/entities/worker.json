@@ -1,0 +1,384 @@
+{
+  "format_version": "1.20.80",
+  "minecraft:entity": {
+    "description": {
+      "identifier": "crew:worker",
+      "is_spawnable": true,
+      "is_summonable": true,
+      "properties": {
+        "crew:anim": {
+          "type": "int",
+          "range": [
+            0,
+            2
+          ],
+          "default": 0,
+          "client_sync": true
+        }
+      }
+    },
+    "component_groups": {
+      "crew:idle": {
+        "minecraft:behavior.random_stroll": {
+          "priority": 6,
+          "speed_multiplier": 0.8,
+          "xz_dist": 6,
+          "y_dist": 2
+        },
+        "minecraft:behavior.look_at_player": {
+          "priority": 7,
+          "look_distance": 6,
+          "probability": 0.05
+        },
+        "minecraft:behavior.random_look_around": {
+          "priority": 8
+        }
+      },
+      "crew:working": {
+        "minecraft:physics": {
+          "has_gravity": false,
+          "has_collision": true
+        }
+      }
+    },
+    "components": {
+      "minecraft:type_family": {
+        "family": [
+          "crew_worker",
+          "mob"
+        ]
+      },
+      "minecraft:collision_box": {
+        "width": 0.6,
+        "height": 0.9
+      },
+      "minecraft:health": {
+        "value": 30,
+        "max": 30
+      },
+      "minecraft:physics": {},
+      "minecraft:pushable": {
+        "is_pushable": false,
+        "is_pushable_by_piston": true
+      },
+      "minecraft:knockback_resistance": {
+        "value": 1.0
+      },
+      "minecraft:movement": {
+        "value": 0.25
+      },
+      "minecraft:movement.basic": {},
+      "minecraft:jump.static": {},
+      "minecraft:navigation.walk": {
+        "can_path_over_water": true,
+        "avoid_damage_blocks": true,
+        "can_open_doors": true
+      },
+      "minecraft:can_climb": {},
+      "minecraft:persistent": {},
+      "minecraft:fire_immune": {},
+      "minecraft:nameable": {
+        "always_show": true,
+        "allow_name_tag_renaming": false
+      },
+      "minecraft:inventory": {
+        "container_type": "inventory",
+        "inventory_size": 27,
+        "private": true
+      },
+      "minecraft:breathable": {
+        "total_supply": 15,
+        "suffocate_time": 0,
+        "breathes_air": true,
+        "breathes_water": true
+      },
+      "minecraft:damage_sensor": {
+        "triggers": [
+          {
+            "cause": "suffocation",
+            "deals_damage": false
+          },
+          {
+            "cause": "fall",
+            "deals_damage": false
+          },
+          {
+            "cause": "lava",
+            "deals_damage": false
+          },
+          {
+            "cause": "fire",
+            "deals_damage": false
+          },
+          {
+            "cause": "fire_tick",
+            "deals_damage": false
+          },
+          {
+            "cause": "drowning",
+            "deals_damage": false
+          },
+          {
+            "cause": "falling_block",
+            "deals_damage": false
+          }
+        ]
+      },
+      "minecraft:interact": {
+        "interactions": [
+          {
+            "on_interact": {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "player"
+                  },
+                  {
+                    "test": "is_sneaking",
+                    "subject": "other",
+                    "value": true
+                  }
+                ]
+              },
+              "event": "crew:manage",
+              "target": "self"
+            },
+            "interact_text": "action.interact.crew_manage",
+            "swing": true
+          },
+          {
+            "on_interact": {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "player"
+                  },
+                  {
+                    "test": "is_sneaking",
+                    "subject": "other",
+                    "value": false
+                  },
+                  {
+                    "any_of": [
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:wooden_pickaxe"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:wooden_shovel"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:wooden_axe"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:wooden_hoe"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:golden_pickaxe"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:golden_shovel"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:golden_axe"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:golden_hoe"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:stone_pickaxe"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:stone_shovel"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:stone_axe"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:stone_hoe"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:copper_pickaxe"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:copper_shovel"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:copper_axe"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:copper_hoe"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:iron_pickaxe"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:iron_shovel"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:iron_axe"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:iron_hoe"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:diamond_pickaxe"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:diamond_shovel"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:diamond_axe"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:diamond_hoe"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:netherite_pickaxe"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:netherite_shovel"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:netherite_axe"
+                      },
+                      {
+                        "test": "has_equipment",
+                        "subject": "other",
+                        "domain": "hand",
+                        "value": "minecraft:netherite_hoe"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "event": "crew:give_tool",
+              "target": "self"
+            },
+            "interact_text": "action.interact.crew_give_tool",
+            "swing": true
+          }
+        ]
+      }
+    },
+    "events": {
+      "minecraft:entity_spawned": {
+        "add": {
+          "component_groups": [
+            "crew:idle"
+          ]
+        }
+      },
+      "crew:start_work": {
+        "remove": {
+          "component_groups": [
+            "crew:idle"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "crew:working"
+          ]
+        }
+      },
+      "crew:stop_work": {
+        "remove": {
+          "component_groups": [
+            "crew:working"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "crew:idle"
+          ]
+        }
+      },
+      "crew:manage": {},
+      "crew:give_tool": {}
+    }
+  }
+}

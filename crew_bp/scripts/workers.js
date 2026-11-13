@@ -1,0 +1,179 @@
+// Finding workers, who may command them, spawning them, and reporting what they do.
+import { world, system, ItemStack } from "@minecraft/server";
+import { DIMS, getJSON, setJSON, onlinePlayer, tell, fmt } from "./util.js";
+import { getRegistry, saveRegistry, freeName } from "./store.js";
+import { ROLE_LIST, addToKit, defaultRole, kit, stash, toolInfo } from "./tools.js";
+
+export const WORKER_TYPE = "crew:worker";
+
+/**
+ * @typedef {import("./store.js").Commander} Commander
+ * @typedef {{id?: string, name: string}} PersonRef
+ * @typedef {{name: string, ownerId: string, ownerName: string, crew: PersonRef[]}} Meta
+ */
+
+/** All loaded workers in every dimension. */
+export function loadedWorkers() {
+  /** @type {import("@minecraft/server").Entity[]} */
+  const out = [];
+  for (const d of DIMS) {
+    try {
+      out.push(...world.getDimension(d).getEntities({ type: WORKER_TYPE }));
+    } catch {
+      /* dimension not available */
+    }
+  }
+  return out;
+}
+
+/** @param {import("@minecraft/server").Entity} e @returns {Meta} */
+export function meta(e) {
+  return {
+    name: String(e.getDynamicProperty("crew:name") ?? e.nameTag ?? "Worker"),
+    ownerId: String(e.getDynamicProperty("crew:ownerId") ?? ""),
+    ownerName: String(e.getDynamicProperty("crew:ownerName") ?? ""),
+    crew: getJSON(e, "crew:crew", []),
+  };
+}
+
+/** @param {string} name */
+export function findWorker(name) {
+  const key = name.trim().toLowerCase();
+  return loadedWorkers().find((e) => meta(e).name.toLowerCase() === key);
+}
+
+/** @param {PersonRef} a @param {Commander} b */
+const same = (a, b) => (!!a.id && a.id === b.id) || a.name.toLowerCase() === b.name.toLowerCase();
+
+/** Owner, anyone on the crew list, operators, and the server console may give orders. @param {Commander} by @param {Meta} m */
+export function canCommand(by, m) {
+  if (by.console || by.isOp) return true;
+  if (same({ id: m.ownerId, name: m.ownerName }, by)) return true;
+  return m.crew.some((c) => same(c, by));
+}
+
+/** Only the owner (or an operator / the console) can change who gives orders, rename, take tools or dismiss. @param {Commander} by @param {Meta} m */
+export function canManage(by, m) {
+  return !!(by.console || by.isOp || same({ id: m.ownerId, name: m.ownerName }, by));
+}
+
+/**
+ * @param {import("@minecraft/server").Dimension} dim
+ * @param {{x:number,y:number,z:number}} loc
+ * @param {PersonRef} owner
+ * @param {string | undefined} wantedName
+ * @param {import("@minecraft/server").ItemStack[]} [items]  barrel contents: tools go into the kit, the rest is carried
+ * @returns {{e: import("@minecraft/server").Entity, spill: import("@minecraft/server").ItemStack[]}}
+ */
+export function spawnWorker(dim, loc, owner, wantedName, items = []) {
+  const name = freeName(wantedName);
+  const e = dim.spawnEntity(WORKER_TYPE, loc);
+  e.setDynamicProperty("crew:name", name);
+  e.setDynamicProperty("crew:ownerId", owner.id ?? "");
+  e.setDynamicProperty("crew:ownerName", owner.name);
+  setJSON(e, "crew:crew", []);
+  const inv = /** @type {import("@minecraft/server").Container} */ (e.getComponent("minecraft:inventory")?.container);
+  /** @type {import("@minecraft/server").ItemStack[]} */
+  const spill = [];
+  for (const it of items) {
+    if (toolInfo(it) && addToKit(inv, it).ok) continue;
+    const left = stash(inv, it);
+    if (left) spill.push(left);
+  }
+  e.setDynamicProperty("crew:role", defaultRole(kit(inv)));
+  updateTag(e);
+  const reg = getRegistry();
+  reg[name.toLowerCase()] = { name, id: e.id, ownerId: owner.id ?? "", ownerName: owner.name };
+  saveRegistry(reg);
+  try {
+    dim.spawnParticle("minecraft:villager_happy", { x: loc.x, y: loc.y + 0.8, z: loc.z });
+    dim.playSound("random.anvil_use", loc, { volume: 0.6, pitch: 1.4 });
+  } catch {
+    /* cosmetic only */
+  }
+  emit(e, "hired", { owner: owner.name, at: fmt(loc), role: roleOf(e), tools: kit(inv).map((t) => t.info.id) },
+    `${name} is ready to work as a ${roleOf(e)}. Owner: ${owner.name}.`);
+  return { e, spill };
+}
+
+/** The worker's role: set in its menu, otherwise the role of its best tool. @param {import("@minecraft/server").Entity} e */
+export function roleOf(e) {
+  const r = e.getDynamicProperty("crew:role");
+  return typeof r === "string" && ROLE_LIST.includes(r) ? r : "Miner";
+}
+
+/** @param {import("@minecraft/server").Entity} e @param {string} role */
+export function setRole(e, role) {
+  e.setDynamicProperty("crew:role", role);
+  updateTag(e);
+}
+
+/** Name tag: the name, with role and best tool underneath. @param {import("@minecraft/server").Entity} e */
+export function updateTag(e) {
+  const inv = e.getComponent("minecraft:inventory")?.container;
+  const k = inv ? kit(inv) : [];
+  const best = [...k].sort((a, b) => b.info.tier - a.info.tier)[0];
+  e.nameTag = `${meta(e).name}\n§7${roleOf(e)}${best ? `, ${best.info.label}` : ", no tools"}`;
+}
+
+/** @param {import("@minecraft/server").Entity} e @param {string} newName */
+export function renameWorker(e, newName) {
+  const m = meta(e);
+  const name = freeName(newName);
+  const reg = getRegistry();
+  delete reg[m.name.toLowerCase()];
+  reg[name.toLowerCase()] = { name, id: e.id, ownerId: m.ownerId, ownerName: m.ownerName };
+  saveRegistry(reg);
+  e.setDynamicProperty("crew:name", name);
+  updateTag(e);
+  return name;
+}
+
+/** Removes a worker and gives back its build blocks, tools and everything it carries. @param {import("@minecraft/server").Entity} e */
+export function dismissWorker(e) {
+  const m = meta(e);
+  const dim = e.dimension;
+  const at = e.location;
+  const inv = e.getComponent("minecraft:inventory")?.container;
+  if (inv) {
+    for (let i = 0; i < inv.size; i++) {
+      const it = inv.getItem(i);
+      if (it) dim.spawnItem(it, at);
+    }
+    inv.clearAll();
+  }
+  for (const id of ["minecraft:barrel", "minecraft:carved_pumpkin"]) dim.spawnItem(new ItemStack(id, 1), at);
+  const reg = getRegistry();
+  delete reg[m.name.toLowerCase()];
+  saveRegistry(reg);
+  e.remove();
+}
+
+/**
+ * Reports something a worker did. Goes to the owner and whoever gave the current order,
+ * and to the server console as one JSON line (what the Phase 2 bridge will read).
+ * @param {import("@minecraft/server").Entity} e
+ * @param {string} type
+ * @param {Record<string, any>} data
+ * @param {string} text  human-readable message
+ */
+export function emit(e, type, data, text) {
+  const m = meta(e);
+  const job = getJSON(e, "crew:job", undefined);
+  console.log(`[Crew-Event] ${JSON.stringify({ type, worker: m.name, owner: m.ownerName, job: job?.type, by: job?.by?.name, ...data })}`);
+  const owner = onlinePlayer({ id: m.ownerId, name: m.ownerName });
+  tell(owner, `§b${m.name}§r: ${text}`);
+  if (job?.by && !job.by.console) {
+    const by = onlinePlayer(job.by);
+    if (by && by.id !== owner?.id) tell(by, `§b${m.name}§r: ${text}`);
+  }
+}
+
+/** Runs fn on the next tick (command callbacks can't change the world directly). @param {() => void} fn */
+export const later = (fn) => system.run(() => {
+  try {
+    fn();
+  } catch (err) {
+    console.warn(`[Crew] ${err}`);
+  }
+});

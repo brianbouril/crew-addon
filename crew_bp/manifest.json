@@ -1,0 +1,58 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Crew Workers (BP)",
+    "description": "Worker mobs that run deterministic jobs. v0.2: quarry and branch mining, tool kits, worker menu, Survey Stake planner.",
+    "uuid": "45c91f8b-1a45-49e5-b41a-0c8206b5596c",
+    "version": [
+      0,
+      2,
+      0
+    ],
+    "min_engine_version": [
+      1,
+      21,
+      110
+    ]
+  },
+  "modules": [
+    {
+      "type": "data",
+      "uuid": "b8a8b639-58e4-449f-8a1d-d0a9754b47d5",
+      "version": [
+        0,
+        2,
+        0
+      ]
+    },
+    {
+      "type": "script",
+      "language": "javascript",
+      "entry": "scripts/main.js",
+      "uuid": "948413df-23c4-431d-86b1-02762a60f5d8",
+      "version": [
+        0,
+        2,
+        0
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "uuid": "b077ee39-0d38-4590-9be0-8dd5396dbf7b",
+      "version": [
+        0,
+        2,
+        0
+      ]
+    },
+    {
+      "module_name": "@minecraft/server",
+      "version": "2.2.0"
+    },
+    {
+      "module_name": "@minecraft/server-ui",
+      "version": "2.0.0"
+    }
+  ]
+}

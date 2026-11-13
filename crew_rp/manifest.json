@@ -1,0 +1,29 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Crew Workers (RP)",
+    "description": "Look and feel for Crew worker mobs.",
+    "uuid": "b077ee39-0d38-4590-9be0-8dd5396dbf7b",
+    "version": [
+      0,
+      2,
+      0
+    ],
+    "min_engine_version": [
+      1,
+      21,
+      110
+    ]
+  },
+  "modules": [
+    {
+      "type": "resources",
+      "uuid": "a9c40f35-11fd-46ea-ab04-5a5070c993f4",
+      "version": [
+        0,
+        2,
+        0
+      ]
+    }
+  ]
+}

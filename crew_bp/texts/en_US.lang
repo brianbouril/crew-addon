@@ -1,0 +1,5 @@
+entity.crew:worker.name=Crew Worker
+item.spawn_egg.entity.crew:worker.name=Spawn Crew Worker
+item.crew:survey_stake.name=Survey Stake
+action.interact.crew_manage=Manage worker
+action.interact.crew_give_tool=Give tool

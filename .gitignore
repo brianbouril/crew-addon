@@ -1,0 +1,13 @@
+# Built packages: made by `node tools/release.mjs`, attached to releases, not kept in history
+dist/
+*.mcaddon
+*.mcpack
+
+# The original hand-off files (their contents are the first commit, tagged v0.2.0)
+crew-addon.bin
+crew-addon-source.zip
+
+# Exports and scratch
+*.pdf
+node_modules/
+.claude/

@@ -1,0 +1,14 @@
+{
+  "format_version": "1.20.10",
+  "minecraft:recipe_shaped": {
+    "description": { "identifier": "crew:survey_stake" },
+    "tags": ["crafting_table"],
+    "pattern": ["S", "T", "T"],
+    "key": {
+      "S": { "item": "minecraft:string" },
+      "T": { "item": "minecraft:stick" }
+    },
+    "unlock": [{ "item": "minecraft:stick" }],
+    "result": { "item": "crew:survey_stake" }
+  }
+}

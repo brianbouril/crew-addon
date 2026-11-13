@@ -1,0 +1,15 @@
+{
+  "format_version": "1.21.0",
+  "minecraft:item": {
+    "description": {
+      "identifier": "crew:survey_stake",
+      "menu_category": { "category": "equipment" }
+    },
+    "components": {
+      "minecraft:icon": "crew_survey_stake",
+      "minecraft:display_name": { "value": "Survey Stake" },
+      "minecraft:max_stack_size": 1,
+      "minecraft:hand_equipped": true
+    }
+  }
+}
