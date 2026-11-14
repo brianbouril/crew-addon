@@ -219,8 +219,8 @@ can't hurt workers yet**; Quarry and Branch mine stay as precise jobs.
   sleeping rough) opens its menu and it **keeps sleeping**. The menu gets a **Wake up** button
   (it gets up; with a paused dig it goes back to it, like at dawn, with the rest it had so far);
   giving it an order from the menu also wakes it. Opening the menu alone never wakes it, and at
-  night the routine must not send a worker you woke straight back to bed (it stays up until
-  it's idle again or worn out). Check first in game what happens now: while lying down its hitbox may sit inside the bed,
+  night the routine must not send a worker you woke straight back to bed: it stays up while
+  it has an order, and if it's left idle it goes back to bed after about a minute. Check first in game what happens now: while lying down its hitbox may sit inside the bed,
   so the tap lands on the bed (cancel the bed use, or route a crouch-tap on its claimed bed to the
   worker), and whether the sleep pose changes where the tap registers. The status should say it's
   asleep and when it'll get up.
