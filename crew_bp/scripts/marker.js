@@ -289,7 +289,7 @@ async function planActions(p, tapped) {
       break;
     case 4:
       savePlan(p, undefined);
-      tell(p, "Plan cleared.");
+      tell(p, "Plan cleared (just the outline). A worker already digging it keeps going: Stop it from its menu, or tap the air with the stake.");
       return;
     case 5:
       putAway(p);

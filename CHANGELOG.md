@@ -18,6 +18,8 @@ turns it into that version's section.
   breaks at the end of the swing, not the start.
 - Workers walk at about a villager's pace and slow down before stopping, so they no longer seem to
   bump into the next block and bounce back.
+- Fixed workers snapping back and forth while digging (a finished step was replayed during the swing).
+- Clearing a stake plan says that a worker already digging it keeps going.
 - Workers keep everything they dig by default, with 36 inventory slots like a player; drop-off
   messages name the chest's position; the menu lists what a worker is carrying.
 

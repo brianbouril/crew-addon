@@ -21,6 +21,7 @@ writeFileSync(join(W, "package.json"), '{"type":"module"}');
 
 const steps = [
   ["quarry (keep all)", ["quarry_test.mjs", "all"]],
+  ["quarry at normal pace (no snapping)", ["quarry_test.mjs", "all", "normal"]],
   ["branch mine", ["branch_test.mjs"]],
   ["branch mine, 1-wide trunk", ["branch_test.mjs", "1"]],
   ["branch mine, 3-wide trunk", ["branch_test.mjs", "3"]],

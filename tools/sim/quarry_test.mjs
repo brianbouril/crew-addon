@@ -10,6 +10,7 @@ import { quarryGeom, stairBlock } from "./scripts/plans.js";
 const logs = []; const out = console.log; console.log = (...a) => logs.push(a.join(" ")); console.warn = (...a) => logs.push("WARN " + a.join(" "));
 const ow = world.getDimension("minecraft:overworld");
 const keep = process.argv[2] ?? "all";
+const pace = process.argv[3] ?? "fast";
 ow.setBlockType({ x: 0, y: 65, z: -4 }, "minecraft:chest");
 // corner (5,64,5) heading south: 12 forward (+z), 10 to the right (west, -x), 10 deep
 const g = quarryGeom({ x: 5, y: 64, z: 5 }, "south", 12, 10, 10);
@@ -26,9 +27,17 @@ const by = { id: "p1", name: "Brian", isOp: false };
 const ub = new ItemStack("minecraft:iron_pickaxe"); ub.enchants.unbreaking = 3;
 const { e } = spawnWorker(ow, { x: 0.5, y: 65, z: 0.5 }, { id: "p1", name: "Brian" }, "Digby", [ub, new ItemStack("minecraft:iron_pickaxe"), new ItemStack("minecraft:stone_shovel"), new ItemStack("minecraft:torch", 16)]);
 savePlace(by, "blue base", "minecraft:overworld", { x: 0, y: 65, z: -4 }, false);
-const order = dispatch(by, { worker: "Digby", job: "quarry", params: { from: g.min, to: g.max, facing: "south", deposit: "blue base", keep, pace: "fast" } });
+const order = dispatch(by, { worker: "Digby", job: "quarry", params: { from: g.min, to: g.max, facing: "south", deposit: "blue base", keep, pace } });
 let t = 0;
-while (e.getDynamicProperty("crew:job") && t < 400000) tick(++t);
+// the biggest move in one tick: a step glides a block over several ticks, so anything near a
+// whole block (outside a reported shortcut) is the worker snapping back and forth
+let maxJump = 0, last = { ...e.location };
+while (e.getDynamicProperty("crew:job") && t < 400000) {
+  tick(++t);
+  const l = e.location;
+  maxJump = Math.max(maxJump, Math.hypot(l.x - last.x, l.y - last.y, l.z - last.z));
+  last = { ...l };
+}
 // checks
 const inBox = (x, y, z) => x >= g.min.x && x <= g.max.x && y >= g.min.y && y <= g.max.y && z >= g.min.z && z <= g.max.z;
 const stairs = new Set(); for (let k = 0; k <= g.D - 2; k++) { const s = stairBlock(g, k); stairs.add(`${s.x},${s.y},${s.z}`); }
@@ -50,7 +59,7 @@ const inChest = chest.items.filter(Boolean).reduce((a, s) => a + s.amount, 0);
 const toolUse = {}; for (const [b, tl] of lootCalls) { const key = `${b.replace("minecraft:", "")} <- ${tl.replace("minecraft:", "")}`; toolUse[key] = (toolUse[key] ?? 0) + 1; }
 const kit = e.inv.items.slice(0, 5).filter(Boolean).map((s) => `${s.typeId.replace("minecraft:", "")} dmg ${s.damage}`);
 console.log = out;
-console.log(JSON.stringify({ order: order.message, keep, ticks: t, minutes: +(t / 1200).toFixed(1), boxBlocks: g.total, stairs: stairs.size, stairsSolid, stairsHeadroomOk,
+console.log(JSON.stringify({ order: order.message, keep, pace, maxJump: +maxJump.toFixed(2), ticks: t, minutes: +(t / 1200).toFixed(1), boxBlocks: g.total, stairs: stairs.size, stairsSolid, stairsHeadroomOk,
   leftInBox, leftovers, torchesPlaced: torches.length, torchesOnStairs, changedOutside, inChest, chestTypes: [...new Set(chest.items.filter(Boolean).map((s) => s.typeId))], kitAfter: kit,
   toolUse, skipped: JSON.parse(e.getDynamicProperty("crew:skipped") ?? "null"), shortcutsTaken: logs.filter((l) => l.includes('"stuck"')).length }, null, 1));
 console.log(logs.filter((l) => /job_started|deposited|found|skipped"|hazard|job_done|stuck|WARN|failed/.test(l)).slice(0, 30).join("\n"));

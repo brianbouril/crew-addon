@@ -469,6 +469,7 @@ function stepDig(rt) {
       if (walkTo(rt, startCell(job), 1.8) === "arrived") {
         st.phase = "working";
         st.cool = 0;
+        st.move = undefined;
       }
       return;
     case "to_deposit": {
@@ -512,6 +513,7 @@ function stepDig(rt) {
       if (walkTo(rt, st.stand ?? startCell(job), st.stand ? 0.5 : 1.8) === "arrived") {
         st.phase = "working";
         st.cool = 0;
+        st.move = undefined;
       }
       return;
     case "working":
@@ -538,8 +540,9 @@ function work(rt, inv) {
   if (st.cool > 0) {
     st.cool--;
     if (st.move) {
-      const t = 1 - st.cool / st.move.n;
+      const t = Math.min(1, Math.max(0, 1 - st.cool / st.move.n));
       e.teleport(glideAt(st.move, ease(t)), st.move.face ? { facingLocation: st.move.face } : undefined);
+      if (st.cool === 0) st.move = undefined; // the step is done: never replay it during a swing
     }
     return;
   }
@@ -628,6 +631,7 @@ function work(rt, inv) {
         continue;
       }
       c.s = 1;
+      st.move = undefined;
       swingAt(rt, c, pv);
       st.cool = Math.max(0, pv.ticks - 1);
       if (st.cool > 0) return;
