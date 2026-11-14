@@ -135,7 +135,8 @@ listed at the end of the roadmap.
   then `tsc --allowJs --checkJs --noEmit` over `crew_bp/scripts/*.js` (strict, ES2022, bundler resolution).
 - **Git:** the project is a git repo (Git for Windows, `C:\Program Files\Git\cmd\git.exe`; may not be on
   PATH in an old shell). Branch `main`; releases are tags `vX.Y.Z`. Commit work as it lands; add a line
-  to `CHANGELOG.md` under "Unreleased" for anything a player would notice.
+  to `CHANGELOG.md` under "Unreleased" for anything a player would notice, and an in-game check to
+  `docs/QA.md` under "Next release" (the running test list; Brian ticks it off when he tests).
 - **Release:** `node tools/release.mjs X.Y.Z` with a clean tree: runs the tests (stops if they fail),
   sets the version in both manifests (header, modules, BP->RP dependency) and `VERSION` in `util.js`,
   turns "Unreleased" into that version, regenerates the guide, builds `dist/crew-addon-X.Y.Z.mcaddon`,
