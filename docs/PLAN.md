@@ -331,16 +331,40 @@ food; below 10 it rests; safe bed restores to 100, unsafe 75, rough 50; it packs
 3. **Talking:** short lines to nearby players, greets its owner, reacts to finds and lava; rate-limited.
 4. **Journal:** a daily log in the menu ("Day 14: dug 412 blocks, 3 diamonds, a lava scare"); "while
    you were away" summary when the owner logs in. Also the LLM's memory later.
+5. **A villager's day** (Brian, Nov 14; from the vanilla villager scheduler): villagers work
+   0-8000, gather and mingle 8000-10000, work 10000-11000, head home 11000-12000 and are in bed by
+   12000 (dusk). Ours dig until 12000, then walk home, so they arrive after dark. Add a "head home"
+   hour so they're in bed by dusk, and a midday break: eat from carried food or the home chest and
+   mingle with other workers near home. Pausing and resuming uses `crew:paused` like the night does.
+6. **Little touches** (Brian, Nov 14): glance at a player passing within a few blocks (head turn,
+   a beat's pause, like vanilla `look_at_player`); with nothing to do, stroll near home (vanilla
+   `random_stroll` held to its home, like villagers' `move_towards_dwelling_restriction`) instead
+   of wherever it stands.
 
 ### v0.8 Loose ends
 - `collect_skipped`: go back with a better tool for blocks it had to leave.
 - `scout`: walk an area without digging and report structures and exposed ores.
-- **More natural walking** (Brian, Nov 14): workers only move at right angles, block to block
-  along the A* path, so a trip to work looks robotic. They should head in a straight line toward
-  their work when the way is clear: smooth the A* path (drop corners where a straight line has a
-  floor and 2 blocks of headroom the whole way, checked along the line), allow diagonal steps, and
-  turn gradually. Keep decision 14: never over air or through blocks.
-- Walking animation polish, action-bar progress.
+- **Move like a villager** (Brian, Nov 14; from comparing with Mojang's vanilla villager files in
+  bedrock-samples: `villager_v2.json`, `villager.animation.json`). The Script API can't hand a mob
+  a destination, so travel stays scripted (A* + glide); these make it look and feel vanilla.
+  Keep decision 14 throughout: never over air or through blocks.
+  1. **Feet that match the ground covered:** the villager's walk cycle advances with distance moved
+     (`anim_time_update: query.modified_distance_moved`, legs `cos(anim_time * 38.17) * 40`), so
+     feet never slide. Ours runs on a timer (`query.life_time * 720`), so feet slide when it slows,
+     climbs or eases to a stop. Drive ours by distance; check in game whether
+     `modified_distance_moved` tracks teleport-glides, else derive it from position or a pace
+     property set by the script. Resource pack only.
+  2. **Turn gradually:** today it snaps 90 degrees at each corner (`facingLocation` per step). Blend
+     the body's yaw over about 4 ticks (teleport `rotation`), with the head looking ahead first.
+  3. **Straight lines** (Brian, Nov 14): workers only move at right angles, block to block along
+     the A* path, so a trip to work looks robotic. Head straight for the work when the way is clear:
+     smooth the A* path (drop corners where a straight line has a floor and 2 blocks of headroom the
+     whole way, checked along the line) and allow diagonal steps.
+  4. **Prefer paths, like `minecraft:preferred_path`:** villagers pay per block (dirt path 0, stone
+     and planks 1, anything else 3), avoid jumps (cost 20) and big drops, and keep off beds and job
+     blocks (50). Give `path.js` block costs the same way, so workers use the roads players build
+     and stay off crops, beds and workstations.
+- Action-bar progress.
 
 ### Later
 - **Danger:** mobs can knock a worker out; it wakes in its bed and loses what it carried.
