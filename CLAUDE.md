@@ -45,9 +45,11 @@ or decides block logic; it only picks jobs and fills parameters.
 | 25 | Workers keep everything they dig by default (`keep` default `all`), with 36 inventory slots like a player (kit in 0-4); night is dusk 12000 to dawn 23000 | Brian, Nov 13: chest looked empty; worker went to bed at dawn |
 | 21 | Every Survey Stake menu has "Put the stake away" (removes it from the inventory; the plan is kept). The worker menu has "Get a Survey Stake" (and the "no plan yet" message offers one); only one per player, `/crew:stake` follows the same rule | Brian, Nov 12 |
 
-## What v0.2 does (state at hand-off, Nov 13 2026)
-- Manifests still say 0.2.0 (last release, tag `v0.2.0`); the next release gets its version from
-  `tools/release.mjs`. README and `docs/PLAN.md` describe it.
+## Current state (v0.4.0, released Nov 14 2026)
+- Last release: 0.4.0 (tag `v0.4.0`, `dist/crew-addon-0.4.0.mcaddon`); v0.3 and v0.4 shipped together.
+  Earlier: tag `v0.2.0` (the hand-off). README and `docs/PLAN.md` describe it.
+- Digging: break time = tool speed (+Efficiency) over block hardness (`blocks.js hardness`), like a
+  player; the block breaks at the end of the swing. Steps ease in and out at about a villager's pace.
 - Jobs: `quarry` (alias `mine_area`), `branch_mine`, `come`, `stop`, `resume`, `status`, `drop_off`,
   `set_home`, `clear_home`; plus the internal `rest` job the routine starts at dusk or when worn out.
 - `/reload` only reloads scripts. Changes to the model, textures or `entities/worker.json` need the
@@ -68,10 +70,13 @@ or decides block logic; it only picks jobs and fills parameters.
 - **v0.4 home and routine (Nov 13)** (`tools/sim/life_test.mjs`): see decision 23 and the Roadmap's v0.4
   notes. First in-game run (Nov 13): going home, unloading, sleeping and resuming all worked per the
   log; fixed after it: bed at dawn, setting far beds (stake remote, decision 24), keep-all inventory
-  (decision 25). Still unconfirmed in game: the sleep pose (Brian saw it "just stand there").
-- **Not yet tested in game:** the Nov 12 additions, v0.4, and anything on BDS. Likely first fixes: forms and sliders, particle
-  outline, the `minecraft:interact` filters (`has_equipment` per tool id), model and animation,
-  chat text, scripted gliding movement.
+  (decision 25).
+- **Tested in game Nov 14 (local world), all good:** stake remote, keep-everything and drop-off
+  messages, night/dawn routine, sleep pose in bed and rough sleep, tool in hand, block-by-block
+  digging at player speed, food. Fixed during it: idle homeless workers didn't sleep, stake plan menu
+  looping back to the type picker, bump-and-bounce on each step, snapping during swings.
+- **Not yet tested:** anything on BDS (first server install of 0.4.0 is next).
+- **Next idea noted:** more natural walking, straight lines instead of right angles (PLAN v0.8).
 
 ## Known limits
 - Movement is scripted gliding along an A* path, not vanilla AI; blinks once if no route.
@@ -134,4 +139,4 @@ listed at the end of the roadmap.
   activate both packs on the world.
 - **Install to BDS:** see README "Install on Bedrock Dedicated Server" (pack UUIDs and
   `world_behavior_packs.json` / `world_resource_packs.json`, `texturepack-required=true`).
-- In game, watch the server console for `[Crew] v0.2.0 loaded`, `[Crew-Event]` lines and script errors.
+- In game, watch the server console for `[Crew] v<version> loaded`, `[Crew-Event]` lines and script errors.
