@@ -13,6 +13,8 @@ turns it into that version's section.
   The outline shows the full height; a quarry staked underground (over 48 blocks overhead) is refused.
 - A worker waiting for a tool now takes one put in the chest it's waiting at, or walks to its home
   chest for one, and goes back to work. Workers stand beside chests, not on top of them.
+- Restarting a quarry that was already partly dug no longer walks the worker through every dug-out
+  spot: it skips them and heads straight for the first block still there.
 
 ## v0.4.0
 

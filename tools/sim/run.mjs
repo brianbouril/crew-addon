@@ -34,6 +34,7 @@ const steps = [
   ["doors", ["door_test.mjs"]],
   ["quarry, clear above (hill and tree)", ["clear_test.mjs"]],
   ["out of tools: takes one from a chest", ["tool_test.mjs"]],
+  ["restart a half-dug quarry", ["restart_test.mjs"]],
   ["main.js loads", ["-e", 'import("./scripts/main.js").then(() => console.log("ok"))']],
 ];
 let failed = 0;

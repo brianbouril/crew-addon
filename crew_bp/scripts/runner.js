@@ -606,22 +606,24 @@ function work(rt, inv) {
   if (!k.length) return needTool(rt, "tool");
   let s = stepAt(job, st.i);
 
-  if (!st.stage && s.above) {
-    // clearing over a quarry: most of those layers are open air, so skip empty cells quickly
+  if (!st.stage && job.type === "quarry" && !s.keep) {
+    // Nothing to dig there (open air over a quarry, or a part already dug before a restart): skip
+    // it without walking to it, so the worker heads straight for the next block still in place.
     let n = 0;
-    while (s.above && n < 512 && (passable(dim, s.mine[0]) || keepIntact(dim.getBlock(s.mine[0])?.typeId ?? ""))) {
+    while (!s.keep && s.mine && n < 512 && (passable(dim, s.mine[0]) || keepIntact(dim.getBlock(s.mine[0])?.typeId ?? ""))) {
       st.i++;
       n++;
       if (st.i >= job.geom.total) return;
       s = stepAt(job, st.i);
     }
     if (n) progress(rt);
-    if (s.above) {
-      // out of reach from here (a treetop, the far side of a hill): walk to the ground under it first
+    if (!s.keep && s.mine) {
+      // out of reach from here (a treetop, the far side of a hill, a lower layer): walk over first.
+      // Clearing above, it stands on the ground under it; in the pit, on top of the block itself.
       const c = s.mine[0];
       const cur = floorV(e.location);
       if (!inReach(cur, c)) {
-        const spot = groundNear(dim, c, cur);
+        const spot = groundNear(dim, c, cur, 12, !s.above);
         if (spot && !sameV(spot, cur)) {
           st.stand = spot;
           st.phase = "return";
@@ -814,16 +816,17 @@ function inReach(cur, c) {
 
 /**
  * Somewhere to stand on the ground under or beside block c (looking `depth` blocks down), the
- * closest to c. For reaching the blocks of a hill or tree over a quarry.
- * @param {import("@minecraft/server").Dimension} dim @param {V3} c @param {V3} cur @param {number} [depth]
+ * closest to c. For reaching the blocks of a hill or tree over a quarry. `onTop`: standing on
+ * top of c (or the blocks beside it) is fine too: in the pit, not for a tree it would climb.
+ * @param {import("@minecraft/server").Dimension} dim @param {V3} c @param {V3} cur @param {number} [depth] @param {boolean} [onTop]
  */
-function groundNear(dim, c, cur, depth = 12) {
+function groundNear(dim, c, cur, depth = 12, onTop = false) {
   /** @type {V3 | undefined} */
   let best;
   let bestD = Infinity;
   for (let dx = -2; dx <= 2; dx++) {
     for (let dz = -2; dz <= 2; dz++) {
-      for (let y = c.y; y >= c.y - depth; y--) {
+      for (let y = c.y + (onTop ? 1 : 0); y >= c.y - depth; y--) {
         const p = { x: c.x + dx, y, z: c.z + dz };
         if (!roomAt(dim, p)) continue;
         if (passable(dim, { x: p.x, y: p.y - 1, z: p.z })) continue;
