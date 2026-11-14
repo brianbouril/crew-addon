@@ -203,7 +203,7 @@ export function statusText(e) {
   const en = energy(e);
   const home = getHome(e);
   const homeLine = home ? `Home: the bed at ${fmt(home.head)}${home.chest ? `, chest at ${fmt(home.chest)}` : ", no home chest"}.` : "No home yet (stand by a bed and pick Home, Set home).";
-  return `${line}\nEnergy ${Math.round(en)}% (${energyWord(en)}). ${homeLine}\nHauling ${hauling}/${inv ? inv.size - KIT_SLOTS : 22} stacks. Tools: ${tools}.${torches ? ` Torches: ${torches}.` : ""}`;
+  return `${line}\nEnergy ${Math.round(en)}% (${energyWord(en)}). ${homeLine}\nCarrying ${hauling}/${inv ? inv.size - KIT_SLOTS : 31} stacks. Tools: ${tools}.${torches ? ` Torches: ${torches}.` : ""}`;
 }
 
 /** @param {Container} inv @param {string} id */
@@ -306,7 +306,7 @@ function stepRest(rt) {
       e.setProperty("crew:anim", rt.walk?.path ? 1 : 0);
       if (walkTo(rt, bedside(dim, home), 1.5) !== "arrived") return;
       if (home.chest && inv) {
-        const r = deposit(e, { deposit: { ...home.chest, dim: home.dim, label: "my home chest" } }, inv);
+        const r = deposit(e, { deposit: { ...home.chest, dim: home.dim, label: `my home chest at ${fmt(home.chest)}` } }, inv);
         if (r === "full") emit(e, "deposit_full", { deposit: "home chest" }, "my home chest is full, so I kept the rest.");
       }
       st.phase = "lie_down";

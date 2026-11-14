@@ -3,7 +3,7 @@ import { system, world } from "@minecraft/server";
 import { registerCommands } from "./commands.js";
 import { startEngine } from "./runner.js";
 import { toolSchemas } from "./catalog.js";
-import { STAKE, stakeTap, stakeUse, startOutlines } from "./marker.js";
+import { STAKE, linkWorker, stakeTap, stakeUse, startOutlines } from "./marker.js";
 import { giveHeldTool, giveHeldTorches, openMenu } from "./ui.js";
 import { TORCH } from "./blocks.js";
 import { startWelcome } from "./guide.js";
@@ -27,7 +27,8 @@ world.afterEvents.worldLoad.subscribe(() => {
 /** @param {Promise<any> | void} p */
 const quiet = (p) => p?.catch?.((/** @type {any} */ err) => console.warn(`[Crew] ${err}`));
 
-// Survey Stake on a block: plan a dig, or mark a deposit chest. Cancelled so chests don't open.
+// Survey Stake on a block: a bed (the linked worker's home), a chest (home chest, drop-off or named
+// place), anything else (plan a dig). Cancelled so chests don't open and beds aren't slept in.
 world.beforeEvents.playerInteractWithBlock.subscribe((ev) => {
   if (ev.itemStack?.typeId !== STAKE) return;
   ev.cancel = true;
@@ -56,26 +57,39 @@ function workerInSight(p) {
   }
 }
 
-// Survey Stake in the air: open the current plan. Pointed at a worker, the tap is for the worker
-// instead (crouching opens its menu), so the stake's plan menu doesn't cover the worker's.
+/** Links the stake to a worker, once per tap. @param {import("@minecraft/server").Player} player @param {import("@minecraft/server").Entity} target */
+function stakeLink(player, target) {
+  const t = system.currentTick;
+  if ((lastMenu.get(player.id) ?? -99) >= t - 4) return;
+  lastMenu.set(player.id, t);
+  system.run(() => linkWorker(player, target));
+}
+
+// Survey Stake in the air: the remote (the linked worker's orders, your plan). Pointed at a worker,
+// the tap is for that worker instead: crouching opens its menu, a plain tap links the stake to it.
 world.afterEvents.itemUse.subscribe((ev) => {
   if (ev.itemStack?.typeId !== STAKE) return;
   const w = workerInSight(ev.source);
   if (w) {
     if (ev.source.isSneaking) workerMenu(ev.source, w);
+    else stakeLink(ev.source, w);
     return;
   }
   quiet(stakeUse(ev.source));
 });
 
 // Crouch and use a worker: its menu (whatever is in hand).
-// Plain use while holding a tool: hand the tool to the worker's kit. Holding torches: hand them over.
+// Plain use holding the stake: link the stake to it. Holding a tool: hand it over for the kit.
+// Holding torches: hand them over.
 world.beforeEvents.playerInteractWithEntity.subscribe((ev) => {
   if (ev.target.typeId !== WORKER_TYPE) return;
   const { player, target } = ev;
   if (player.isSneaking) {
     ev.cancel = true;
     workerMenu(player, target);
+  } else if (ev.itemStack?.typeId === STAKE) {
+    ev.cancel = true;
+    stakeLink(player, target);
   } else if (ev.itemStack?.typeId === TORCH) {
     ev.cancel = true;
     system.run(() => giveHeldTorches(player, target));

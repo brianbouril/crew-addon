@@ -80,7 +80,7 @@ export function dispatch(by, order) {
     }
     case "drop_off": {
       const home = getHome(e);
-      const homeChest = home?.chest ? { ...home.chest, dim: home.dim, label: "its home chest" } : undefined;
+      const homeChest = home?.chest ? { ...home.chest, dim: home.dim, label: `its home chest at ${fmt(home.chest)}` } : undefined;
       const dep = p.deposit === undefined ? getJSON(e, "crew:lastDeposit", undefined) ?? homeChest : depositFor(by, p.deposit, e.dimension.id);
       if (!dep) return { ok: false, message: `Where to? ${m.name} hasn't dropped off anywhere yet, so give a place or chest.` };
       if (typeof dep === "string") return { ok: false, message: dep };

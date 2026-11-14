@@ -100,7 +100,7 @@
       },
       "minecraft:inventory": {
         "container_type": "inventory",
-        "inventory_size": 27,
+        "inventory_size": 36,
         "private": true
       },
       "minecraft:breathable": {

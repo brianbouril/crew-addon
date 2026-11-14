@@ -25,9 +25,9 @@ import { DEFAULTS, MAX_SIDE, MAX_TRUNK_WIDTH } from "./catalog.js";
  */
 
 /** @param {Player} p @returns {Commander} */
-const whoIs = (p) => ({ id: p.id, name: p.name, isOp: p.commandPermissionLevel >= CommandPermissionLevel.GameDirectors });
+export const whoIs = (p) => ({ id: p.id, name: p.name, isOp: p.commandPermissionLevel >= CommandPermissionLevel.GameDirectors });
 
-const KEEP_LABELS = ["Valuables only (ores, gems, raw metals)", "Everything", "Nothing (just dig)"];
+const KEEP_LABELS = ["Everything it digs", "Valuables only (ores, gems, raw metals)", "Nothing (just dig)"]; // same order as KEEP
 const PACE_LABELS = ["Normal (tool speed)", "Fast (5x)"];
 
 /**
@@ -47,7 +47,7 @@ export async function openMenu(p, e) {
   const by = whoIs(p);
   const m = meta(e);
   const can = canCommand(by, m), manage = canManage(by, m);
-  const body = `${roleOf(e)}. Owner: ${m.ownerName}.\n${statusText(e)}`;
+  const body = `${roleOf(e)}. Owner: ${m.ownerName}.\n${statusText(e)}${carriedLine(e)}`;
   if (!can) return menu(p, m.name, `${body}\n\nOnly ${m.ownerName} and the players they allow can give ${m.name} orders.`, [["How workers work", () => openGuide(p)], ["Close", () => {}]]);
   /** @type {[string, () => any][]} */
   const b = [];
@@ -102,7 +102,7 @@ async function homeMenu(p, by, e) {
   /** @type {[string, () => any][]} */
   const b = [];
   if (near) b.push([home && sameBed(home, near) ? "This bed is already its home" : "Make the bed next to me its home", () => say(p, dispatch(by, { worker: m.name, job: "set_home", params: { bed: near.head } }))]);
-  else body += "\n\nTo set its home, stand next to a bed and open this menu again.";
+  else body += "\n\nTo set its home, stand next to a bed and open this menu again. Or, from any distance: tap the worker with your Survey Stake to link it, then tap the bed with the stake.";
   if (home) b.push(["Forget its home", () => say(p, dispatch(by, { worker: m.name, job: "clear_home", params: {} }))]);
   b.push(["Back", () => openMenu(p, e)]);
   await menu(p, `${m.name}: home`, body, b);
@@ -120,6 +120,17 @@ function carried(e) {
     out.push({ slot: i, item });
   }
   return out;
+}
+
+/** What it carries, by item, most first: "Carrying: 64 cobblestone, 12 raw iron, ...". @param {Entity} e */
+function carriedLine(e) {
+  /** @type {Record<string, number>} */
+  const n = {};
+  for (const { item } of carried(e)) n[item.typeId] = (n[item.typeId] ?? 0) + item.amount;
+  const list = Object.entries(n).sort((a, b) => b[1] - a[1]);
+  if (!list.length) return "\nCarrying: nothing.";
+  const words = list.slice(0, 6).map(([id, k]) => `${k} ${id.replace("minecraft:", "").replace(/_/g, " ")}`);
+  return `\nCarrying: ${words.join(", ")}${list.length > 6 ? `, and ${list.length - 6} more kinds` : ""}.`;
 }
 
 /** Hands everything the worker carries to the player (what doesn't fit drops at their feet). @param {Player} p @param {Entity} e */
@@ -199,7 +210,7 @@ function depositChoices(p, by, dim) {
 }
 
 /** @param {Player} p @param {Commander} by @param {Entity} e @param {"quarry"|"branch"} mode */
-async function digForm(p, by, e, mode) {
+export async function digForm(p, by, e, mode) {
   const m = meta(e);
   const plan = getPlan(p);
   const label = mode === "quarry" ? "quarry" : "branch mine";

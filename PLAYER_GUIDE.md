@@ -5,7 +5,7 @@ or pick "How workers work" in any worker's menu.
 
 1. [Build a worker](#build-a-worker)
 2. [Talk to your worker](#talk-to-your-worker)
-3. [Plan a dig (Survey Stake)](#plan-a-dig-survey-stake)
+3. [The Survey Stake (your remote)](#the-survey-stake-your-remote)
 4. [Quarry](#quarry)
 5. [Branch mine](#branch-mine)
 6. [Tools and tough blocks](#tools-and-tough-blocks)
@@ -34,6 +34,7 @@ Its name tag shows its name, its job and its best tool.
 - **Crouch and tap it** to open its menu (whatever you're holding).
 - **Tap it holding a tool** to give it that tool (5 at most).
 - **Tap it holding torches** to give it torches.
+- **Tap it holding the Survey Stake** to link the stake to it, so you can give it orders from anywhere.
 
 The menu has the jobs (Quarry, Branch mine), Come here, Stop, Continue, Drop off, Take what it carries, Home (its bed and chest), and Tools (see how worn each tool is).
 
@@ -41,18 +42,25 @@ Owners also get: Name, Role, Who can give orders, and Dismiss.
 
 If it isn't yours and you haven't been allowed, you'll only see what it's doing.
 
-## Plan a dig (Survey Stake)
+## The Survey Stake (your remote)
 
-Get a stake: pick **Get a Survey Stake** in a worker's menu, type **/crew:stake**, or craft one (string on top of two sticks).
+Get one: pick **Get a Survey Stake** in a worker's menu, type **/crew:stake**, or craft one (string on top of two sticks).
 
-1. **Tap a chest** with the stake: that's where the worker drops off what it digs.
-2. **Face the way you want to dig** and tap the ground block where it should start.
-3. Pick Quarry or Branch mine and set the size with the sliders.
-4. A **white outline** shows the plan while you hold the stake (flames point forward).
-5. Tap the same block again and pick **Confirm**. The outline turns green.
-6. Crouch-tap your worker and pick the job. Choose what to bring back and the pace, then Start.
+**Link a worker:** tap one of your workers with the stake. From then on the stake works for that worker, from any distance:
+- **Tap a bed**: make it the worker's home.
+- **Tap a chest**: its home chest, the drop-off for digs you plan, or a named place.
+- **Tap the air**: the worker's orders, your dig plan, or link another worker.
 
-Done with the stake? Every stake menu has **Put the stake away**. Your plan is kept.
+Plan a dig
+1. **Face the way you want to dig** and tap the ground block where it should start.
+2. Pick Quarry or Branch mine and set the size with the sliders.
+3. A **white outline** shows the plan while you hold the stake (flames point forward).
+4. Tap the same block again and pick **Confirm**. The outline turns green.
+5. **Start it with** the linked worker right there, or later from its orders. Choose where it drops off, what to bring back and the pace, then Start.
+
+Done with the stake? Every stake menu has **Put the stake away**. Your plan and link are kept.
+
+A worker far from everyone may be out of reach (its area isn't loaded). Go a bit closer.
 
 ## Quarry
 
@@ -100,7 +108,9 @@ It tells you when it runs out. Torches never go into the chest.
 
 It carries what it digs and **drops it in your chest** when it's full and when it's done.
 
-"Bring back" when you start a job: **Valuables** keeps ores, gems and raw metals and throws away stone and dirt. **Everything** keeps it all. **Nothing** just digs.
+"Bring back" when you start a job: **Everything** (the default) keeps all it digs, like you would. **Valuables** keeps ores, gems and raw metals and throws away stone and dirt. **Nothing** just digs.
+
+It carries 36 slots like you do (its tools take the first 5), and every drop-off message says which chest it used.
 
 Any time, from its menu:
 - **Take what it carries**: straight into your inventory.
@@ -110,7 +120,7 @@ Its tools, torches and food always stay with it.
 
 ## Home, sleep and energy
 
-Workers live by the day, like villagers. **Give yours a home**: stand next to a bed, crouch-tap the worker, pick **Home**, then **Make the bed next to me its home**. One worker per bed. The nearest chest or barrel (within 8 blocks) becomes its **home chest**.
+Workers live by the day, like villagers. **Give yours a home**: with the Survey Stake linked to it, tap a bed (from any distance). Or stand next to a bed, crouch-tap the worker, pick **Home**, then **Make the bed next to me its home**. One worker per bed. The nearest chest or barrel (within 8 blocks) becomes its **home chest**; tap another chest with the stake to change it.
 
 - **At dusk** it pauses its job, walks home, drops off what it dug in the home chest and goes to bed.
 - **In the morning** it takes torches, food and spare tools from the home chest and goes back to its job where it left off.

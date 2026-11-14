@@ -3,7 +3,8 @@
 import { FACINGS, branchGeom, quarryFromBox } from "./plans.js";
 
 export const MAX_SIDE = 128;
-export const KEEP = ["valuables", "all", "nothing"];
+/** What to bring back. "all" (the default) keeps everything it digs, like a player picking up drops. */
+export const KEEP = ["all", "valuables", "nothing"];
 export const PACE = ["normal", "fast"];
 export const DEFAULTS = { trunk: 32, branch: 32, spacing: 2, targetY: -54, width: 2 };
 export const MAX_TRUNK_WIDTH = 4;
@@ -21,7 +22,7 @@ export const JOBS = {
       to: { type: "vec3", required: true, description: "The opposite corner (block coordinates)." },
       facing: { type: "enum", values: FACINGS, default: "east", description: "Which way the staircase starts along the wall from its top corner." },
       deposit: { type: "place", required: true, description: "A saved place name (e.g. 'blue base') or the coordinates of a chest or barrel." },
-      keep: { type: "enum", values: KEEP, default: "valuables", description: "What to bring back. 'valuables' keeps ores, gems and raw metals and voids the rest." },
+      keep: { type: "enum", values: KEEP, default: "all", description: "What to bring back. 'all' keeps everything it digs; 'valuables' keeps ores, gems and raw metals and throws the rest away; 'nothing' just digs." },
       pace: { type: "enum", values: PACE, default: "normal", description: "normal = tool speed (about 2 to 7 blocks a second), fast = five times faster." },
     },
   },
@@ -37,7 +38,7 @@ export const JOBS = {
       branch_length: { type: "int", min: 0, max: MAX_SIDE, default: DEFAULTS.branch, description: "Length of each branch in blocks (0 = trunk only)." },
       spacing: { type: "int", min: 1, max: 16, default: DEFAULTS.spacing, description: "Solid blocks left between neighbouring branches." },
       deposit: { type: "place", required: true, description: "A saved place name or the coordinates of a chest or barrel." },
-      keep: { type: "enum", values: KEEP, default: "valuables", description: "What to bring back." },
+      keep: { type: "enum", values: KEEP, default: "all", description: "What to bring back: all (default), valuables, or nothing." },
       pace: { type: "enum", values: PACE, default: "normal", description: "normal or fast." },
     },
   },

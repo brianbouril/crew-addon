@@ -41,6 +41,8 @@ or decides block logic; it only picks jobs and fills parameters.
 | 20 | Branch mine `trunk_width` 1-4 (default 2); extra lanes go to the right of the stairs. Trunk torch spacing tightens with width (12/10/8/6) | Brian, Nov 12 |
 | 22 | Stopping (or Drop off / Come here) keeps an unfinished quarry or branch mine as paused (`crew:paused`, with its step and queue); "Continue" in the menu, `/crew:continue` or the `resume` job picks it up where it left off. A new dig order replaces it | Brian, Nov 12: "restart from the start" was the only option |
 | 23 | v0.4 living workers: a home (claimed bed, one worker per bed, + home chest within 8), dusk-to-dawn sleep (dig paused and auto-resumed), energy drained by digging and restored by sleep and optional food, morning restock of torches, food and tools from the home chest; no home = sleep rough in place | Brian, Nov 13 roadmap |
+| 24 | The Survey Stake is the remote: tap a worker to link it (`crew:linked` on the player); then a bed = its home (any distance), a chest = home chest / drop-off / named place, the ground = plan a dig (offers to start it with the linked worker), the air = its orders, your plan, link another. Works while the worker's area is loaded | Brian, Nov 13: setting a far bed meant standing by it with the worker's menu open; asked for one device to manage workers |
+| 25 | Workers keep everything they dig by default (`keep` default `all`), with 36 inventory slots like a player (kit in 0-4); night is dusk 12000 to dawn 23000 | Brian, Nov 13: chest looked empty; worker went to bed at dawn |
 | 21 | Every Survey Stake menu has "Put the stake away" (removes it from the inventory; the plan is kept). The worker menu has "Get a Survey Stake" (and the "no plan yet" message offers one); only one per player, `/crew:stake` follows the same rule | Brian, Nov 12 |
 
 ## What v0.2 does (state at hand-off, Nov 13 2026)
@@ -50,7 +52,7 @@ or decides block logic; it only picks jobs and fills parameters.
   `set_home`, `clear_home`; plus the internal `rest` job the routine starts at dusk or when worn out.
 - `/reload` only reloads scripts. Changes to the model, textures or `entities/worker.json` need the
   world closed and reopened (safest: quit Minecraft fully and restart).
-- Kit in worker slots 0-4, hauling in 5-26. Deterministic Unbreaking (wear every N+1 uses); warns at 10%.
+- Kit in worker slots 0-4, carrying in 5-35 (36 slots, like a player). Deterministic Unbreaking (wear every N+1 uses); warns at 10%.
 - Skipped blocks go to the `crew:skipped` dynamic property and the status text; branch U-detour.
 - Crouch menu (`ui.js openMenu`), tap-to-give (`ui.js giveHeldTool`, wired in `main.js`), stake planner
   (`marker.js`), A* walking (`path.js`), moving ticking area per working worker.
@@ -63,8 +65,10 @@ or decides block logic; it only picks jobs and fills parameters.
   plan menu (`main.js` now routes it to the worker).
 - **Added Nov 12 after that test, mock-tested only:** decisions 12, 14-21 (villager model and skins,
   standing/no-clipping movement, ore veins + backfill, torches, take/drop off, `drop_off` job).
-- **v0.4 home and routine (Nov 13), mock-tested only** (`tools/sim/life_test.mjs`): see decision 23 and
-  the Roadmap's v0.4 notes.
+- **v0.4 home and routine (Nov 13)** (`tools/sim/life_test.mjs`): see decision 23 and the Roadmap's v0.4
+  notes. First in-game run (Nov 13): going home, unloading, sleeping and resuming all worked per the
+  log; fixed after it: bed at dawn, setting far beds (stake remote, decision 24), keep-all inventory
+  (decision 25). Still unconfirmed in game: the sleep pose (Brian saw it "just stand there").
 - **Not yet tested in game:** the Nov 12 additions, v0.4, and anything on BDS. Likely first fixes: forms and sliders, particle
   outline, the `minecraft:interact` filters (`has_equipment` per tool id), model and animation,
   chat text, scripted gliding movement.

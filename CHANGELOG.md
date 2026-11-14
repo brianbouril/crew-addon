@@ -5,6 +5,14 @@ turns it into that version's section.
 
 ## Unreleased
 
+**From the first in-game test of v0.4**
+- The Survey Stake is now a remote: tap a worker to link it, then tap a bed (its home, from any
+  distance), a chest (home chest, drop-off or named place), the ground (plan a dig, then start it
+  with that worker) or the air (its orders, your plan, link another worker).
+- Dawn (time 23000) counts as morning: workers no longer go to bed at sunrise, and get up then.
+- Workers keep everything they dig by default, with 36 inventory slots like a player; drop-off
+  messages name the chest's position; the menu lists what a worker is carrying.
+
 **Living workers (v0.4 plan): home and daily routine**
 - A home: a claimed bed (one worker per bed) and a home chest, set from the worker's Home menu.
 - Workers sleep from dusk to dawn: the dig pauses, they walk home, unload and sleep, then restock

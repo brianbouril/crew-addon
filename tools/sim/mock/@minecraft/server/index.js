@@ -51,7 +51,7 @@ class Dimension {
 }
 let nextId = 1;
 class Entity {
-  constructor(typeId, loc, dim) { this.typeId = typeId; this.location = { ...loc }; this.dimension = dim; this.id = String(nextId++); this.isValid = true; this.props = new Map(); this.inv = new Container(27); this.nameTag = ""; this.events = []; this.anim = 0; }
+  constructor(typeId, loc, dim) { this.typeId = typeId; this.location = { ...loc }; this.dimension = dim; this.id = String(nextId++); this.isValid = true; this.props = new Map(); this.inv = new Container(36); this.nameTag = ""; this.events = []; this.anim = 0; }
   getDynamicProperty(k) { return this.props.get(k); }
   setDynamicProperty(k, v) { if (v === undefined) this.props.delete(k); else this.props.set(k, v); }
   getComponent(n) { return n === "minecraft:inventory" ? { container: this.inv } : undefined; }

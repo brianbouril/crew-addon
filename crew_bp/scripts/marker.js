@@ -9,6 +9,12 @@ import { arrow, branchGeom, facingFromYaw, outline, quarryGeom } from "./plans.j
 import { dist, fmt, getJSON, sameV, setJSON, tell } from "./util.js";
 import { show } from "./forms.js";
 import { PAGES, openGuide } from "./guide.js";
+import { canCommand, loadedWorkers, meta } from "./workers.js";
+import { digForm, openMenu, whoIs } from "./ui.js";
+import { dispatch } from "./orders.js";
+import { bedAt, bedSafety, chestNear, getHome } from "./life.js";
+import { savePlace } from "./store.js";
+import { statusText } from "./runner.js";
 
 export const STAKE = "crew:survey_stake";
 
@@ -47,16 +53,100 @@ export function updatePlan(p, change) {
   if (plan) savePlan(p, { ...plan, ...change });
 }
 
+// ---------- the linked worker: the stake works as a remote for one worker at a time ----------
+/** The worker this player's stake is linked to, if it's loaded. @param {import("@minecraft/server").Player} p */
+export function linkedWorker(p) {
+  const id = p.getDynamicProperty("crew:linked");
+  return typeof id === "string" ? loadedWorkers().find((w) => w.id === id) : undefined;
+}
+/** @param {import("@minecraft/server").Player} p */
+const linkedName = (p) => {
+  const n = p.getDynamicProperty("crew:linkedName");
+  return typeof n === "string" ? n : undefined;
+};
+
+/** Links the stake to a worker the player can give orders to. @param {import("@minecraft/server").Player} p @param {import("@minecraft/server").Entity} e */
+export function linkWorker(p, e) {
+  const m = meta(e);
+  if (!canCommand(whoIs(p), m)) {
+    tell(p, `§c${m.name} only takes orders from ${m.ownerName} and the players they allow.`);
+    return;
+  }
+  p.setDynamicProperty("crew:linked", e.id);
+  p.setDynamicProperty("crew:linkedName", m.name);
+  tell(p, `Your Survey Stake is linked to §b${m.name}§r. With it: tap a bed to make it ${m.name}'s home, tap a chest for its home chest or a drop-off, tap the ground to plan a dig, and tap the air for ${m.name}'s orders from anywhere.`);
+}
+
+/** Bed tapped with the stake: make it the linked worker's home, from any distance. @param {import("@minecraft/server").Player} p @param {import("@minecraft/server").Block} block */
+async function bedTapped(p, block) {
+  const e = linkedWorker(p);
+  if (!e) return notLinked(p, "make this bed a worker's home");
+  const m = meta(e);
+  const bed = bedAt(block.dimension, block.location);
+  if (!bed) return;
+  const home = { dim: block.dimension.id, head: bed.head, foot: bed.foot };
+  const s = bedSafety(block.dimension, home);
+  const chest = chestNear(block.dimension, bed.head, 8);
+  const f = new ActionFormData().title(`${m.name}'s home?`)
+    .body(`Make this bed ${m.name}'s home? ${s.safe ? "It's a safe bed." : `It isn't safe: ${s.why}, so ${m.name} would sleep badly.`}\n\n${chest ? `The chest at ${fmt(chest)} would be its home chest (tap another chest with the stake to change it).` : "There's no chest within 8 blocks, so it would have no home chest yet."}`)
+    .button("Yes, this is its home").button("Cancel");
+  const r = await show(p, f);
+  if (r?.selection === 0) say(p, dispatch(whoIs(p), { worker: m.name, job: "set_home", params: { bed: bed.head } }));
+}
+
 /**
- * Stake used on a block.
+ * Chest or barrel tapped with the stake: the linked worker's home chest, the drop-off for digs you
+ * plan, or a named place workers understand.
+ * @param {import("@minecraft/server").Player} p @param {import("@minecraft/server").Block} block
+ */
+async function chestTapped(p, block) {
+  const e = linkedWorker(p);
+  const loc = { ...block.location };
+  const what = block.typeId.replace("minecraft:", "").replace(/_/g, " ");
+  /** @type {[string, () => any][]} */
+  const b = [];
+  if (e) b.push([`Make it ${meta(e).name}'s home chest`, () => {
+    const m = meta(e);
+    const home = getHome(e);
+    if (!home) return tell(p, `§c${m.name} has no bed yet. Tap its bed with the stake first, then this chest.`);
+    say(p, dispatch(whoIs(p), { worker: m.name, job: "set_home", params: { bed: home.head, chest: loc } }));
+  }]);
+  b.push(["Drop-off for digs I plan", () => {
+    p.setDynamicProperty("crew:deposit", loc);
+    tell(p, `Digs you start will drop off at the ${what} at ${fmt(loc)}.`);
+  }]);
+  b.push(["Save it as a named place", async () => {
+    const f = new ModalFormData().title(`Name this ${what}`).textField("Name (for example: blue base)", "blue base").toggle("Let everyone's workers use it", { defaultValue: false }).submitButton("Save");
+    const r = await show(p, f);
+    const name = String(r?.formValues?.[0] ?? "").trim();
+    if (!name) return;
+    savePlace(whoIs(p), name, block.dimension.id, loc, !!r?.formValues?.[1]);
+    tell(p, `Saved '${name}' at ${fmt(loc)}. Workers can drop off there by that name.`);
+  }]);
+  b.push(["Cancel", () => {}]);
+  const f = new ActionFormData().title(`This ${what}`).body(`The ${what} at ${fmt(loc)}.${e ? "" : "\n\nTap one of your workers with the stake to link it; then this chest can be its home chest."}`);
+  for (const [label] of b) f.button(label);
+  const r = await show(p, f);
+  if (r?.selection !== undefined) await b[r.selection]?.[1]();
+}
+
+/** @param {import("@minecraft/server").Player} p @param {string} doWhat */
+function notLinked(p, doWhat) {
+  const name = linkedName(p);
+  tell(p, name ? `§c${name} is too far away right now (its area isn't loaded). Go closer, then try again.` : `To ${doWhat}, first tap one of your workers with the Survey Stake to link it.`);
+}
+
+/** @param {import("@minecraft/server").Player} p @param {{ok: boolean, message: string}} r */
+const say = (p, r) => tell(p, r.ok ? r.message : `§c${r.message}`);
+
+/**
+ * Stake used on a block: a bed sets the linked worker's home, a chest or barrel its home chest
+ * or a drop-off, anything else starts (or opens) a dig plan.
  * @param {import("@minecraft/server").Player} p @param {import("@minecraft/server").Block} block
  */
 export async function stakeTap(p, block) {
-  if (block.getComponent("minecraft:inventory")) {
-    p.setDynamicProperty("crew:deposit", block.location);
-    tell(p, `Deposit set to the ${block.typeId.replace("minecraft:", "")} at ${fmt(block.location)}. To give it a name workers understand, look at it and run /crew:place "name".`);
-    return;
-  }
+  if (block.typeId === "minecraft:bed") return bedTapped(p, block);
+  if (block.getComponent("minecraft:inventory")) return chestTapped(p, block);
   const plan = getPlan(p);
   if (plan && plan.dim === block.dimension.id && sameV(plan.anchor, block.location)) return planActions(p);
   const facing = facingFromYaw(p.getRotation().y);
@@ -76,15 +166,39 @@ export async function stakeTap(p, block) {
   tell(p, `${planText(next)}\nThe outline shows while you hold the stake. Use the stake on the same block again to confirm or change it.`);
 }
 
-/** Stake used in the air. @param {import("@minecraft/server").Player} p */
+/**
+ * Stake used in the air: the remote. The linked worker's orders (from any distance, while its
+ * area is loaded), your dig plan, switching to another worker, putting the stake away, the guide.
+ * @param {import("@minecraft/server").Player} p
+ */
 export async function stakeUse(p) {
-  if (getPlan(p)) return planActions(p);
-  const f = new ActionFormData().title("Survey Stake")
-    .body("Use the stake on the ground block where a dig should start, facing the way it should go. Use it on a chest or barrel to mark the drop-off.")
-    .button("OK").button("Put the stake away").button("How to plan a dig");
+  const e = linkedWorker(p);
+  const name = linkedName(p);
+  const plan = getPlan(p);
+  let body = e ? `Linked to §b${meta(e).name}§r: ${statusText(e).split("\n")[0]}` : name ? `Linked to ${name}, but it's too far away right now (its area isn't loaded).` : "Not linked to a worker yet: tap one of your workers with the stake.";
+  body += "\n\nWith the stake: tap a bed to set the linked worker's home, a chest for its home chest or a drop-off, the ground to plan a dig.";
+  /** @type {[string, () => any][]} */
+  const b = [];
+  if (e) b.push([`${meta(e).name}'s orders`, () => openMenu(p, e)]);
+  if (plan) b.push([plan.confirmed ? "Your dig plan (confirmed)" : "Your dig plan", () => planActions(p)]);
+  b.push([e || name ? "Link another worker" : "Link a worker", () => pickWorker(p)]);
+  b.push(["Put the stake away", () => putAway(p)]);
+  b.push(["How to use the stake", () => openGuide(p, PAGES.findIndex((pg) => pg.title.startsWith("The Survey Stake")))]);
+  const f = new ActionFormData().title("Survey Stake").body(body);
+  for (const [label] of b) f.button(label);
   const r = await show(p, f);
-  if (r?.selection === 1) putAway(p);
-  if (r?.selection === 2) await openGuide(p, PAGES.findIndex((pg) => pg.title.startsWith("Plan a dig")));
+  if (r?.selection !== undefined) await b[r.selection]?.[1]();
+}
+
+/** Pick a worker to link from the ones you can give orders to (loaded ones). @param {import("@minecraft/server").Player} p */
+async function pickWorker(p) {
+  const by = whoIs(p);
+  const mine = loadedWorkers().filter((w) => canCommand(by, meta(w)));
+  if (!mine.length) return tell(p, "None of your workers are nearby enough to link from here. Tap one with the stake to link it.");
+  const f = new ActionFormData().title("Link a worker").body("The stake then works as a remote for that worker.");
+  for (const w of mine) f.button(`${meta(w).name}\n§8${statusText(w).split("\n")[0].slice(0, 48)}`);
+  const r = await show(p, f);
+  if (r?.selection !== undefined && mine[r.selection]) linkWorker(p, mine[r.selection]);
 }
 
 /** @param {import("@minecraft/server").Player} p */
@@ -127,10 +241,17 @@ async function planActions(p) {
   if (!r || r.selection === undefined) return;
   const next = { ...plan, confirmed: false };
   switch (r.selection) {
-    case 0:
+    case 0: {
       savePlan(p, { ...plan, confirmed: true });
-      tell(p, `Plan confirmed. Crouch and use a worker, then pick ${plan.mode === "quarry" ? "Quarry" : "Branch mine"}.`);
+      const e = linkedWorker(p);
+      if (e) {
+        const m = meta(e);
+        const go = await show(p, new ActionFormData().title("Plan confirmed").body(`Start this ${plan.mode === "quarry" ? "quarry" : "branch mine"} with ${m.name} now?`).button(`Start it with ${m.name}`).button("Not yet"));
+        if (go?.selection === 0) return digForm(p, whoIs(p), e, plan.mode);
+      }
+      tell(p, `Plan confirmed. ${e ? `Tap the air with the stake for ${meta(e).name}'s orders` : "Crouch and use a worker"}, then pick ${plan.mode === "quarry" ? "Quarry" : "Branch mine"}.`);
       return;
+    }
     case 1:
       if (!(await sizeForm(p, next))) return;
       break;

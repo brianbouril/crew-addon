@@ -70,12 +70,25 @@ setTimeOfDay(0);
 run(() => JSON.parse(e2.getDynamicProperty("crew:job") ?? "null")?.type === "quarry", 400);
 const homeless = { sleptWhereItStood: Math.hypot(roughAt.x - 701, roughAt.z - 701) < 4, quality: "rough", energyAfter: Math.round(energy(e2)), backToWork: JSON.parse(e2.getDynamicProperty("crew:job") ?? "null")?.type };
 
+// dawn counts as morning: an idle worker with a home doesn't go to bed at 23000, and one asleep gets up
+stopIfBusy(e);
+setTimeOfDay(23000);
+run(() => false, 60);
+const dawnIdle = JSON.parse(e.getDynamicProperty("crew:job") ?? "null")?.type ?? "idle";
+setTimeOfDay(14000);
+run(() => JSON.parse(e.getDynamicProperty("crew:state") ?? "{}").phase === "asleep", 3000);
+const asleepAtNight = JSON.parse(e.getDynamicProperty("crew:state") ?? "{}").phase;
+setTimeOfDay(23100);
+run(() => !e.getDynamicProperty("crew:job"), 200);
+const dawn = { idleWorkerAt23000: dawnIdle, asleepAtNight, upAtDawn: !e.getDynamicProperty("crew:job") };
+function stopIfBusy(w) { if (w.getDynamicProperty("crew:job")) dispatch(by, { worker: "Bea", job: "stop", params: {} }); }
+
 // a bed with no roof is unsafe
 const { e: e3 } = spawnWorker(ow, { x: 641.5, y: 65, z: 603.5 }, { id: "p1", name: "Brian" }, "Fern", [new ItemStack("minecraft:stone_pickaxe")]);
 const openBed = dispatch(by, { worker: "Fern", job: "set_home", params: { bed: [640, 65, 600] } });
 const taken = dispatch(by, { worker: "Fern", job: "set_home", params: { bed: [600, 65, 601] } });
 
 console.log = out;
-console.log(JSON.stringify({ setHome: home.message, dugBeforeNight, night, morning, lunch, finished, homeless, openBed: openBed.message, bedTaken: taken.message,
+console.log(JSON.stringify({ setHome: home.message, dugBeforeNight, night, morning, lunch, finished, homeless, dawn, inventorySlots: e.inv.size, openBed: openBed.message, bedTaken: taken.message,
   shortcutsTaken: logs.filter((l) => l.includes('"stuck"')).length }, null, 1));
 console.log(logs.filter((l) => /"rest"|woke|tired|unsafe_bed|stuck|WARN|failed/.test(l)).join("\n"));

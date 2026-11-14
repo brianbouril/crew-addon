@@ -10,10 +10,15 @@ import { getJSON, setJSON } from "./util.js";
 /** @typedef {{dim: string, head: V3, foot: V3, chest?: V3}} Home */
 
 // ---------- the day clock ----------
-/** Time of day (0 = sunrise) when workers head home. Night lasts until the next sunrise. */
+/** Time of day when workers head home (sunset; 0 is morning, 6000 noon). */
 export const DUSK = 12000;
-/** Read fresh every time, so a skipped night or a restart needs no bookkeeping. */
-export const isNight = () => world.getTimeOfDay() >= DUSK;
+/** Dawn: the sun starts to rise and workers get up (villagers do too). */
+export const DAWN = 23000;
+/** Night = dusk until dawn. Read fresh every time, so a skipped night or a restart needs no bookkeeping. */
+export const isNight = () => {
+  const t = world.getTimeOfDay();
+  return t >= DUSK && t < DAWN;
+};
 
 // ---------- energy ----------
 export const ENERGY_MAX = 100;
