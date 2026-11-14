@@ -234,6 +234,16 @@ can't hurt workers yet**; Quarry and Branch mine stay as precise jobs.
   with onTop) can be on the far side of a stair. Fix: walk there by A* (never through), add a
   line-of-sight check to reach, and a mock test with a restarted quarry that checks the worker is
   never inside a solid block on any tick.
+- [ ] **"Use the fastest tool" option** (Brian, Nov 14): a per-worker setting in its Tools menu,
+  saved on the worker: **Save my best tools** (today: lowest tier that harvests, most worn first;
+  the default) or **Use the fastest tool** (highest tier of the right kind, then most worn). Applies
+  to every job; `chooseTool` takes the preference. Shown in the status. Mock test: with stone +
+  diamond pickaxes, stone is dug with diamond only under "fastest".
+- [ ] **Remove the Fast pace** (Brian, Nov 14): the 5x "Fast" pace was for early testing. Take it
+  out of the start menus, `/crew:mine` and `/crew:minebox`, the catalog (`pace` param) and the
+  guide; workers always dig at player speed (old saved jobs with pace "fast" just run normal).
+  Keep a speed-up only inside the mock tests (a test-only setting, not an order param), so the
+  tests stay quick. Update decision 13 in CLAUDE.md (it says fast pace is open to everyone).
 
 ### v0.3 Better digging (released in 0.4.0)
 Villager-style model with a skin per role; tool in hand; digs one block at a time; no hovering or
