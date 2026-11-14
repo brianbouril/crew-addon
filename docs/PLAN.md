@@ -211,6 +211,16 @@ can't hurt workers yet**; Quarry and Branch mine stay as precise jobs.
 - [x] **Out of tools, fetch from a chest** (Brian, Nov 14): it waited at the drop-off and stood on
   the chest, ignoring a pickaxe put in its home chest. Now it takes a tool from the chest it waits at
   or walks to its home chest for one, then goes back to work; chest walks end beside the chest.
+- [x] **Quarry "Clear above"** (Brian, Nov 14; works in game): clears hills and trees over the box
+  first, so nothing floats. Decision 26.
+- [x] **Restarted quarry retraced its steps** (Brian, Nov 14): already-dug cells are skipped without
+  walking to them (`restart_test`).
+- [ ] **Talk to a sleeping worker** (Brian, Nov 14): crouch-tapping a worker asleep in bed (or
+  sleeping rough) must still open its menu, and Stop / Come here / jobs must work from it (waking
+  it). Check first in game what happens now: while lying down its hitbox may sit inside the bed,
+  so the tap lands on the bed (cancel the bed use, or route a crouch-tap on its claimed bed to the
+  worker), and whether the sleep pose changes where the tap registers. The status should say it's
+  asleep and when it'll get up.
 
 ### v0.3 Better digging (released in 0.4.0)
 Villager-style model with a skin per role; tool in hand; digs one block at a time; no hovering or
