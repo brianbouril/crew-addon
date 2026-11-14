@@ -10,6 +10,7 @@ turns it into that version's section.
   distance), a chest (home chest, drop-off or named place), the ground (plan a dig, then start it
   with that worker) or the air (its orders, your plan, link another worker).
 - Dawn (time 23000) counts as morning: workers no longer go to bed at sunrise, and get up then.
+- Idle workers with no home now lie down where they are at night, instead of standing all night.
 - Workers keep everything they dig by default, with 36 inventory slots like a player; drop-off
   messages name the chest's position; the menu lists what a worker is carrying.
 

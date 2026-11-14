@@ -252,8 +252,8 @@ export function startEngine() {
 
 // ---------- the daily routine ----------
 /**
- * Once a second: at night, a worker that is digging (or idle with a home) goes home to sleep; the
- * dig is paused and picked back up at dawn. Jobs a player gave directly (come here, drop off) are
+ * Once a second: at night, a worker that is digging or idle goes home to sleep (no home: it lies
+ * down where it is); the dig is paused and picked back up at dawn. Jobs a player gave directly (come here, drop off) are
  * left to finish first. Idle workers slowly get their energy back.
  */
 function routine() {
@@ -264,7 +264,7 @@ function routine() {
       if (job?.type === "rest") continue;
       if (!job) setEnergy(e, energy(e) + 0.1);
       if (!night) continue;
-      if (isDig(job) || (!job && getHome(e))) startRest(e, "night");
+      if (isDig(job) || !job) startRest(e, "night");
     } catch (err) {
       console.warn(`[Crew] routine: ${err}`);
     }
