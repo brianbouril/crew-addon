@@ -215,8 +215,12 @@ export async function digForm(p, by, e, mode) {
   const plan = getPlan(p);
   const label = mode === "quarry" ? "quarry" : "branch mine";
   if (!plan || plan.mode !== mode || !plan.confirmed) {
-    const why = plan && plan.mode === mode ? "Your plan isn't confirmed yet: use the Survey Stake on its start block again and pick Confirm." :
-      `No ${label} planned yet. With a Survey Stake, use it on the ground block where the ${label} should start while facing the way it should go, pick ${mode === "quarry" ? "Quarry" : "Branch mine"}, check the outline, then use it on the same block again to confirm.`;
+    if (plan && plan.mode === mode) {
+      // planned but not confirmed: confirm it right here instead of sending them back to the stake
+      return menu(p, `${m.name}: ${label}`, `${planText(plan)}\n\nThis plan isn't confirmed yet. Did you check its outline?`,
+        [["Confirm it and go on", () => { updatePlan(p, { confirmed: true }); return digForm(p, by, e, mode); }], ["Not yet", () => {}]]);
+    }
+    const why = `No ${label} planned yet. With a Survey Stake, tap the ground block where the ${label} should start while facing the way it should go, pick ${mode === "quarry" ? "Quarry" : "Branch mine"}, check the outline, then tap with the stake again and pick Confirm.`;
     /** @type {[string, () => any][]} */
     const buttons = hasStake(p) ? [["OK", () => {}]] : [["Give me a Survey Stake", () => tell(p, giveStake(p))], ["OK", () => {}]];
     return menu(p, `${m.name}: ${label}`, why, buttons);

@@ -21,7 +21,7 @@ import { DRAIN_PER_BLOCK, EXHAUSTED, REST, TIRED, TIRED_SLOWDOWN, bedPose, bedSa
 /** @type {Map<string, Runtime>} */
 const active = new Map();
 const SEARCH_BUDGET = 150; // A* expansions per worker per tick
-const MOVE_TICKS = { normal: 4, fast: 2 }; // ticks to step one block when not digging
+const MOVE_TICKS = { normal: 7, fast: 3 }; // ticks to step one block (normal: about a villager's walk, under 3 blocks a second)
 const SKIP_LOG_MAX = 100;
 const REACH_DOWN = 4; // a worker can dig up to this many blocks above where it stands
 const VEIN_MAX = 32; // ore blocks taken out of the walls per tunnel step
@@ -79,6 +79,14 @@ function glideMid(from, to) {
   if (Math.abs(to.y - from.y) < 0.01) return undefined;
   return to.y < from.y ? { x: to.x, y: from.y, z: to.z } : { x: from.x, y: to.y, z: from.z };
 }
+/**
+ * Eases a step in and out, so the worker slows down before it stops instead of halting at full
+ * speed (the game overshoots a sudden stop and snaps back, which looked like bumping the block).
+ * @param {number} t 0..1
+ */
+const ease = (t) => t * t * (3 - 2 * t);
+/** Eases only the end of a step (the last step of a walk). @param {number} t 0..1 */
+const easeOut = (t) => 1 - (1 - t) * (1 - t);
 /** @param {{from: V3, to: V3, mid?: V3}} m @param {number} t 0..1 */
 function glideAt(m, t) {
   if (!m.mid) return lerp(m.from, m.to, t);
@@ -531,7 +539,7 @@ function work(rt, inv) {
     st.cool--;
     if (st.move) {
       const t = 1 - st.cool / st.move.n;
-      e.teleport(glideAt(st.move, t), st.move.face ? { facingLocation: st.move.face } : undefined);
+      e.teleport(glideAt(st.move, ease(t)), st.move.face ? { facingLocation: st.move.face } : undefined);
     }
     return;
   }
@@ -603,9 +611,27 @@ function work(rt, inv) {
     st.vn = 0;
   }
 
-  // the next block in the queue: one per beat, at the speed of the tool it uses
+  // the next block in the queue, like a player: face it and swing for as long as it takes to
+  // break (tool speed against the block's hardness), then it breaks, then the next one
   while (st.q?.length) {
     const c = st.q[0];
+    if (!c.s) {
+      const pv = mineCell(rt, c, inv, k, true);
+      if (pv.res === "unloaded") {
+        st.wait = "chunk not loaded";
+        return;
+      }
+      if (pv.res === "wait") return needTool(rt, "pickaxe");
+      st.wait = undefined;
+      if (pv.res === "air" || pv.res === "left") {
+        st.q.shift(); // nothing to break there: straight on to the next
+        continue;
+      }
+      c.s = 1;
+      swingAt(rt, c, pv);
+      st.cool = Math.max(0, pv.ticks - 1);
+      if (st.cool > 0) return;
+    }
     const r = mineCell(rt, c, inv, k);
     if (r.res === "unloaded") {
       st.wait = "chunk not loaded";
@@ -614,7 +640,7 @@ function work(rt, inv) {
     if (r.res === "wait") return needTool(rt, "pickaxe");
     st.q.shift();
     st.wait = undefined;
-    if (r.res === "air" || r.res === "left") continue; // nothing to break there: straight on to the next
+    if (r.res === "air" || r.res === "left") continue; // changed while it swung: on to the next
     st.grav ||= r.grav;
     if (c.v) {
       // ore from the wall: fill the hole back in and follow the vein
@@ -624,13 +650,8 @@ function work(rt, inv) {
       st.vn = (st.vn ?? 0) + 1;
       lookForOre(rt, c);
     }
-    swingAt(rt, c, r);
-    st.cool = r.ticks;
-    if (r.res === "broke" && !kit(inv).length) {
-      st.cool = 0;
-      return needTool(rt, "tool");
-    }
-    return;
+    if (r.res === "broke" && !kit(inv).length) return needTool(rt, "tool");
+    return; // the next block starts on the next tick
   }
 
   if (st.stage === 1) {
@@ -853,11 +874,12 @@ function placeTorch(rt, inv, c) {
 }
 
 /**
- * Breaks one block with the best tool in the kit.
- * @param {Runtime} rt @param {V3} c @param {Container} inv @param {import("./tools.js").KitEntry[]} k
+ * Breaks one block with the best tool in the kit. With `dry`, only works out what it would do
+ * (and how many ticks it takes) without breaking anything.
+ * @param {Runtime} rt @param {V3} c @param {Container} inv @param {import("./tools.js").KitEntry[]} k @param {boolean} [dry]
  * @returns {{res: "air"|"mined"|"left"|"broke"|"wait"|"unloaded", ticks: number, grav: boolean, tool?: string, id?: string}}
  */
-function mineCell(rt, c, inv, k) {
+function mineCell(rt, c, inv, k, dry) {
   const { e, job, st } = rt;
   const dim = e.dimension;
   const block = dim.getBlock(c);
@@ -888,11 +910,14 @@ function mineCell(rt, c, inv, k) {
     logSkip(rt, id, c, choice.need);
     return { res: "left", ...no };
   }
-  if (sign) noteFind(rt, sign, c);
   const tool = choice.use === "tool" ? choice.tool : undefined;
   // a tired worker digs slower; every block it breaks tires it a little
   const tired = energy(e) < TIRED;
-  const ticks = tired ? Math.round(ticksFor(tool, inv, job.pace) * TIRED_SLOWDOWN) : ticksFor(tool, inv, job.pace);
+  const base = ticksFor(tool, inv, job.pace, id);
+  const ticks = tired ? Math.round(base * TIRED_SLOWDOWN) : base;
+  // first look: how long it takes and with what, so it can swing that long before the block breaks
+  if (dry) return { res: "mined", ticks, grav: false, tool: tool?.info.id, id };
+  if (sign) noteFind(rt, sign, c);
   setEnergy(e, energy(e) - DRAIN_PER_BLOCK);
   const item = tool ? inv.getItem(tool.slot) : undefined;
   lootMgr ??= world.getLootTableManager();
@@ -1054,7 +1079,8 @@ function walkTo(rt, goal, reach) {
     w.glide.t++;
     const to = w.glide.to;
     const flat = Math.abs(to.x - w.glide.from.x) + Math.abs(to.z - w.glide.from.z) > 0.01;
-    e.teleport(glideAt(w.glide, w.glide.t / w.glide.n), flat ? { facingLocation: { x: to.x + (to.x - w.glide.from.x), y: to.y + 0.5, z: to.z + (to.z - w.glide.from.z) } } : undefined);
+    const t = w.glide.t / w.glide.n;
+    e.teleport(glideAt(w.glide, w.glide.last ? easeOut(t) : t), flat ? { facingLocation: { x: to.x + (to.x - w.glide.from.x), y: to.y + 0.5, z: to.z + (to.z - w.glide.from.z) } } : undefined);
     if (w.glide.t >= w.glide.n) w.glide = undefined;
     return "moving";
   }
@@ -1086,8 +1112,10 @@ function walkTo(rt, goal, reach) {
   const cur = floorV(e.location);
   const dy = next.y - cur.y;
   const to = center(next);
-  w.glide = { from: e.location, to, mid: glideMid(e.location, to), t: 0, n: dy > 0 ? 6 : dy < 0 ? 3 + -dy : 4 };
   w.idx++;
+  const last = w.idx >= path.length;
+  // about a villager's walking pace; a little slower up a step and on the last step (to stop gently)
+  w.glide = { from: e.location, to, mid: glideMid(e.location, to), t: 0, n: (dy > 0 ? 9 : dy < 0 ? 5 + -dy : 7) + (last ? 2 : 0), last };
   return "moving";
 }
 

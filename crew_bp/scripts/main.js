@@ -27,6 +27,16 @@ world.afterEvents.worldLoad.subscribe(() => {
 /** @param {Promise<any> | void} p */
 const quiet = (p) => p?.catch?.((/** @type {any} */ err) => console.warn(`[Crew] ${err}`));
 
+/** Players with a stake menu open: further stake taps are ignored until it closes. @type {Set<string>} */
+const stakeBusy = new Set();
+/** Runs one stake flow at a time per player, so extra taps can't queue menus behind the open one. @param {import("@minecraft/server").Player} player @param {() => Promise<any> | void} fn */
+function stakeOnce(player, fn) {
+  if (stakeBusy.has(player.id)) return;
+  stakeBusy.add(player.id);
+  const done = () => system.runTimeout(() => stakeBusy.delete(player.id), 4);
+  Promise.resolve().then(fn).catch((err) => console.warn(`[Crew] ${err}`)).finally(done);
+}
+
 // Survey Stake on a block: a bed (the linked worker's home), a chest (home chest, drop-off or named
 // place), anything else (plan a dig). Cancelled so chests don't open and beds aren't slept in.
 world.beforeEvents.playerInteractWithBlock.subscribe((ev) => {
@@ -34,7 +44,7 @@ world.beforeEvents.playerInteractWithBlock.subscribe((ev) => {
   ev.cancel = true;
   if (!ev.isFirstEvent) return;
   const { player, block } = ev;
-  system.run(() => quiet(stakeTap(player, block)));
+  system.run(() => stakeOnce(player, () => stakeTap(player, block)));
 });
 
 /** Player id -> tick their last worker menu opened, so one tap opens one menu. @type {Map<string, number>} */
@@ -75,7 +85,7 @@ world.afterEvents.itemUse.subscribe((ev) => {
     else stakeLink(ev.source, w);
     return;
   }
-  quiet(stakeUse(ev.source));
+  stakeOnce(ev.source, () => stakeUse(ev.source));
 });
 
 // Crouch and use a worker: its menu (whatever is in hand).

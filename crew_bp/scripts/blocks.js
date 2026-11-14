@@ -57,6 +57,33 @@ export function requiredTier(id) {
   return 0;
 }
 
+/** Vanilla block hardness, for player-like break times. Most stone-like blocks are 1.5. */
+const HARDNESS = /** @type {[RegExp, number][]} */ ([
+  [/^minecraft:(obsidian|crying_obsidian|respawn_anchor)$/, 50],
+  [/^minecraft:(ancient_debris|netherite_block)$/, 30],
+  [/^minecraft:(reinforced_deepslate)$/, 55],
+  [/^minecraft:deepslate_.*_ore$|^minecraft:lit_deepslate_redstone_ore$/, 4.5],
+  [/_ore$/, 3],
+  [/^minecraft:(coal_block|iron_block|gold_block|diamond_block|emerald_block|redstone_block|copper_block|raw_\w+_block|anvil|end_stone|cobweb)$/, 3.5],
+  [/^minecraft:(cobbled_deepslate|deepslate_bricks|deepslate_tiles|polished_deepslate)$/, 3.5],
+  [/^minecraft:(deepslate|end_stone)$/, 3],
+  [/^minecraft:(cobblestone|mossy_cobblestone|bricks|smooth_stone)$/, 2],
+  [/_log$|_wood$|_planks$|_stem$|_hyphae$|^minecraft:(chest|trapped_chest|barrel|crafting_table|bookshelf)$/, 2],
+  [/terracotta$/, 1.25],
+  [/^minecraft:(basalt|polished_basalt|smooth_basalt)$/, 1.25],
+  [/^minecraft:(calcite)$/, 0.75],
+  [/sandstone$/, 0.8],
+  [/^minecraft:(gravel|clay|grass_block|mycelium|podzol|farmland|dirt_path|grass_path|soul_soil|mud)$/, 0.6],
+  [/^minecraft:(dirt|coarse_dirt|rooted_dirt|sand|red_sand|suspicious_sand|soul_sand|ice|packed_ice|magma|muddy_mangrove_roots)$|concrete_powder$/, 0.5],
+  [/^minecraft:(netherrack|nylium|crimson_nylium|warped_nylium)$/, 0.4],
+  [/^minecraft:(snow|snow_layer|powder_snow)$/, 0.2],
+]);
+/** @param {string} id */
+export function hardness(id) {
+  for (const [re, h] of HARDNESS) if (re.test(id)) return h;
+  return 1.5;
+}
+
 /** @param {import("@minecraft/server").Dimension} dim @param {{x:number,y:number,z:number}} p */
 export function passable(dim, p) {
   const b = dim.getBlock(p);

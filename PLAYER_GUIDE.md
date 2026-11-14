@@ -55,7 +55,7 @@ Plan a dig
 1. **Face the way you want to dig** and tap the ground block where it should start.
 2. Pick Quarry or Branch mine and set the size with the sliders.
 3. A **white outline** shows the plan while you hold the stake (flames point forward).
-4. Tap the same block again and pick **Confirm**. The outline turns green.
+4. Tap with the stake again (any block, or the air) and pick **Confirm**. The outline turns green.
 5. **Start it with** the linked worker right there, or later from its orders. Choose where it drops off, what to bring back and the pace, then Start.
 
 Done with the stake? Every stake menu has **Put the stake away**. Your plan and link are kept.
@@ -84,7 +84,7 @@ It digs the far branches first and works back toward the stairs.
 
 ## Tools and tough blocks
 
-It mines like you do: **one block at a time**, with the right tool. It uses a shovel on dirt and gravel and a pickaxe on stone. It uses the weakest pickaxe that works, so your best one is saved for ore.
+It mines like you do: **one block at a time**, with the right tool, and **takes as long as you would** with that tool (stone with an iron pickaxe: under half a second; obsidian with diamond: about 9 seconds). It uses a shovel on dirt and gravel and a pickaxe on stone. It uses the weakest pickaxe that works, so your best one is saved for ore.
 
 Same rules as you: a stone pickaxe for iron, iron for diamonds, diamond for obsidian.
 
@@ -167,7 +167,7 @@ Only the **owner** and the players they allow can give a worker orders or tools.
 ## Tips
 
 - Workers keep working when you walk away (up to 10 working at once far from everyone).
-- Fast pace digs 5 times faster. Normal is tool speed.
+- Normal pace digs as fast as you would with the same tool. Fast pace digs 5 times faster.
 - If it can't find a way somewhere, it takes a shortcut once and tells you.
 - It never breaks chests with items in them, spawners or bedrock, and it leaves water and lava alone. It tells you about lava, spawners and diamonds it finds.
 - Its menu status shows the job, how far along it is, its energy, its home, and any blocks it had to leave.

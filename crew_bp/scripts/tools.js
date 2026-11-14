@@ -1,29 +1,27 @@
 // The worker's tool kit: up to five tools kept in inventory slots 0-4. The kit sets the
 // worker's default role, which tool breaks each block, how fast, and when to stop.
-import { bestKind, requiredTier } from "./blocks.js";
+import { bestKind, hardness, requiredTier } from "./blocks.js";
 
 export const KIT_SLOTS = 5;
-/** tier = what it can harvest (vanilla rules); ticks = time per block at normal pace (20 ticks = 1 s). */
+/** tier = what it can harvest (vanilla rules); speed = the vanilla mining speed of that material. */
 export const MATERIALS = {
-  wooden: { tier: 0, ticks: 10, name: "Wooden" },
-  golden: { tier: 0, ticks: 3, name: "Golden" },
-  stone: { tier: 1, ticks: 8, name: "Stone" },
-  copper: { tier: 1, ticks: 7, name: "Copper" },
-  iron: { tier: 2, ticks: 6, name: "Iron" },
-  diamond: { tier: 3, ticks: 5, name: "Diamond" },
-  netherite: { tier: 4, ticks: 4, name: "Netherite" },
+  wooden: { tier: 0, speed: 2, name: "Wooden" },
+  golden: { tier: 0, speed: 12, name: "Golden" },
+  stone: { tier: 1, speed: 4, name: "Stone" },
+  copper: { tier: 1, speed: 5, name: "Copper" },
+  iron: { tier: 2, speed: 6, name: "Iron" },
+  diamond: { tier: 3, speed: 8, name: "Diamond" },
+  netherite: { tier: 4, speed: 9, name: "Netherite" },
 };
 export const ROLES = { pickaxe: "Miner", shovel: "Digger", axe: "Woodcutter", hoe: "Farmer" };
 export const ROLE_LIST = ["Miner", "Digger", "Woodcutter", "Farmer"];
-/** Shovel and axe blocks can be broken by hand when the kit has no shovel or axe: no wear, slower. */
-export const HAND_TICKS = 12;
 const TIER_NAMES = ["wooden", "stone", "iron", "diamond", "netherite"];
 const KIND_NAMES = { pickaxe: "Pickaxe", shovel: "Shovel", axe: "Axe", hoe: "Hoe" };
 
 /**
  * @typedef {import("@minecraft/server").ItemStack} ItemStack
  * @typedef {import("@minecraft/server").Container} Container
- * @typedef {{id: string, kind: "pickaxe"|"shovel"|"axe"|"hoe", material: string, tier: number, ticks: number, label: string}} ToolInfo
+ * @typedef {{id: string, kind: "pickaxe"|"shovel"|"axe"|"hoe", material: string, tier: number, speed: number, label: string}} ToolInfo
  * @typedef {{slot: number, info: ToolInfo, left: number, max: number}} KitEntry
  */
 
@@ -35,7 +33,7 @@ export function toolInfo(item) {
   const mat = /** @type {keyof typeof MATERIALS} */ (m[1]);
   const kind = /** @type {ToolInfo["kind"]} */ (m[2]);
   const spec = MATERIALS[mat];
-  return { id: item.typeId, kind, material: mat, tier: spec.tier, ticks: spec.ticks, label: `${spec.name} ${KIND_NAMES[kind]}` };
+  return { id: item.typeId, kind, material: mat, tier: spec.tier, speed: spec.speed, label: `${spec.name} ${KIND_NAMES[kind]}` };
 }
 
 /** @param {ItemStack} item @param {string} name */
@@ -91,14 +89,23 @@ export function chooseTool(k, blockId) {
   return { use: "wait", need: "a pickaxe" };
 }
 
-/** Ticks to break one block. @param {KitEntry | undefined} tool @param {Container} inv @param {string} pace */
-export function ticksFor(tool, inv, pace) {
-  let base = HAND_TICKS;
+/**
+ * Ticks to break one block, the way a player's are worked out: tool speed (plus Efficiency) over
+ * the block's hardness. By hand, speed 1. Only tools that can harvest the block are ever used, so
+ * it's always the "right tool" rate: hardness 1.5 stone takes 0.6 s with a stone pickaxe, 0.4 s
+ * with iron; obsidian about 9.4 s with diamond. Fast pace is 5 times quicker.
+ * @param {KitEntry | undefined} tool @param {Container} inv @param {string} pace @param {string} blockId
+ */
+export function ticksFor(tool, inv, pace, blockId) {
+  let speed = 1;
   if (tool) {
+    speed = tool.info.speed;
     const item = inv.getItem(tool.slot);
-    base = tool.info.ticks - (item ? enchantLevel(item, "efficiency") : 0);
+    const eff = item ? enchantLevel(item, "efficiency") : 0;
+    if (eff > 0) speed += eff * eff + 1;
   }
-  base = Math.max(1, base);
+  const h = hardness(blockId);
+  const base = h <= 0 ? 1 : Math.max(1, Math.ceil((30 * h) / speed));
   return pace === "fast" ? Math.max(1, Math.round(base / 5)) : base;
 }
 

@@ -11,6 +11,13 @@ turns it into that version's section.
   with that worker) or the air (its orders, your plan, link another worker).
 - Dawn (time 23000) counts as morning: workers no longer go to bed at sunrise, and get up then.
 - Idle workers with no home now lie down where they are at night, instead of standing all night.
+- Planning a dig with the stake no longer loops back to "Quarry or Branch mine": after setting the
+  size, tap anywhere with the stake to confirm; extra taps can't stack up menus; a worker given an
+  unconfirmed plan offers to confirm it.
+- Digging takes as long as a player's would with the same tool and block (hardness), and the block
+  breaks at the end of the swing, not the start.
+- Workers walk at about a villager's pace and slow down before stopping, so they no longer seem to
+  bump into the next block and bounce back.
 - Workers keep everything they dig by default, with 36 inventory slots like a player; drop-off
   messages name the chest's position; the menu lists what a worker is carrying.
 

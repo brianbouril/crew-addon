@@ -148,7 +148,23 @@ export async function stakeTap(p, block) {
   if (block.typeId === "minecraft:bed") return bedTapped(p, block);
   if (block.getComponent("minecraft:inventory")) return chestTapped(p, block);
   const plan = getPlan(p);
-  if (plan && plan.dim === block.dimension.id && sameV(plan.anchor, block.location)) return planActions(p);
+  // with an unconfirmed plan, any tap opens it (no need to find the exact start block again);
+  // a confirmed plan opens from its start block, or offers to plan a new dig elsewhere
+  if (plan && plan.dim === block.dimension.id && (!plan.confirmed || sameV(plan.anchor, block.location))) return planActions(p, block);
+  if (plan?.confirmed && plan.dim === block.dimension.id) {
+    const r = await show(p, new ActionFormData().title("Survey Stake").body(`${planText(plan)}\n\nYou tapped ${fmt(block.location)}, not the plan's start.`)
+      .button("Open my plan").button(`Plan a new dig here`).button("Cancel"));
+    if (r?.selection === 0) return planActions(p);
+    if (r?.selection !== 1) return;
+  }
+  return newPlan(p, block, plan);
+}
+
+/**
+ * Plans a new dig starting at this block: Quarry or Branch mine, then its size.
+ * @param {import("@minecraft/server").Player} p @param {import("@minecraft/server").Block} block @param {Plan | undefined} plan
+ */
+async function newPlan(p, block, plan) {
   const facing = facingFromYaw(p.getRotation().y);
   const base = plan ?? { mode: "quarry", length: 16, width: 16, depth: 16, trunk: DEFAULTS.trunk, trunkWidth: DEFAULTS.width, branch: DEFAULTS.branch, spacing: DEFAULTS.spacing, targetY: DEFAULTS.targetY };
   /** @type {Plan} */
@@ -163,7 +179,7 @@ export async function stakeTap(p, block) {
   next.mode = r.selection === 0 ? "quarry" : "branch";
   if (!(await sizeForm(p, next))) return;
   savePlan(p, next);
-  tell(p, `${planText(next)}\nThe outline shows while you hold the stake. Use the stake on the same block again to confirm or change it.`);
+  tell(p, `${planText(next)}\nCheck the white outline, then tap any block (or the air) with the stake to confirm or change it.`);
 }
 
 /**
@@ -229,18 +245,27 @@ export function putAway(p) {
   tell(p, `Stake put away.${getPlan(p) ? " Your plan is kept." : ""} /crew:stake gives you a new one.`);
 }
 
-/** @param {import("@minecraft/server").Player} p */
-async function planActions(p) {
+/**
+ * The plan's menu: confirm (and start it with the linked worker), resize, turn, switch, clear.
+ * Tapped on a block other than its start, it also offers to plan a new dig there.
+ * @param {import("@minecraft/server").Player} p @param {import("@minecraft/server").Block} [tapped]
+ */
+async function planActions(p, tapped) {
   const plan = getPlan(p);
   if (!plan) return;
   const facing = facingFromYaw(p.getRotation().y);
   const other = plan.mode === "quarry" ? "Branch mine" : "Quarry";
+  const elsewhere = tapped && !sameV(plan.anchor, tapped.location) ? tapped : undefined;
   const f = new ActionFormData().title(plan.confirmed ? "Plan (confirmed)" : "Plan (not confirmed yet)").body(planText(plan))
     .button(plan.confirmed ? "Keep it" : "Confirm").button("Change the size").button(`Point it ${facing}`).button(`Switch to ${other}`).button("Clear the plan").button("Put the stake away");
+  if (elsewhere) f.button(`Plan a new dig at ${fmt(elsewhere.location)} instead`);
   const r = await show(p, f);
   if (!r || r.selection === undefined) return;
   const next = { ...plan, confirmed: false };
   switch (r.selection) {
+    case 6:
+      if (elsewhere) return newPlan(p, elsewhere, plan);
+      return;
     case 0: {
       savePlan(p, { ...plan, confirmed: true });
       const e = linkedWorker(p);
@@ -271,7 +296,7 @@ async function planActions(p) {
       return;
   }
   savePlan(p, next);
-  tell(p, `${planText(next)}\nUse the stake on the same block again to confirm.`);
+  tell(p, `${planText(next)}\nCheck the outline, then tap with the stake again to confirm.`);
 }
 
 /** Asks for the sizes of a plan; edits it in place. @param {import("@minecraft/server").Player} p @param {Plan} plan */
