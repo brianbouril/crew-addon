@@ -283,6 +283,11 @@ food; below 10 it rests; safe bed restores to 100, unsafe 75, rough 50; it packs
 ### v0.8 Loose ends
 - `collect_skipped`: go back with a better tool for blocks it had to leave.
 - `scout`: walk an area without digging and report structures and exposed ores.
+- **More natural walking** (Brian, Nov 14): workers only move at right angles, block to block
+  along the A* path, so a trip to work looks robotic. They should head in a straight line toward
+  their work when the way is clear: smooth the A* path (drop corners where a straight line has a
+  floor and 2 blocks of headroom the whole way, checked along the line), allow diagonal steps, and
+  turn gradually. Keep decision 14: never over air or through blocks.
 - Walking animation polish, action-bar progress.
 
 ### Later
