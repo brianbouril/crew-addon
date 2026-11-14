@@ -27,6 +27,11 @@ export const SIGNS = {
 };
 /** Drops kept when keep = "valuables". */
 export const VALUABLE = /(_ore$|^minecraft:raw_|coal$|diamond$|emerald$|lapis_lazuli$|redstone$|quartz$|amethyst_shard$|ancient_debris$|_nugget$|netherite_scrap$|^minecraft:flint$)/;
+/** Ore blocks: mined out of tunnel walls when a branch mine passes them. */
+export const ORE = /(_ore$|^minecraft:ancient_debris$)/;
+/** Plain blocks a worker can use to fill the hole an ore left in a wall. */
+export const FILL = /^minecraft:(cobblestone|cobbled_deepslate|stone|deepslate|dirt|tuff|andesite|diorite|granite|netherrack|blackstone)$/;
+export const TORCH = "minecraft:torch";
 /** Non-solid blocks the worker can move through. */
 export const SOFT = /(grass$|fern$|flower|tulip|dandelion|poppy|orchid|allium|bluet|daisy|cornflower|lily_of_the_valley|wither_rose|torch|snow_layer|vine|sapling|mushroom$|deadbush|dead_bush|carpet|rail$|sign$|button$|lever$|pressure_plate$|seagrass|kelp|sugar_cane|sweet_berry|bush$|light$)/;
 /** Blocks that fall when what's under them is removed. */

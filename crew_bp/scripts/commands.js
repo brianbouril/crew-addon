@@ -5,8 +5,9 @@ import { KEEP, PACE, catalogText, toolSchemas } from "./catalog.js";
 import { b64decode, fmt, onlinePlayer, setJSON, tell } from "./util.js";
 import { getPlaces, canUsePlace, removePlace, savePlace, getRegistry } from "./store.js";
 import { canCommand, canManage, dismissWorker, findWorker, later, loadedWorkers, meta, renameWorker, spawnWorker } from "./workers.js";
-import { getPlan, planOrder } from "./marker.js";
+import { getPlan, giveStake, planOrder } from "./marker.js";
 import { openMenu } from "./ui.js";
+import { openGuide } from "./guide.js";
 import { dispatch } from "./orders.js";
 import { statusText, stopJob } from "./runner.js";
 
@@ -77,10 +78,9 @@ export function registerCommands(reg) {
 
   cmd(reg, { name: "crew:stake", description: "Get a Survey Stake for marking dig boxes and deposit chests.", permissionLevel: ANY },
     (by) => {
-      const inv = by.player?.getComponent("minecraft:inventory")?.container;
-      if (!inv) return answer(by, false, "Run /crew:stake as a player.");
-      const left = inv.addItem(new ItemStack("crew:survey_stake", 1));
-      answer(by, !left, left ? "Your inventory is full." : "Survey Stake added. Use it on the ground where a dig should start (facing the way it should go) to plan a quarry or branch mine; use it on a chest to mark the deposit.");
+      if (!by.player) return answer(by, false, "Run /crew:stake as a player.");
+      const msg = giveStake(by.player);
+      answer(by, msg.startsWith("Survey Stake added"), msg);
     });
 
   cmd(reg, { name: "crew:place", description: "Save the chest you're looking at (or where you stand) as a named place.", permissionLevel: ANY,
@@ -173,6 +173,9 @@ export function registerCommands(reg) {
   cmd(reg, { name: "crew:stop", description: "Stop a worker's job.", permissionLevel: ANY, mandatoryParameters: [{ name: "worker", type: T.String }] },
     (by, worker) => order(by, { worker, job: "stop", params: {} }));
 
+  cmd(reg, { name: "crew:continue", description: "Continue a worker's stopped quarry or branch mine where it left off.", permissionLevel: ANY, mandatoryParameters: [{ name: "worker", type: T.String }] },
+    (by, worker) => order(by, { worker, job: "resume", params: {} }));
+
   cmd(reg, { name: "crew:status", description: "Show what a worker is doing.", permissionLevel: ANY, mandatoryParameters: [{ name: "worker", type: T.String }] },
     (by, worker) => order(by, { worker, job: "status", params: {} }));
 
@@ -228,6 +231,12 @@ export function registerCommands(reg) {
 
   cmd(reg, { name: "crew:jobs", description: "List the jobs workers know.", permissionLevel: ANY },
     (by) => answer(by, true, catalogText()));
+
+  cmd(reg, { name: "crew:help", description: "How Crew Workers work: a short in-game guide.", permissionLevel: ANY },
+    (by) => {
+      if (!by.player) return answer(by, true, "The guide is in game: players type /crew:help.");
+      openGuide(by.player).catch(() => {});
+    });
 
   cmd(reg, { name: "crew:ask", description: "Give a worker an order in plain words (needs the Phase 2 bridge).", permissionLevel: ANY,
     mandatoryParameters: [{ name: "worker", type: T.String }, { name: "text", type: T.String }] },

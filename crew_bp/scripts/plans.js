@@ -92,9 +92,10 @@ export function quarryCell(g, i) {
 // ---------------- branch mine ----------------
 /**
  * Branch mine from the ground block where the stairs start. Stairs (3 tall) go down forward
- * to targetY, then a 2-wide x 2-tall trunk runs `trunk` blocks forward. Coming back, the worker
- * cuts 1-wide x 2-tall branches left and right every (spacing + 1) blocks, far end first.
- * @param {V3} anchor @param {string} facing @param {{trunk:number, branch:number, spacing:number, targetY:number}} o
+ * to targetY, then a `width`-wide (default 2) x 2-tall trunk runs `trunk` blocks forward, its
+ * lanes going to the right of the stairs. Coming back, the worker cuts 1-wide x 2-tall branches
+ * left and right every (spacing + 1) blocks, far end first.
+ * @param {V3} anchor @param {string} facing @param {{trunk:number, branch:number, spacing:number, targetY:number, width?:number}} o
  */
 export function branchGeom(anchor, facing, o) {
   const O = { x: anchor.x, y: anchor.y + 1, z: anchor.z };
@@ -102,7 +103,7 @@ export function branchGeom(anchor, facing, o) {
   /** @type {number[]} */
   const at = [];
   for (let j = o.spacing; j < o.trunk; j += o.spacing + 1) at.push(j);
-  const g = { anchor, facing, O, n, L: o.trunk, B: o.branch, s: o.spacing, ty: o.targetY, branchAt: at, total: 0 };
+  const g = { anchor, facing, O, n, L: o.trunk, B: o.branch, s: o.spacing, ty: o.targetY, w: o.width ?? 2, branchAt: at, total: 0 };
   g.total = segments(g).reduce((a, s) => a + s.n, 0);
   return g;
 }
@@ -112,11 +113,13 @@ const segCache = new Map();
 
 /** @param {any} g */
 function segments(g) {
-  const key = JSON.stringify([g.anchor, g.facing, g.L, g.B, g.s, g.ty]);
+  const w = g.w ?? 2;
+  const key = JSON.stringify([g.anchor, g.facing, g.L, g.B, g.s, g.ty, w]);
   const hit = segCache.get(key);
   if (hit) return hit;
   const d = DIRS[g.facing], r = rightOf(d), l = { x: -r.x, z: -r.z };
   const { O, n, L, B, ty } = g;
+  const lanes = Array.from({ length: w }, (_, i) => i);
   /** @param {number} j */
   const P = (j) => ({ x: O.x + d.x * (n + j), y: ty, z: O.z + d.z * (n + j) });
   /** @type {{n:number, at:(t:number)=>any}[]} */
@@ -125,12 +128,12 @@ function segments(g) {
     segs.push({ n, at: (t) => {
       const k = t + 1;
       const S = { x: O.x + d.x * (k - 1), y: O.y - k, z: O.z + d.z * (k - 1) };
-      return { stand: S, mine: column(S, 3), fwd: d };
+      return { stand: S, mine: column(S, 3), fwd: d, torch: torchAt(t, n) };
     } });
   }
   segs.push({ n: L, at: (j) => {
     const p = P(j);
-    return { stand: p, mine: [...column(p, 2), ...column(off(p, r, 1), 2)], fwd: d, sides: [l, { x: r.x * 2, z: r.z * 2 }] };
+    return { stand: p, mine: lanes.flatMap((i) => column(off(p, r, i), 2)), fwd: d, sides: [l, { x: r.x * w, z: r.z * w }], torch: torchAt(j, L, trunkTorchEvery(w)) };
   } });
   let cur = L - 1;
   for (const j of [...g.branchAt].reverse()) {
@@ -138,11 +141,11 @@ function segments(g) {
     if (from !== j) segs.push({ n: from - j, at: (t) => ({ stand: P(from - 1 - t) }) });
     const base = P(j);
     if (B > 0) {
-      segs.push({ n: B, at: (t) => { const q = off(base, r, -(t + 1)); return { stand: q, mine: column(q, 2), fwd: l, sides: [d, { x: -d.x, z: -d.z }] }; } });
+      segs.push({ n: B, at: (t) => { const q = off(base, r, -(t + 1)); return { stand: q, mine: column(q, 2), fwd: l, sides: [d, { x: -d.x, z: -d.z }], torch: torchAt(t, B) }; } });
       segs.push({ n: B, at: (t) => ({ stand: off(base, r, -(B - 1 - t)) }) });
-      segs.push({ n: 1, at: () => ({ stand: off(base, r, 1) }) });
-      segs.push({ n: B, at: (t) => { const q = off(base, r, t + 2); return { stand: q, mine: column(q, 2), fwd: r, sides: [d, { x: -d.x, z: -d.z }] }; } });
-      segs.push({ n: B + 1, at: (t) => ({ stand: off(base, r, B - t) }) });
+      if (w > 1) segs.push({ n: w - 1, at: (t) => ({ stand: off(base, r, t + 1) }) }); // across the trunk
+      segs.push({ n: B, at: (t) => { const q = off(base, r, t + w); return { stand: q, mine: column(q, 2), fwd: r, sides: [d, { x: -d.x, z: -d.z }], torch: torchAt(t, B) }; } });
+      segs.push({ n: B + w - 1, at: (t) => ({ stand: off(base, r, B + w - 2 - t) }) });
     }
     cur = j;
   }
@@ -151,12 +154,59 @@ function segments(g) {
   return segs;
 }
 
+/**
+ * Is this block one the branch mine digs anyway (stairs, trunk or a branch)?
+ * Used so ore-vein mining only reaches into the walls, never into cells still to be dug.
+ * @param {any} g @param {V3} c
+ */
+export function inBranchPlan(g, c) {
+  const d = DIRS[g.facing], r = rightOf(d);
+  const dx = c.x - g.O.x, dz = c.z - g.O.z;
+  const f = dx * d.x + dz * d.z; // blocks forward of the stair top
+  const s = dx * r.x + dz * r.z; // blocks to the right
+  if (s === 0 && f >= 0 && f < g.n) {
+    const k = f + 1;
+    if (c.y >= g.O.y - k && c.y <= g.O.y - k + 2) return true;
+  }
+  if (c.y !== g.ty && c.y !== g.ty + 1) return false;
+  const j = f - g.n;
+  const w = g.w ?? 2;
+  if (j >= 0 && j < g.L && s >= 0 && s < w) return true;
+  if (g.B > 0 && g.branchAt.includes(j) && ((s <= -1 && s >= -g.B) || (s >= w && s < w + g.B))) return true;
+  return false;
+}
+
+// ---------------- torches ----------------
+/**
+ * Torch light is 14 at the torch and drops 1 per block walked, and hostile mobs only spawn in
+ * the dark. A torch every 12 blocks of tunnel keeps every block within 6 of one (light 8 or
+ * more), which is safe under every version's spawn rules.
+ */
+export const TORCH_EVERY = 12;
+/**
+ * Torch on cell i (0-based) of a run of n cells: halfway into the first stretch, then every
+ * `every` cells, plus the last cell if it's more than half a stretch past the previous torch.
+ * The 2-wide trunk uses 10, so its far lane is also within 6 of a torch.
+ * @param {number} i @param {number} n @param {number} [every]
+ */
+export function torchAt(i, n, every = TORCH_EVERY) {
+  const first = every / 2;
+  if (i % every === first) return true;
+  if (i !== n - 1 || i < first) return false;
+  return (i - first) % every > first; // blocks past the previous torch
+}
+
+/** Torch spacing along a trunk `w` lanes wide, so its far lane is also within 6 of a torch: 12, 10, 8, 6. @param {number} w */
+export const trunkTorchEvery = (w) => Math.max(4, 2 * (7 - w));
+
 // ---------------- shared ----------------
 /** @param {any} job @param {number} i */
 export function stepAt(job, i) {
   if (job.type === "quarry") {
-    const c = quarryCell(job.geom, i);
-    return isStairBlock(job.geom, c) ? { keep: c } : { stand: c, mine: [c] };
+    const g = job.geom;
+    const c = quarryCell(g, i);
+    // torches go on top of stair steps, so the way in and out is lit
+    return isStairBlock(g, c) ? { keep: c, torch: torchAt(g.max.y - 1 - c.y, g.D - 1) } : { stand: c, mine: [c] };
   }
   let k = i;
   for (const s of segments(job.geom)) {
@@ -191,7 +241,8 @@ export function outline(plan) {
     for (const x of xs) for (const y of ys) segs.push([{ x, y, z: a.z }, { x, y, z: b.z }]);
     return segs;
   }
-  const g = branchGeom(plan.anchor, plan.facing, { trunk: plan.trunk, branch: plan.branch, spacing: plan.spacing, targetY: plan.targetY });
+  const g = branchGeom(plan.anchor, plan.facing, { trunk: plan.trunk, branch: plan.branch, spacing: plan.spacing, targetY: plan.targetY, width: plan.trunkWidth ?? 2 });
+  const w = g.w;
   const d = DIRS[plan.facing], r = rightOf(d);
   const y = plan.anchor.y + 1.05;
   /** Rectangle covering two cells and everything between them. @param {V3} c1 @param {V3} c2 */
@@ -204,11 +255,11 @@ export function outline(plan) {
   /** @param {number} j */
   const P = (j) => off(O, d, g.n + j);
   if (g.n > 0) rect(plan.anchor, off(O, d, g.n - 1));
-  rect(P(0), off(P(g.L - 1), r, 1));
+  rect(P(0), off(P(g.L - 1), r, w - 1));
   if (g.B > 0) {
     for (const j of g.branchAt) {
       rect(off(P(j), r, -1), off(P(j), r, -g.B));
-      rect(off(P(j), r, 2), off(P(j), r, g.B + 1));
+      rect(off(P(j), r, w), off(P(j), r, g.B + w - 1));
     }
   }
   return segs;

@@ -5,7 +5,8 @@ import { FACINGS, branchGeom, quarryFromBox } from "./plans.js";
 export const MAX_SIDE = 128;
 export const KEEP = ["valuables", "all", "nothing"];
 export const PACE = ["normal", "fast"];
-export const DEFAULTS = { trunk: 32, branch: 32, spacing: 2, targetY: -54 };
+export const DEFAULTS = { trunk: 32, branch: 32, spacing: 2, targetY: -54, width: 2 };
+export const MAX_TRUNK_WIDTH = 4;
 
 /**
  * type: vec3 = [x,y,z] or {x,y,z}; place = a saved place name or a vec3; enum; int; player = a player name.
@@ -26,12 +27,13 @@ export const JOBS = {
   },
   branch_mine: {
     description:
-      "Branch (strip) mine: dig a 3-tall staircase forward and down from `start` to `target_y`, then a 2-wide, 2-tall trunk `trunk_length` blocks forward. Coming back, cut 1-wide, 2-tall branches left and right with `spacing` solid blocks between them, far end first. Mines around blocks no tool can harvest.",
+      "Branch (strip) mine: dig a 3-tall staircase forward and down from `start` to `target_y`, then a `trunk_width`-wide (default 2), 2-tall trunk `trunk_length` blocks forward. Coming back, cut 1-wide, 2-tall branches left and right with `spacing` solid blocks between them, far end first. Mines around blocks no tool can harvest.",
     params: {
       start: { type: "vec3", required: true, description: "The ground block where the stairs begin." },
       facing: { type: "enum", values: FACINGS, required: true, description: "Direction the trunk runs." },
       target_y: { type: "int", min: -64, max: 319, default: DEFAULTS.targetY, description: "Floor level of the tunnels (Y the worker walks at). Must be at or below the start." },
       trunk_length: { type: "int", min: 1, max: MAX_SIDE, default: DEFAULTS.trunk, description: "Trunk length in blocks." },
+      trunk_width: { type: "int", min: 1, max: MAX_TRUNK_WIDTH, default: DEFAULTS.width, description: "Trunk width in blocks (extra lanes go to the right of the stairs)." },
       branch_length: { type: "int", min: 0, max: MAX_SIDE, default: DEFAULTS.branch, description: "Length of each branch in blocks (0 = trunk only)." },
       spacing: { type: "int", min: 1, max: 16, default: DEFAULTS.spacing, description: "Solid blocks left between neighbouring branches." },
       deposit: { type: "place", required: true, description: "A saved place name or the coordinates of a chest or barrel." },
@@ -43,7 +45,22 @@ export const JOBS = {
     description: "Walk to a player and wait there.",
     params: { to: { type: "player", description: "Player name. Defaults to whoever gave the order." } },
   },
-  stop: { description: "Stop the current job, keep what is carried, go idle.", params: {} },
+  stop: { description: "Stop the current job, keep what is carried, go idle. An unfinished quarry or branch mine is kept as paused, so `resume` can continue it.", params: {} },
+  set_home: {
+    description: "Give the worker a home: it claims the bed (one worker per bed) and the nearest chest or barrel within 8 blocks becomes its home chest and default drop-off. At dusk it goes home, unloads and sleeps; at dawn it restocks from the chest and goes back to work.",
+    params: {
+      bed: { type: "vec3", required: true, description: "Either block of the bed." },
+      chest: { type: "vec3", description: "The home chest. Defaults to the nearest chest or barrel within 8 blocks of the bed." },
+    },
+  },
+  clear_home: { description: "Forget the worker's home and free its bed.", params: {} },
+  resume: { description: "Continue the paused quarry or branch mine from where it stopped (after stop, drop_off or come).", params: {} },
+  drop_off: {
+    description: "Stop the current job (if any), carry everything the worker holds (except its tool kit and torches) to a chest, and go idle there.",
+    params: {
+      deposit: { type: "place", description: "A saved place name or chest coordinates. Defaults to where its last dig job dropped off." },
+    },
+  },
   status: { description: "Report the current job, progress, tool kit and items carried.", params: {} },
 };
 /** v0.1 name, still accepted. */
@@ -127,7 +144,7 @@ export function validate(jobName, params) {
   }
   if (jobName === "branch_mine") {
     if (out.target_y > out.start.y + 1) return { ok: false, error: `target_y (${out.target_y}) must be at or below the start (${out.start.y + 1}).` };
-    out.geom = branchGeom(out.start, out.facing, { trunk: out.trunk_length, branch: out.branch_length, spacing: out.spacing, targetY: out.target_y });
+    out.geom = branchGeom(out.start, out.facing, { trunk: out.trunk_length, branch: out.branch_length, spacing: out.spacing, targetY: out.target_y, width: out.trunk_width });
   }
   return { ok: true, job: jobName, params: out };
 }

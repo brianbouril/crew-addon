@@ -1,7 +1,7 @@
 # Crew add-on: build plan and job spec
 
-Copy of the plan doc (https://claude.ai/artifact/TG1aYq6MtaeR8j6YroBcML) as of v0.2, Nov 13 2026,
-so this folder carries the full context on its own. If the two differ, this file and the code win.
+This file is the one and only plan. (An older web copy exists on claude.ai from v0.2; it is no
+longer updated.) Keep this file current when decisions or job specs change.
 
 ## Summary
 
@@ -11,12 +11,13 @@ typed command that a person, a script or later an LLM can call the same way.
 - **Design rule:** the job catalog is the LLM's tool set. The LLM picks a job and fills its
   parameters; it never pathfinds, breaks blocks or decides what counts as "valuable". The add-on
   does all of that, the same way every time.
-- **Current build (v0.2):** workers are built from a barrel holding tools with a carved pumpkin on
-  top, and the tools set what they can mine and how fast. Two mining jobs (`quarry` with a walk-up
-  stair, `branch_mine` with 2 solid blocks between branches), a crouch menu for orders, names,
-  roles and permissions, tap-to-give for tools, and a Survey Stake that draws the plan in particles.
-  Named places, owner plus crew permissions and the `/crew:` slash commands carry over from v0.1.
-  The job logic runs end to end in a mock world but has not yet run in real Minecraft.
+- **Current build (v0.3, see Roadmap):** workers are built from a barrel holding tools with a carved
+  pumpkin on top, and the tools set what they can mine and how fast. Two precise mining jobs
+  (`quarry` with a walk-up stair, `branch_mine`), a crouch menu, a Survey Stake that draws the plan,
+  torches, ore veins, Continue, and an in-game guide. v0.2 was tested in game; v0.3 additions are
+  mock-tested only.
+- **Next (v0.4 onward):** living workers with a home, a daily routine, energy, and autonomous goals
+  (Prospector), plus a Hauler that consolidates finds to a depot.
 - **Target platform:** Bedrock Dedicated Server (BDS) that Brian hosts for friends. Stable APIs only,
   so no experimental toggles.
 
@@ -80,9 +81,11 @@ anything moves.
 | Job | Params | What it does | Status |
 | --- | --- | --- | --- |
 | `quarry` (alias `mine_area`) | a confirmed stake plan, or `from`, `to` (corners) and `facing`; `deposit` (place name or coords), `keep` = valuables / all / nothing, `pace` = normal / fast | Digs the box top-down in serpentine rows from the staked corner, leaving a clockwise stair in the wall. Never touches blocks outside it. Max 128 per side | v0.2 |
-| `branch_mine` | `start`, `facing`, `target_y` (default -54), `trunk_length` (32), `branch_length` (32), `spacing` (2, 1 to 16), `deposit`, `keep`, `pace` | Stairs down to `target_y`, a 2-wide trunk, 1-wide branches on both sides with `spacing` solid blocks between them, far end first | v0.2 |
+| `branch_mine` | `start`, `facing`, `target_y` (default -54), `trunk_length` (32), `trunk_width` (2, 1 to 4), `branch_length` (32), `spacing` (2, 1 to 16), `deposit`, `keep`, `pace` | Stairs down to `target_y`, a `trunk_width`-wide trunk (extra lanes to the right), 1-wide branches on both sides with `spacing` solid blocks between them, far end first | v0.2 |
 | `come` | `to` (a player) | Walks to the player and waits | v0.1 |
 | `stop` | none | Finishes the current block, saves progress, goes idle | v0.1 |
+| `resume` | none | Continues the paused quarry or branch mine (kept when it was stopped, sent to drop off, or called over) from the step where it stopped | v0.2+ |
+| `drop_off` | `deposit` (optional; defaults to the last chest it used) | Stops any job, carries everything except the tool kit and torches to the chest, goes idle | v0.2+ |
 | `status` | none | Job, progress %, phase, blocks it left, items carried, tools and uses left | v0.2 |
 | `collect_skipped` | `job` (default: last) | Goes back for blocks a job left because no tool could harvest them, once it has a better tool | Planned |
 | `haul` | `from`, `to` (places), `items` (optional filter) | Moves chest contents between named places, e.g. to "blue base" | Planned |
@@ -94,7 +97,8 @@ anything moves.
 branches sit every 3rd block along the trunk. Every block in those walls touches a tunnel.
 
 - **Stairs:** 1 wide, 3 blocks of headroom, one step down per block forward, to `target_y`.
-- **Trunk:** 2 wide, 2 tall, `trunk_length` long, straight ahead.
+- **Trunk:** `trunk_width` wide (default 2; the stair lane plus lanes to its right), 2 tall,
+  `trunk_length` long, straight ahead.
 - **Branches:** 1 wide, 2 tall, `branch_length` long, off both sides. First pair at trunk index
   `spacing`, then one pair every `spacing + 1` blocks.
 - **Order:** trunk to the far end, then branches pair by pair back toward the stairs.
@@ -134,6 +138,24 @@ branches sit every 3rd block along the trunk. Every block in those walls touches
   ancient debris. Everything else is voided with `keep = valuables`.
 - **Blocks no tool can harvest:** left and dug around, never broken for nothing; logged.
 - **Unloaded chunks:** the job pauses and resumes when the worker's chunk loads again.
+- **Digging like a player:** one block at a time, each taking the tool's break time, facing it,
+  with the dig sound and the tool in its hand. The blocks still to break in a step are saved, so a
+  step resumes after a chest trip or restart.
+- **Headroom:** if a block its tools can break sits at head height where it needs to stand, it digs
+  it out (even just outside a quarry box). Stair steps, containers with items, liquids and
+  protected blocks are never removed this way.
+- **Standing and moving:** a worker stands only where there's a solid floor and 2 blocks of air.
+  It never moves into a block it left; one step over or straight down it slides (over first, then
+  down), anything farther it walks by A*. In a quarry it may reach up to 3 blocks instead.
+- **Ore in tunnel walls (branch mine):** after each tunnel step, ore touching the tunnel (and ore
+  touching that ore, up to 32 blocks) is mined, and each hole is filled with stone or dirt it dug:
+  voided junk first (it remembers up to 64), else what it carries. Cells the plan will dig are left alone.
+- **Torches:** torches it carries (from the barrel, or tap it holding torches) are placed on the floor
+  every 12 blocks of stairs and branch, every 10 in the 2-wide trunk, and on quarry stair steps every
+  12. Every tunnel block ends up within 6 blocks of a torch (light 8+), so hostile mobs can't spawn.
+  It says when it runs out. Torches never go to the deposit chest.
+- **Taking what it carries:** the menu's "Take what it carries" moves everything except the kit and
+  torches into the player's inventory; "Drop off at a chest" runs `drop_off`.
 
 ### Who can give orders
 
@@ -150,7 +172,7 @@ The owner and crew list are saved on the worker itself. Places are private unles
 
 `job_started`, `progress` (every 10%), `deposited`, `deposit_full`, `found` (kind + coords),
 `hazard` (lava), `skipped`, `detour`, `tool_low`, `tool_broke`, `tool_needed`, `tool_ok`, `stuck`,
-`job_done`, `job_failed`. Each goes to the owner and whoever gave the order, and is printed to the
+`torches_out`, `job_done` (with `ore_from_walls` and `torches` counts), `job_failed`. Each goes to the owner and whoever gave the order, and is printed to the
 server console as `[Crew-Event] {json}`, which is what the LLM bridge will read.
 
 ### Building a worker
@@ -160,22 +182,125 @@ worker owned by whoever placed the pumpkin. Tools become the kit, other barrel i
 slots. A barrel with no tool stays a barrel and chat says to add one. Hold a tool and tap the worker
 to give it another; crouch and tap for the menu. `/crew:hire` (operators) spawns one for testing.
 
-## Phases
+## Roadmap
 
-1. **v0.1 Miner (done):** one worker, box dig, places, permissions, Survey Stake corners.
-2. **v0.2 Mining patterns and tools (done in code, mock-tested):** see above. Gate: on BDS a
-   16x16x10 quarry and a default branch mine both finish into a chest, nothing outside the plan is
-   touched, and a friend can use the menu once allowed.
-3. **v0.3 Hardening:** walking animation and tool in hand, action-bar progress, `collect_skipped`,
-   better falling-gravel handling. Gate: a 64-cube dig survives a server restart mid-job.
-4. **Phase 1b Logistics:** `haul` between named places, `scout`/structure reports.
-   Gate: "haul from mine chest to blue base" works across 200+ blocks.
-5. **Phase 2 LLM bridge:** a small program next to BDS reads `[Crew-Event]` lines and sends
-   `crew:exec {json}` orders back. The LLM sees the job schema as tools plus places and worker status;
-   `/crew:ask Dig "branch mine here at diamond level and tell me if you find anything weird"` becomes
-   a `branch_mine` call. Gate: 10 plain-English orders in a row map to the right job, no bad calls.
-6. **Phase 3 Contractor mode:** multi-step plans (dig, then haul, then report), several workers
-   splitting one job, an approval step before big jobs.
+Each release is a group of features that can be tested on its own, in the local "Addon Test" world
+first and then on the server. Tasks are listed in build order. Decided Nov 13 2026 with Brian.
+
+**Direction (Nov 13):** move from "jobs with coordinates" to living workers: a worker has a home
+(bed + chest), a daily routine like a villager, and a goal it pursues by itself ("prospect for
+diamonds around here"). Orders stay small typed objects, so the later LLM contractor uses the same
+jobs. Decided: **no x-ray** (workers only know what they uncover); **home every night** (camp beds
+near a mine keep the walk short); **food is optional** and, like sleep, restores energy; **mobs
+can't hurt workers yet**; Quarry and Branch mine stay as precise jobs.
+
+### Done
+- **v0.1 Miner:** one worker, box dig, places, permissions, Survey Stake corners.
+- **v0.2 Mining patterns and tools:** quarry with stair, branch mine, tool kits, crouch menu,
+  Survey Stake outline. Tested in game Nov 12.
+
+### v0.3 Better digging (built, mock-tested; needs an in-game pass, then the first server install)
+Villager-style model with a skin per role; tool in hand; digs one block at a time; no hovering or
+clipping; clears diggable blocks at head height; ore veins in tunnel walls with backfill; torches
+at no-spawn spacing; trunk width 1-4; Take what it carries / Drop off / Stop-and-drop-off;
+Continue after a stop; Get a Survey Stake from the menu, Put the stake away; in-game guide.
+- [ ] Full Minecraft restart, check tool in hand, block-by-block digging, headroom, trunk width.
+- [ ] Bump all versions to 0.3.0 (both manifests, module and dependency versions, `VERSION`).
+- [ ] Back up the server world; install both packs on BDS; friends test.
+- **Gate:** a friend builds a worker from the guide alone and finishes a branch mine on the server.
+
+### v0.4 Home and daily routine (built Nov 13, mock-tested; needs an in-game pass)
+Built as planned, in `life.js` (home, beds, energy, food, restock) and the `rest` job + `routine()`
+in `runner.js`. Differences from the task list below: the name tag doesn't mark a home (the menu
+status and Home screen show it); "yawning" is a one-time "getting tired" message, not an
+animation; idle workers use vanilla wandering, not tied to their home yet; a worker with no home
+sleeps rough where it stands at night (rests to 50%). Numbers: dusk at time 12000; energy drains
+0.08 per block (about 1,250 blocks from full); below 30 it digs 1.5x slower and eats if it has
+food; below 10 it rests; safe bed restores to 100, unsafe 75, rough 50; it packs 64 torches and
+8 food each morning.
+1. **Home:** `set_home` job + "Set home" in the menu: claims the bed the player is standing by
+   (one worker per bed, claims kept on the world) and the nearest chest within 8 blocks as its
+   home chest, which becomes the default drop-off. Name tag shows it has a home.
+2. **Safe bed check:** roof over the bed (no open sky above), no hostile mobs within 16 blocks.
+   Unsafe beds still work but give less rest, and the worker says why.
+3. **Day clock:** read `world.getTimeOfDay()`; phases wake, work, dusk, sleep. Handle time jumps
+   (players sleeping skips the night) and restarts.
+4. **Routine on top of jobs:** at dusk the current dig is paused (reusing `crew:paused`), the
+   worker walks home, unloads, eats if there's food, sleeps; at dawn it takes supplies (tools,
+   torches, food) from the home chest and Continues. No job: idles around home (wander, look at
+   players, sit).
+5. **Energy (0-100):** drops per block mined; below 30 it digs slower, below 10 it heads home.
+   Sleep restores it (full in a safe bed, partial in an unsafe one). Food from the home chest or
+   carried food restores some too (bread, cooked meat and fish, baked potato, more for better food).
+   Food is never required.
+6. **Animations:** lying in bed with "Zzz", eating, yawning when tired.
+7. Guide pages, mock-clock tests, docs.
+- **Gate:** a worker digs all day, walks home at dusk, sleeps, and is back at its dig the next
+  morning, across a server restart and a skipped night.
+
+### v0.5 Prospector (autonomous miner)
+1. **`prospect` job:** target (diamonds, iron, gold, redstone, lapis, coal, copper, emeralds,
+   ancient debris, or any valuables), start (staked spot, "here" or "near home"), range (how far it
+   may roam), optional quota ("10 diamonds"), optional mine name.
+2. **Target table:** best depth and which blocks count for each target.
+3. **Mine entrance:** before digging down, builds an old-style wooden entrance over the stairs (log
+   posts, plank beam, a lantern) with a sign naming the mine, e.g. "Digby's Diamond Mine No. 1" or the
+   name given. An entrance chest next to it is where it drops off. Signs via the sign component.
+4. **Growing branch mine:** stairs to the target depth, then a main tunnel with branches 2 blocks
+   apart that keeps extending in a fixed, repeatable pattern until a stop rule; stays within range.
+5. **Caves:** when a tunnel breaks into a cave or ravine, it mines the ore it can see and reach
+   there, then returns to its tunnel. No x-ray.
+6. **Hazards:** seals lava with cobblestone, handles water and falling gravel.
+7. **Stop rules:** full: unload at the entrance chest and carry on; out of pickaxes: home, asks for
+   tools; quota met or range mined out: home, reports; night: home (v0.4 routine).
+8. **Route home:** remembers the way out through its own tunnels, so long commutes don't need big
+   path searches.
+9. **Finds:** reports structures it breaks into (mineshaft, dungeon, geode, ancient city,
+   stronghold) and big ore finds; stats on the sign or in the menu.
+- **Gate:** "prospect for diamonds here, quota 5" runs over several in-game days with no help
+  beyond tools, and the entrance and sign look right.
+
+### v0.6 Hauler (new worker)
+1. **New worker type** with its own look (backpack, no tool); build recipe to decide (see open
+   questions); own menu.
+2. **Depot:** a designated spot (a named place like "blue base"); nearby chests count as one depot.
+3. **Rounds:** collects from its owner's mine entrance chests (and any pickup points it's given),
+   carries to the depot, puts each item in a chest that already holds that item, else any free one.
+4. **`haul` job:** one-off move from one place to another, for the LLM and slash commands.
+5. Keeps the same daily routine (home, sleep, energy).
+- **Gate:** a hauler keeps two prospectors' entrance chests from filling up and the depot sorted,
+  across 200+ blocks.
+
+### v0.7 Character
+1. **Ranks:** Novice, Apprentice, Journeyman, Expert, Master from blocks mined and finds; small perks
+   (a bit faster, carries more, at Master notices ore one block into a wall).
+2. **Personality:** traits generated from the worker's id (same worker, same personality): favourite
+   ore, a quirk, its own lines.
+3. **Talking:** short lines to nearby players, greets its owner, reacts to finds and lava; rate-limited.
+4. **Journal:** a daily log in the menu ("Day 14: dug 412 blocks, 3 diamonds, a lava scare"); "while
+   you were away" summary when the owner logs in. Also the LLM's memory later.
+
+### v0.8 Loose ends
+- `collect_skipped`: go back with a better tool for blocks it had to leave.
+- `scout`: walk an area without digging and report structures and exposed ores.
+- Walking animation polish, action-bar progress.
+
+### Later
+- **Danger:** mobs can knock a worker out; it wakes in its bed and loses what it carried.
+- **Social:** workers greet and chat with each other, bunkhouses.
+- **Other roles:** Woodcutter (forests, replanting), Farmer (fields, cooks food for the crew),
+  Digger (clearing land, paths).
+- **LLM bridge (Phase 2):** a program next to BDS reads `[Crew-Event]` lines and sends
+  `crew:exec {json}` orders back. `/crew:ask Dig "find me diamonds and tell me if you find anything
+  weird"` becomes a `prospect` call. Gate: 10 plain-English orders in a row map to the right job.
+- **Contractor mode (Phase 3):** multi-step plans (prospect, then haul, then report), several
+  workers splitting one goal, an approval step before big jobs.
+
+### Open questions (also asked in the shared roadmap)
+- How do you build a Hauler? Idea: a barrel with a chest inside (no tools) and a pumpkin on top.
+- Does the mine entrance cost wood the worker carries, or is it free?
+- Mine names: automatic ("Digby's Diamond Mine No. 1"), chosen when ordering, or both?
+- How many workers should be able to roam far from players at once (the world allows 10 loaded areas)?
 
 ## LLM connection options (Phase 2)
 
@@ -192,7 +317,7 @@ to give it another; crouch and tap for the menu. `/crew:hire` (operators) spawns
 - **Fast pace** (5x tool speed) is open to everyone. Option: operators only, or diamond+ tools only.
 - **Operators** can command any worker. Option: owners and crew only.
 - **Junk blocks:** `keep = valuables` voids stone, dirt and gravel by default.
-- **Look:** small hard-hat worker (fits 1-high tunnels).
+- **Look:** villager-style worker with a hard hat, one skin per role (decided Nov 12).
 - **LLM for Phase 2:** local model vs hosted API; both work with the console bridge.
 
 ## Sources

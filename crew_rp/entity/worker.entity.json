@@ -4,20 +4,30 @@
     "description": {
       "identifier": "crew:worker",
       "materials": { "default": "entity_alphatest" },
-      "textures": { "default": "textures/entity/crew_worker" },
+      "enable_attachables": true,
+      "textures": {
+        "miner": "textures/entity/worker_miner",
+        "digger": "textures/entity/worker_digger",
+        "woodcutter": "textures/entity/worker_woodcutter",
+        "farmer": "textures/entity/worker_farmer"
+      },
       "geometry": { "default": "geometry.crew_worker" },
       "scripts": {
-        "scale": "0.45",
+        "scale": "0.8",
         "animate": [
-          "look",
-          { "walk": "query.modified_move_speed > 0.05 || query.property('crew:anim') == 1" },
-          { "mine": "query.property('crew:anim') == 2" }
+          { "look": "query.property('crew:anim') != 3" },
+          { "walk": "query.property('crew:anim') < 2 && (query.modified_move_speed > 0.05 || query.property('crew:anim') == 1)" },
+          { "mine": "query.property('crew:anim') == 2" },
+          { "sleep": "query.property('crew:anim') == 3" },
+          { "eat": "query.property('crew:anim') == 4" }
         ]
       },
       "animations": {
         "look": "animation.crew_worker.look",
         "walk": "animation.crew_worker.walk",
-        "mine": "animation.crew_worker.mine"
+        "mine": "animation.crew_worker.mine",
+        "sleep": "animation.crew_worker.sleep",
+        "eat": "animation.crew_worker.eat"
       },
       "render_controllers": ["controller.render.crew_worker"],
       "spawn_egg": { "base_color": "#ff7814", "overlay_color": "#f5c414" }

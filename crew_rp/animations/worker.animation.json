@@ -20,6 +20,23 @@
         "rightArm": { "rotation": ["-75 + math.cos(query.life_time * 900) * 40", 0, 0] },
         "body": { "rotation": ["5 + math.cos(query.life_time * 900) * 4", 0, 0] }
       }
+    },
+    "animation.crew_worker.sleep": {
+      "loop": true,
+      "bones": {
+        "root": { "rotation": [-90, 0, 0], "position": [0, 2, 0] },
+        "head": { "rotation": [0, 0, 0] },
+        "body": { "scale": ["1 + math.sin(query.life_time * 120) * 0.02", 1, 1] },
+        "rightArm": { "rotation": [0, 0, 6] },
+        "leftArm": { "rotation": [0, 0, -6] }
+      }
+    },
+    "animation.crew_worker.eat": {
+      "loop": true,
+      "bones": {
+        "rightArm": { "rotation": ["-110 + math.sin(query.life_time * 1440) * 8", -20, 0] },
+        "head": { "rotation": ["8 + math.sin(query.life_time * 1440) * 6", 0, 0] }
+      }
     }
   }
 }

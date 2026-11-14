@@ -32,22 +32,25 @@ while (e.getDynamicProperty("crew:job") && t < 400000) tick(++t);
 // checks
 const inBox = (x, y, z) => x >= g.min.x && x <= g.max.x && y >= g.min.y && y <= g.max.y && z >= g.min.z && z <= g.max.z;
 const stairs = new Set(); for (let k = 0; k <= g.D - 2; k++) { const s = stairBlock(g, k); stairs.add(`${s.x},${s.y},${s.z}`); }
-let leftInBox = 0, changedOutside = 0, stairsSolid = 0, stairsHeadroomOk = 0; const leftovers = [];
+let leftInBox = 0, changedOutside = 0, stairsSolid = 0, stairsHeadroomOk = 0; const leftovers = [], torches = [];
 for (let x = g.min.x - 2; x <= g.max.x + 2; x++) for (let y = g.min.y - 2; y <= g.max.y + 3; y++) for (let z = g.min.z - 2; z <= g.max.z + 2; z++) {
   const tt = ow.typeAt({ x, y, z }); const k = `${x},${y},${z}`;
   if (inBox(x, y, z)) {
-    if (stairs.has(k)) { if (!/air|lava/.test(tt)) stairsSolid++; continue; }
+    if (stairs.has(k)) { if (!/air|lava|torch/.test(tt)) stairsSolid++; continue; }
+    if (/torch/.test(tt)) { torches.push(k); continue; }
     if (!/air|lava/.test(tt)) { leftInBox++; leftovers.push(`${tt}@${k}`); }
   } else if (ow.blocks.get(k) !== before.get(k)) changedOutside++;
 }
-// each stair: the 3 cells above its block are open (a player can walk the spiral)
-for (const k of stairs) { const [x, y, z] = k.split(",").map(Number); if ([1, 2, 3].every((d) => y + d > g.max.y || /air/.test(ow.typeAt({ x, y: y + d, z })))) stairsHeadroomOk++; }
+// each stair: the 3 cells above its block are open (a player can walk the spiral; torches don't block)
+for (const k of stairs) { const [x, y, z] = k.split(",").map(Number); if ([1, 2, 3].every((d) => y + d > g.max.y || /air|torch/.test(ow.typeAt({ x, y: y + d, z })))) stairsHeadroomOk++; }
+// torches stand on top of stair steps
+const torchesOnStairs = torches.filter((k) => { const [x, y, z] = k.split(",").map(Number); return stairs.has(`${x},${y - 1},${z}`); }).length;
 const chest = ow.getBlock({ x: 0, y: 65, z: -4 }).getComponent("minecraft:inventory").container;
 const inChest = chest.items.filter(Boolean).reduce((a, s) => a + s.amount, 0);
 const toolUse = {}; for (const [b, tl] of lootCalls) { const key = `${b.replace("minecraft:", "")} <- ${tl.replace("minecraft:", "")}`; toolUse[key] = (toolUse[key] ?? 0) + 1; }
 const kit = e.inv.items.slice(0, 5).filter(Boolean).map((s) => `${s.typeId.replace("minecraft:", "")} dmg ${s.damage}`);
 console.log = out;
 console.log(JSON.stringify({ order: order.message, keep, ticks: t, minutes: +(t / 1200).toFixed(1), boxBlocks: g.total, stairs: stairs.size, stairsSolid, stairsHeadroomOk,
-  leftInBox, leftovers, changedOutside, inChest, chestTypes: [...new Set(chest.items.filter(Boolean).map((s) => s.typeId))], kitAfter: kit,
+  leftInBox, leftovers, torchesPlaced: torches.length, torchesOnStairs, changedOutside, inChest, chestTypes: [...new Set(chest.items.filter(Boolean).map((s) => s.typeId))], kitAfter: kit,
   toolUse, skipped: JSON.parse(e.getDynamicProperty("crew:skipped") ?? "null"), shortcutsTaken: logs.filter((l) => l.includes('"stuck"')).length }, null, 1));
 console.log(logs.filter((l) => /job_started|deposited|found|skipped"|hazard|job_done|stuck|WARN|failed/.test(l)).slice(0, 30).join("\n"));

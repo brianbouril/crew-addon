@@ -5,14 +5,18 @@ import { CommandPermissionLevel, world } from "@minecraft/server";
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
 import { KEEP, PACE } from "./catalog.js";
 import { dispatch } from "./orders.js";
-import { getPlan, planOrder, planText, updatePlan } from "./marker.js";
-import { isWorking, statusText, stopJob } from "./runner.js";
+import { getPlan, giveStake, hasStake, planOrder, planText, updatePlan } from "./marker.js";
+import { countItem, isWorking, pausedJob, statusText, stopJob } from "./runner.js";
 import { canUsePlace, getPlaces } from "./store.js";
-import { KIT_SLOTS, ROLE_LIST, addToKit, kit, toolInfo } from "./tools.js";
-import { fmt, setJSON, tell } from "./util.js";
+import { KIT_SLOTS, ROLE_LIST, addToKit, kit, stash, toolInfo } from "./tools.js";
+import { TORCH } from "./blocks.js";
+import { TORCH_EVERY } from "./plans.js";
+import { fmt, getJSON, setJSON, tell } from "./util.js";
+import { bedNear, bedSafety, energy, energyWord, getHome, isSupply, sameBed } from "./life.js";
 import { canCommand, canManage, dismissWorker, meta, renameWorker, roleOf, setRole, updateTag } from "./workers.js";
 import { show } from "./forms.js";
-import { MAX_SIDE } from "./catalog.js";
+import { openGuide } from "./guide.js";
+import { DEFAULTS, MAX_SIDE, MAX_TRUNK_WIDTH } from "./catalog.js";
 
 /**
  * @typedef {import("@minecraft/server").Player} Player
@@ -44,15 +48,27 @@ export async function openMenu(p, e) {
   const m = meta(e);
   const can = canCommand(by, m), manage = canManage(by, m);
   const body = `${roleOf(e)}. Owner: ${m.ownerName}.\n${statusText(e)}`;
-  if (!can) return menu(p, m.name, `${body}\n\nOnly ${m.ownerName} and the players they allow can give ${m.name} orders.`, [["Close", () => {}]]);
+  if (!can) return menu(p, m.name, `${body}\n\nOnly ${m.ownerName} and the players they allow can give ${m.name} orders.`, [["How workers work", () => openGuide(p)], ["Close", () => {}]]);
   /** @type {[string, () => any][]} */
   const b = [];
+  const paused = pausedJob(e);
+  const digging = /quarry|branch_mine/.test(String(getJSON(e, "crew:job", undefined)?.type));
+  if (roleOf(e) === "Miner" && paused && !digging) {
+    b.push([`Continue the ${paused.name} (${paused.pct}% done)`, () => say(p, dispatch(by, { worker: m.name, job: "resume", params: {} }))]);
+  }
   if (roleOf(e) === "Miner") {
     b.push(["Quarry", () => digForm(p, by, e, "quarry")]);
     b.push(["Branch mine", () => digForm(p, by, e, "branch")]);
+    if (!hasStake(p)) b.push(["Get a Survey Stake", () => tell(p, giveStake(p))]);
   }
   b.push(["Come here", () => say(p, dispatch(by, { worker: m.name, job: "come", params: {} }))]);
-  if (isWorking(e)) b.push(["Stop", () => say(p, dispatch(by, { worker: m.name, job: "stop", params: {} }))]);
+  if (isWorking(e)) b.push(["Stop", () => stopMenu(p, by, e)]);
+  const n = carried(e).reduce((a, x) => a + x.item.amount, 0);
+  if (n > 0) {
+    b.push([`Take what it carries (${n})`, () => takeCarried(p, e)]);
+    b.push(["Drop off at a chest", () => dropOff(p, by, e)]);
+  }
+  b.push([getHome(e) ? "Home" : "Home: set one", () => homeMenu(p, by, e)]);
   b.push(["Tools", () => toolsMenu(p, by, e)]);
   if (manage) {
     b.push([`Role: ${roleOf(e)}`, () => roleForm(p, e)]);
@@ -60,12 +76,117 @@ export async function openMenu(p, e) {
     b.push(["Who can give orders", () => crewMenu(p, e)]);
     b.push(["Dismiss", () => dismissForm(p, e)]);
   }
+  b.push(["How workers work", () => openGuide(p)]);
   b.push(["Close", () => {}]);
   await menu(p, m.name, body, b);
 }
 
 /** @param {Player} p @param {{ok: boolean, message: string}} r */
 const say = (p, r) => tell(p, r.ok ? r.message : `§c${r.message}`);
+
+/**
+ * Home: set it to the bed the player is standing by (the nearest chest within 8 becomes the home
+ * chest), or clear it. Shows where it is and whether the bed is safe.
+ * @param {Player} p @param {Commander} by @param {Entity} e
+ */
+async function homeMenu(p, by, e) {
+  const m = meta(e);
+  const home = getHome(e);
+  const near = bedNear(p.dimension, p.location, 3);
+  let body = `${m.name} works by day and sleeps at night. With a home it walks back at dusk, drops off what it dug in its home chest, sleeps in its bed, and in the morning takes torches, food and tools from the chest and picks its job back up. Without one it sleeps wherever it is, and doesn't rest as well.`;
+  if (home) {
+    const s = bedSafety(e.dimension, home);
+    body += `\n\nHome: the bed at ${fmt(home.head)}${home.chest ? `, home chest at ${fmt(home.chest)}` : ", no home chest"}. ${s.safe ? "The bed is safe." : `The bed isn't safe: ${s.why}.`}`;
+  }
+  body += `\n\nEnergy: ${Math.round(energy(e))}% (${energyWord(energy(e))}).`;
+  /** @type {[string, () => any][]} */
+  const b = [];
+  if (near) b.push([home && sameBed(home, near) ? "This bed is already its home" : "Make the bed next to me its home", () => say(p, dispatch(by, { worker: m.name, job: "set_home", params: { bed: near.head } }))]);
+  else body += "\n\nTo set its home, stand next to a bed and open this menu again.";
+  if (home) b.push(["Forget its home", () => say(p, dispatch(by, { worker: m.name, job: "clear_home", params: {} }))]);
+  b.push(["Back", () => openMenu(p, e)]);
+  await menu(p, `${m.name}: home`, body, b);
+}
+
+/** What the worker carries: everything but its tool kit and supplies (torches, food). @param {Entity} e */
+function carried(e) {
+  const inv = /** @type {import("@minecraft/server").Container} */ (e.getComponent("minecraft:inventory")?.container);
+  /** @type {{slot: number, item: import("@minecraft/server").ItemStack}[]} */
+  const out = [];
+  if (!inv) return out;
+  for (let i = 0; i < inv.size; i++) {
+    const item = inv.getItem(i);
+    if (!item || (i < KIT_SLOTS && toolInfo(item)) || isSupply(item.typeId)) continue;
+    out.push({ slot: i, item });
+  }
+  return out;
+}
+
+/** Hands everything the worker carries to the player (what doesn't fit drops at their feet). @param {Player} p @param {Entity} e */
+function takeCarried(p, e) {
+  if (!e.isValid) return;
+  const inv = /** @type {import("@minecraft/server").Container} */ (e.getComponent("minecraft:inventory")?.container);
+  const pinv = /** @type {import("@minecraft/server").Container} */ (p.getComponent("minecraft:inventory")?.container);
+  let n = 0, dropped = 0;
+  for (const { slot, item } of carried(e)) {
+    inv.setItem(slot, undefined);
+    n += item.amount;
+    const left = pinv.addItem(item);
+    if (left) {
+      dropped += left.amount;
+      p.dimension.spawnItem(left, p.location);
+    }
+  }
+  tell(p, `Took ${n} items from ${meta(e).name}.${dropped ? ` ${dropped} didn't fit and are at your feet.` : ""}`);
+}
+
+/** Drop-off: its last chest if it has one, otherwise pick one. @param {Player} p @param {Commander} by @param {Entity} e */
+async function dropOff(p, by, e) {
+  const m = meta(e);
+  const last = e.getDynamicProperty("crew:lastDeposit") ?? getHome(e)?.chest; // with no last chest, the home chest
+  const deps = depositChoices(p, by, e.dimension.id);
+  if (!last && !deps.length) return menu(p, m.name, "Where should it drop things off? Use the Survey Stake on a chest or barrel, or save one with /crew:place \"name\".", [["OK", () => {}]]);
+  if (last && !deps.length) return say(p, dispatch(by, { worker: m.name, job: "drop_off", params: {} }));
+  const labels = [...(last ? [e.getDynamicProperty("crew:lastDeposit") ? "Where it dropped off last" : "Its home chest"] : []), ...deps.map((d) => d.label)];
+  const f = new ModalFormData().title(`${m.name}: drop off`).dropdown("Take everything it carries to", labels).submitButton("Go");
+  const r = await show(p, f);
+  if (!r?.formValues) return;
+  const i = Number(r.formValues[0]) - (last ? 1 : 0);
+  say(p, dispatch(by, { worker: m.name, job: "drop_off", params: i < 0 ? {} : { deposit: deps[i].value } }));
+}
+
+/** @param {Player} p @param {Commander} by @param {Entity} e */
+function stopMenu(p, by, e) {
+  const m = meta(e);
+  return menu(p, `Stop ${m.name}?`, "It saves its progress either way.", [
+    ["Stop here", () => say(p, dispatch(by, { worker: m.name, job: "stop", params: {} }))],
+    ["Stop and drop off what it carries", () => {
+      if (e.getDynamicProperty("crew:lastDeposit") || getHome(e)?.chest) return say(p, dispatch(by, { worker: m.name, job: "drop_off", params: {} }));
+      say(p, dispatch(by, { worker: m.name, job: "stop", params: {} }));
+      return dropOff(p, by, e);
+    }],
+    ["Cancel", () => {}],
+  ]);
+}
+
+/**
+ * Hands the torches in the player's hand to the worker; it places them as it digs.
+ * @param {Player} p @param {Entity} e
+ */
+export function giveHeldTorches(p, e) {
+  if (!e.isValid) return;
+  const m = meta(e);
+  if (!canCommand(whoIs(p), m)) { tell(p, `§cOnly ${m.ownerName} and the players they allow can give ${m.name} things.`); return; }
+  const pinv = /** @type {import("@minecraft/server").Container} */ (p.getComponent("minecraft:inventory")?.container);
+  const winv = /** @type {import("@minecraft/server").Container} */ (e.getComponent("minecraft:inventory")?.container);
+  const cur = pinv?.getItem(p.selectedSlotIndex);
+  if (!cur || cur.typeId !== TORCH || !winv) return;
+  const left = stash(winv, cur);
+  pinv.setItem(p.selectedSlotIndex, left);
+  const took = cur.amount - (left?.amount ?? 0);
+  if (!took) { tell(p, `§c${m.name} has no room for torches.`); return; }
+  tell(p, `${m.name} took ${took} torches (${countItem(winv, TORCH)} now). It places one every ${TORCH_EVERY} blocks of tunnel (closer in wide trunks), so nothing can spawn there.`);
+}
 
 /** Deposit choices: the chest marked with the stake, then saved places. @param {Player} p @param {Commander} by @param {string} dim */
 function depositChoices(p, by, dim) {
@@ -84,12 +205,16 @@ async function digForm(p, by, e, mode) {
   const label = mode === "quarry" ? "quarry" : "branch mine";
   if (!plan || plan.mode !== mode || !plan.confirmed) {
     const why = plan && plan.mode === mode ? "Your plan isn't confirmed yet: use the Survey Stake on its start block again and pick Confirm." :
-      `No ${label} planned yet. Get a Survey Stake (/crew:stake), use it on the ground block where the ${label} should start while facing the way it should go, pick ${mode === "quarry" ? "Quarry" : "Branch mine"}, check the outline, then use it on the same block again to confirm.`;
-    return menu(p, `${m.name}: ${label}`, why, [["OK", () => {}]]);
+      `No ${label} planned yet. With a Survey Stake, use it on the ground block where the ${label} should start while facing the way it should go, pick ${mode === "quarry" ? "Quarry" : "Branch mine"}, check the outline, then use it on the same block again to confirm.`;
+    /** @type {[string, () => any][]} */
+    const buttons = hasStake(p) ? [["OK", () => {}]] : [["Give me a Survey Stake", () => tell(p, giveStake(p))], ["OK", () => {}]];
+    return menu(p, `${m.name}: ${label}`, why, buttons);
   }
   if (plan.dim !== e.dimension.id) return menu(p, m.name, `Your plan is in another dimension from ${m.name}.`, [["OK", () => {}]]);
   const deps = depositChoices(p, by, e.dimension.id);
-  if (!deps.length) return menu(p, m.name, "Where should it drop things off? Use the Survey Stake on a chest or barrel, or save one with /crew:place \"name\".", [["OK", () => {}]]);
+  const home = getHome(e);
+  if (home?.chest && home.dim === e.dimension.id) deps.unshift({ label: `Its home chest at ${fmt(home.chest)}`, value: [home.chest.x, home.chest.y, home.chest.z] });
+  if (!deps.length) return menu(p, m.name, "Where should it drop things off? Give it a home (Home in its menu), use the Survey Stake on a chest or barrel, or save one with /crew:place \"name\".", [["OK", () => {}]]);
 
   const f = new ModalFormData().title(`${m.name}: ${label} at ${fmt(plan.anchor)} heading ${plan.facing}`);
   if (mode === "quarry") {
@@ -98,6 +223,7 @@ async function digForm(p, by, e, mode) {
       .slider("Depth", 1, MAX_SIDE, { defaultValue: plan.depth, valueStep: 1 });
   } else {
     f.slider("Trunk length", 1, MAX_SIDE, { defaultValue: plan.trunk, valueStep: 1 })
+      .slider("Trunk width (extra lanes to the right)", 1, MAX_TRUNK_WIDTH, { defaultValue: plan.trunkWidth ?? DEFAULTS.width, valueStep: 1 })
       .slider("Branch length (each side)", 0, MAX_SIDE, { defaultValue: plan.branch, valueStep: 1 })
       .slider("Solid blocks between branches", 1, 16, { defaultValue: plan.spacing, valueStep: 1 })
       .textField(`Tunnel floor Y (start is ${plan.anchor.y + 1})`, "-54", { defaultValue: String(plan.targetY) });
@@ -111,10 +237,10 @@ async function digForm(p, by, e, mode) {
   const v = r.formValues;
   if (mode === "quarry") updatePlan(p, { length: Number(v[0]), width: Number(v[1]), depth: Number(v[2]), confirmed: true });
   else {
-    const ty = Math.round(Number(v[3]));
-    updatePlan(p, { trunk: Number(v[0]), branch: Number(v[1]), spacing: Number(v[2]), targetY: Number.isFinite(ty) ? ty : plan.targetY, confirmed: true });
+    const ty = Math.round(Number(v[4]));
+    updatePlan(p, { trunk: Number(v[0]), trunkWidth: Number(v[1]), branch: Number(v[2]), spacing: Number(v[3]), targetY: Number.isFinite(ty) ? ty : plan.targetY, confirmed: true });
   }
-  const tail = v.slice(mode === "quarry" ? 3 : 4);
+  const tail = v.slice(mode === "quarry" ? 3 : 5);
   const now = /** @type {import("./marker.js").Plan} */ (getPlan(p));
   const o = planOrder(now);
   const res = dispatch(by, { worker: m.name, job: o.job, params: { ...o.params, deposit: deps[Number(tail[0])].value, keep: KEEP[Number(tail[1])], pace: PACE[Number(tail[2])] } });

@@ -29,6 +29,7 @@ export class Container {
     return left ? new ItemStack(it.typeId, left) : undefined;
   }
 }
+export const BlockPermutation = { resolve: (id, states) => ({ id, states }) };
 const key = (p) => `${Math.floor(p.x)},${Math.floor(p.y)},${Math.floor(p.z)}`;
 export const log = { tele: 0, commands: [], spawnedItems: [] };
 class Dimension {
@@ -38,10 +39,11 @@ class Dimension {
     const dim = this; const t = this.typeAt(p); const loc = { x: Math.floor(p.x), y: Math.floor(p.y), z: Math.floor(p.z) };
     return { typeId: t, isAir: t.endsWith("air"), isLiquid: /water|lava/.test(t), location: loc, x: loc.x, y: loc.y, z: loc.z, dimension: dim,
       getComponent(n) { if (n === "minecraft:inventory" && /chest|barrel/.test(t)) { const k = key(loc); if (!dim.containers.has(k)) dim.containers.set(k, new Container(54)); return { container: dim.containers.get(k) }; } return undefined; },
-      below() { return dim.getBlock({ x: loc.x, y: loc.y - 1, z: loc.z }); }, bottomCenter() { return { x: loc.x + 0.5, y: loc.y, z: loc.z + 0.5 }; } };
+      below() { return dim.getBlock({ x: loc.x, y: loc.y - 1, z: loc.z }); }, bottomCenter() { return { x: loc.x + 0.5, y: loc.y, z: loc.z + 0.5 }; },
+      setPermutation(p) { dim.setBlockType(loc, p.id); } };
   }
   setBlockType(p, t) { this.blocks.set(key(p), t); }
-  getEntities(o) { return this.entities.filter((e) => e.isValid && (!o?.type || e.typeId === o.type)); }
+  getEntities(o) { if (o?.families) return this.entities.filter((e) => e.isValid && (e.families ?? []).some((f) => o.families.includes(f))); return this.entities.filter((e) => e.isValid && (!o?.type || e.typeId === o.type)); }
   spawnEntity(type, loc) { const e = new Entity(type, loc, this); this.entities.push(e); return e; }
   spawnItem(it, loc) { log.spawnedItems.push(it); }
   spawnParticle() {} playSound() {}
@@ -55,7 +57,9 @@ class Entity {
   getComponent(n) { return n === "minecraft:inventory" ? { container: this.inv } : undefined; }
   teleport(loc) { this.location = { ...loc }; log.tele++; }
   triggerEvent(e) { this.events.push(e); }
-  setProperty(k, v) { this.anim = v; }
+  runCommand(c) { log.commands.push(c); return { successCount: 1 }; }
+  setProperty(k, v) { (this.eprops ??= new Map()).set(k, v); if (k === "crew:anim") this.anim = v; }
+  getProperty(k) { return this.eprops?.get(k); }
   remove() { this.isValid = false; }
 }
 const dims = { "minecraft:overworld": new Dimension("minecraft:overworld"), "minecraft:nether": new Dimension("minecraft:nether"), "minecraft:the_end": new Dimension("minecraft:the_end") };
@@ -63,8 +67,10 @@ const sub = () => ({ subscribe() {} });
 const wprops = new Map();
 const LOOT = { "minecraft:stone": "minecraft:cobblestone", "minecraft:iron_ore": "minecraft:raw_iron", "minecraft:coal_ore": "minecraft:coal", "minecraft:diamond_ore": "minecraft:diamond", "minecraft:dirt": "minecraft:dirt", "minecraft:grass_block": "minecraft:dirt" };
 export const lootCalls = [];
+let timeOfDay = 1000; // day by default; tests move the clock with setTimeOfDay
+export const setTimeOfDay = (t) => { timeOfDay = ((t % 24000) + 24000) % 24000; };
 export const world = {
-  getDimension: (id) => dims[id], getAllPlayers: () => [],
+  getDimension: (id) => dims[id], getAllPlayers: () => [], getTimeOfDay: () => timeOfDay,
   getDynamicProperty: (k) => wprops.get(k), setDynamicProperty: (k, v) => (v === undefined ? wprops.delete(k) : wprops.set(k, v)),
   getLootTableManager: () => ({ generateLootFromBlock: (b, tool) => { lootCalls.push([b.typeId, tool?.typeId ?? "hand"]); return [new ItemStack(LOOT[b.typeId] ?? b.typeId, 1)]; } }),
   afterEvents: new Proxy({}, { get: sub }), beforeEvents: new Proxy({}, { get: sub }),

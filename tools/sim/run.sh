@@ -9,6 +9,12 @@ cp "$ROOT"/crew_bp/scripts/*.js "$W/scripts/"; cp "$HERE"/*.mjs "$W/"; echo '{"t
 cd "$W"
 echo "== quarry (keep all)"; node quarry_test.mjs all
 echo "== branch mine"; node branch_test.mjs
+echo "== branch mine, 1-wide trunk"; node branch_test.mjs 1
+echo "== branch mine, 3-wide trunk"; node branch_test.mjs 3
 echo "== tool kit"; node kit_test.mjs
 echo "== permissions and resume"; node crew_test.mjs
+echo "== drop off"; node dropoff_test.mjs
+echo "== headroom"; node headroom_test.mjs
+echo "== stop, drop off, continue"; node resume_test.mjs
+echo "== home, sleep, energy"; node life_test.mjs
 echo "== main.js loads"; node -e 'import("./scripts/main.js").then(() => console.log("ok"))'

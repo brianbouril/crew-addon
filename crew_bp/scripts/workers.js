@@ -3,6 +3,7 @@ import { world, system, ItemStack } from "@minecraft/server";
 import { DIMS, getJSON, setJSON, onlinePlayer, tell, fmt } from "./util.js";
 import { getRegistry, saveRegistry, freeName } from "./store.js";
 import { ROLE_LIST, addToKit, defaultRole, kit, stash, toolInfo } from "./tools.js";
+import { setHome } from "./life.js";
 
 export const WORKER_TYPE = "crew:worker";
 
@@ -108,11 +109,41 @@ export function setRole(e, role) {
   updateTag(e);
 }
 
+/** What each worker shows in its hand (worker id -> item id), so the command only runs on a change. @type {Map<string, string>} */
+const held = new Map();
+/**
+ * Shows a tool in the worker's hand. It's a display copy: the real tool stays in the kit, and
+ * the entity's equipment drop chance is 0 so it can never drop as a duplicate.
+ * @param {import("@minecraft/server").Entity} e @param {string | undefined} id  undefined = empty hand
+ */
+export function holdTool(e, id) {
+  const want = id ?? "air";
+  if (held.get(e.id) === want) return;
+  held.set(e.id, want);
+  try {
+    e.runCommand(`replaceitem entity @s slot.weapon.mainhand 0 ${want}`);
+  } catch {
+    /* entity gone or command refused: cosmetic only */
+  }
+}
+
+/** Keeps the entity property the skin is picked by (0 Miner, 1 Digger, 2 Woodcutter, 3 Farmer) in step with the role. @param {import("@minecraft/server").Entity} e */
+export function syncRole(e) {
+  try {
+    const want = Math.max(0, ROLE_LIST.indexOf(roleOf(e)));
+    if (e.getProperty("crew:role") !== want) e.setProperty("crew:role", want);
+  } catch {
+    /* entity gone */
+  }
+}
+
 /** Name tag: the name, with role and best tool underneath. @param {import("@minecraft/server").Entity} e */
 export function updateTag(e) {
+  syncRole(e);
   const inv = e.getComponent("minecraft:inventory")?.container;
   const k = inv ? kit(inv) : [];
   const best = [...k].sort((a, b) => b.info.tier - a.info.tier)[0];
+  holdTool(e, best?.info.id);
   e.nameTag = `${meta(e).name}\n§7${roleOf(e)}${best ? `, ${best.info.label}` : ", no tools"}`;
 }
 
@@ -131,6 +162,7 @@ export function renameWorker(e, newName) {
 
 /** Removes a worker and gives back its build blocks, tools and everything it carries. @param {import("@minecraft/server").Entity} e */
 export function dismissWorker(e) {
+  setHome(e, undefined); // frees its bed
   const m = meta(e);
   const dim = e.dimension;
   const at = e.location;

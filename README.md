@@ -5,6 +5,7 @@ mine), tool kits that set what a worker can mine and how fast, a crouch menu for
 and the Survey Stake planner with a particle outline. Every job is still a typed order, so an LLM
 can drive the same jobs later (see the plan doc).
 
+- `PLAYER_GUIDE.md`: the guide for players (also in game: `/crew:help`). Share this with friends.
 - `CLAUDE.md`: start here if you're picking up development (goal, decisions, state, what's left).
 - `docs/PLAN.md`: full plan, job spec, architecture and LLM bridge design.
 - `crew-addon.mcaddon`: the installable add-on (behavior pack + resource pack).
@@ -50,27 +51,38 @@ to the next. If no tool left can carry on, it walks back to the drop-off chest a
 **Handing it more tools.** Hold a tool and tap the worker (no crouch). It goes into the worker's kit
 (5 tools at most). Only the owner, the players they allow and server operators can do this.
 
-**The worker menu.** Crouch and tap the worker (or `/crew:menu <name>`). Players who can't give it
-orders see its status only. Everyone allowed gets: Quarry, Branch mine, Come here, Stop, and Tools
-(see each tool's uses left, add the one in your hand). The owner and server operators also get:
+**Torches.** Put torches in the barrel when you build it, or hold torches and tap the worker. It
+places them as it digs (every 12 blocks of tunnel, every 10 in the wide trunk, on quarry stair
+steps) so every tunnel block stays lit enough that monsters can't spawn. It tells you when it runs out.
+Torches stay with the worker; they never go into the chest.
+
+**The worker menu.** Crouch and tap the worker (or `/crew:menu <name>`), whatever you're holding.
+Players who can't give it orders see its status only. Everyone allowed gets: Quarry, Branch mine,
+Come here, Stop (stop here, or stop and drop off), Continue (after a stop or drop-off it picks the
+dig up where it left off; also `/crew:continue <worker>`), Take what it carries, Drop off at a chest, and
+Tools (see each tool's uses left, add the one in your hand). The owner and server operators also get:
 Role, Name, Who can give orders (allow or remove players), Take back a tool, and Dismiss.
 
-**The Survey Stake.** Craft it (string on top of two sticks in a column) or `/crew:stake`.
+**The Survey Stake.** Pick "Get a Survey Stake" in a worker's menu, craft it (string on top of two
+sticks in a column) or use `/crew:stake`. You only get one if you don't already carry one.
 - Tap a block to start a plan there. The direction you face is the direction it digs. Pick Quarry
   or Branch mine, then set the size with sliders.
 - While you hold the stake, a white particle outline shows the plan and flame particles show the
   direction. Tap the same block again for: Confirm, Change the size, Point it another way, Switch mode, Clear.
   Once confirmed the outline turns green.
 - Tap a chest with the stake to make it the drop-off chest.
+- Every stake menu has "Put the stake away" to take it out of your inventory (your plan is kept).
 
 **Quarry.** Digs a box top-down in rows, starting at the corner you staked and heading the way you
 faced. It leaves a staircase in the wall, spiralling down clockwise, so you and the worker can walk
 in and out. Max 128 on each side.
 
 **Branch mine.** From the staked block it digs a staircase down to the Y level you set (default -54,
-good for diamonds), then a trunk 2 wide and 2 tall. Branches 1 wide and 2 tall go off both sides,
+good for diamonds), then a trunk 2 tall and 1 to 4 wide (default 2; extra lanes go to the right). Branches 1 wide and 2 tall go off both sides,
 with **2 solid blocks between neighbouring branches** (editable 1 to 16). Default trunk and branch
-length are 32. It mines the far branches first and works back toward the stairs.
+length are 32. It mines the far branches first and works back toward the stairs. Ore showing in
+the tunnel walls (and the rest of its vein) is mined too, and each hole is filled back with stone
+or dirt so the walls stay solid.
 
 **Blocks it can't harvest.** If none of its tools can harvest a block (obsidian with only iron
 pickaxes, say), it leaves the block and digs around it rather than wasting it. In a branch it digs a

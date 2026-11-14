@@ -1,7 +1,7 @@
 // A* pathfinder for the worker's trips (to the deposit, back to work, to a player).
 // The Script API has no pathfinding call, so this searches blocks directly. It runs a fixed
 // number of expansions per tick, so a long search never stalls the server.
-// The worker is small (under one block tall), so it fits anywhere one block of air sits on
+// The worker is villager-sized (under two blocks tall), so it needs two blocks of air on top of
 // something solid; it can step up 1 and drop up to 3.
 import { passable } from "./blocks.js";
 import { floorV } from "./util.js";
@@ -52,8 +52,8 @@ function free(s, p) {
 function* neighbors(s, c) {
   for (const d of DIR4) {
     const n = { x: c.x + d.x, y: c.y, z: c.z + d.z };
-    if (free(s, n)) {
-      // walk, or walk off an edge and drop up to 3
+    if (free(s, n) && free(s, { x: n.x, y: n.y + 1, z: n.z })) {
+      // walk, or walk off an edge and drop up to 3 (the column above is open, so the head fits)
       let y = n.y;
       for (let drop = 0; drop <= 3; drop++, y--) {
         const m = { x: n.x, y, z: n.z };
@@ -63,10 +63,10 @@ function* neighbors(s, c) {
           break;
         }
       }
-    } else {
-      // step up one onto the block ahead
+    } else if (!free(s, n)) {
+      // step up one onto the block ahead: room for the body there, and headroom to rise here
       const u = { x: n.x, y: n.y + 1, z: n.z };
-      if (free(s, u) && free(s, { x: c.x, y: c.y + 1, z: c.z })) yield { p: u, cost: 1.5 };
+      if (free(s, u) && free(s, { x: u.x, y: u.y + 1, z: u.z }) && free(s, { x: c.x, y: c.y + 2, z: c.z })) yield { p: u, cost: 1.5 };
     }
   }
 }

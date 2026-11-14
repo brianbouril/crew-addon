@@ -1,19 +1,20 @@
 // The job engine. Every tick it advances each working worker by one small, predictable step.
 // Digging follows the step list from plans.js; trips to the deposit and back use the A*
 // pathfinder in path.js. Tools come from the worker's kit (tools.js).
-import { world, system } from "@minecraft/server";
-import { AIR, GRAVITY, PROTECTED, SIGNS, VALUABLE, blockName, passable } from "./blocks.js";
-import { off, column, startCell, stepAt } from "./plans.js";
+import { world, system, BlockPermutation } from "@minecraft/server";
+import { AIR, FILL, GRAVITY, ORE, PROTECTED, SIGNS, TORCH, VALUABLE, bestKind, blockName, passable } from "./blocks.js";
+import { off, column, inBranchPlan, isStairBlock, startCell, stepAt } from "./plans.js";
 import { newSearch, advance } from "./path.js";
 import { KIT_SLOTS, chooseTool, freeHaulSlots, kit, kitText, stash, ticksFor, toolInfo, wear } from "./tools.js";
-import { center, dist, floorV, fmt, getJSON, lerp, setJSON, onlinePlayer, sameV } from "./util.js";
-import { emit, loadedWorkers, meta } from "./workers.js";
+import { center, dist, floorV, fmt, getJSON, lerp, setJSON, onlinePlayer, sameV, up } from "./util.js";
+import { emit, holdTool, loadedWorkers, meta, roleOf, syncRole, updateTag } from "./workers.js";
+import { DRAIN_PER_BLOCK, EXHAUSTED, REST, TIRED, TIRED_SLOWDOWN, bedPose, bedSafety, bedside, eatOne, energy, energyWord, getHome, isNight, isSupply, restock, setEnergy } from "./life.js";
 
 /**
  * @typedef {import("@minecraft/server").Entity} Entity
  * @typedef {import("@minecraft/server").Container} Container
  * @typedef {{x:number,y:number,z:number}} V3
- * @typedef {{goal: V3, reach: number, search?: any, path?: V3[], idx: number, glide?: {from: V3, to: V3, t: number, n: number}, replans: number}} Walk
+ * @typedef {{goal: V3, reach: number, search?: any, path?: V3[], idx: number, glide?: {from: V3, to: V3, mid?: V3, t: number, n: number}, replans: number}} Walk
  * @typedef {{e: Entity, job: any, st: any, walk?: Walk, saveIn: number, area?: V3, areaIn: number, comeGoal?: V3}} Runtime
  */
 
@@ -22,6 +23,67 @@ const active = new Map();
 const SEARCH_BUDGET = 150; // A* expansions per worker per tick
 const MOVE_TICKS = { normal: 4, fast: 2 }; // ticks to step one block when not digging
 const SKIP_LOG_MAX = 100;
+const REACH_DOWN = 4; // a worker can dig up to this many blocks above where it stands
+const VEIN_MAX = 32; // ore blocks taken out of the walls per tunnel step
+const SPARE_MAX = 64; // voided stone/dirt remembered for filling ore holes
+const DIR4 = [{ x: 1, z: 0 }, { x: -1, z: 0 }, { x: 0, z: 1 }, { x: 0, z: -1 }];
+const DIR6 = [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0], [0, -1, 0]];
+
+// ---------- where a worker can stand ----------
+/** Two blocks of air (feet and head). @param {import("@minecraft/server").Dimension} dim @param {V3} c */
+const roomAt = (dim, c) => passable(dim, c) && passable(dim, up(c));
+/** Drops a spot down onto the floor below it (never stands on air). @param {import("@minecraft/server").Dimension} dim @param {V3} c */
+function settle(dim, c) {
+  const p = { ...c };
+  for (let k = 0; k < 8 && passable(dim, p) && passable(dim, { x: p.x, y: p.y - 1, z: p.z }); k++) p.y--;
+  return p;
+}
+/**
+ * Where to stand for a step: the planned spot if it has a floor and headroom, else the nearest
+ * alternative that does. In a tunnel the alternatives are the step's other floor cells (the
+ * second lane of the trunk); in a quarry, the cells beside it. undefined = no good spot.
+ * @param {Runtime} rt @param {V3} want @param {any} s the step
+ */
+function pickStand(rt, want, s) {
+  const dim = rt.e.dimension;
+  const cur = floorV(rt.e.location);
+  /** @param {V3} c */
+  const ok = (c) => {
+    const p = settle(dim, c);
+    return want.y - p.y <= REACH_DOWN && roomAt(dim, p) ? p : undefined;
+  };
+  const first = ok(want);
+  if (first) return first;
+  /** @type {V3[]} */
+  const alts = s.sides
+    ? s.mine.filter((/** @type {V3} */ c) => c.y === want.y && !sameV(c, want))
+    : DIR4.map((d) => ({ x: want.x + d.x, y: want.y, z: want.z + d.z }));
+  const ns = alts.sort((a, b) => dist(a, cur) - dist(b, cur));
+  for (const n of ns) {
+    const s = ok(n);
+    if (s) return s;
+  }
+  return undefined;
+}
+/** Can it slide straight there (one block over, any drop, or one up) without passing through blocks? @param {import("@minecraft/server").Dimension} dim @param {V3} cur @param {V3} to */
+function canGlide(dim, cur, to) {
+  const flat = Math.abs(to.x - cur.x) + Math.abs(to.z - cur.z);
+  const dy = to.y - cur.y;
+  if (flat > 1 || dy > 1) return false;
+  if (dy === 1) return passable(dim, { x: cur.x, y: cur.y + 2, z: cur.z }); // rise first, then step over
+  if (dy < 0 && flat === 1) return roomAt(dim, { x: to.x, y: cur.y, z: to.z }); // step over, then drop
+  return true;
+}
+/** Path for a glide: straight when level; over-then-down or up-then-over when not, never diagonally through air. @param {V3} from @param {V3} to */
+function glideMid(from, to) {
+  if (Math.abs(to.y - from.y) < 0.01) return undefined;
+  return to.y < from.y ? { x: to.x, y: from.y, z: to.z } : { x: from.x, y: to.y, z: from.z };
+}
+/** @param {{from: V3, to: V3, mid?: V3}} m @param {number} t 0..1 */
+function glideAt(m, t) {
+  if (!m.mid) return lerp(m.from, m.to, t);
+  return t < 0.5 ? lerp(m.from, m.mid, t * 2) : lerp(m.mid, m.to, (t - 0.5) * 2);
+}
 
 // ---------- lifecycle ----------
 /** @param {Entity} e @param {any} job */
@@ -38,12 +100,19 @@ export function startJob(e, job) {
       `starting a ${g.L}x${g.W} quarry, ${g.D} deep (${g.total} blocks) from ${fmt(g.anchor)} heading ${g.facing}. Depositing at ${job.deposit.label}.`);
   } else if (job.type === "branch_mine") {
     const g = job.geom;
-    emit(e, "job_started", { mode: "branch_mine", start: fmt(g.anchor), facing: g.facing, target_y: g.ty, trunk: g.L, branch: g.B, spacing: g.s, deposit: job.deposit.label },
-      `starting a branch mine at ${fmt(g.anchor)} heading ${g.facing}: ${g.n > 0 ? `stairs down to Y ${g.ty}, ` : ""}a ${g.L}-block trunk, then ${g.branchAt.length * 2} branches ${g.B} long with ${g.s} blocks between. Depositing at ${job.deposit.label}.`);
+    emit(e, "job_started", { mode: "branch_mine", start: fmt(g.anchor), facing: g.facing, target_y: g.ty, trunk: g.L, trunk_width: g.w ?? 2, branch: g.B, spacing: g.s, deposit: job.deposit.label },
+      `starting a branch mine at ${fmt(g.anchor)} heading ${g.facing}: ${g.n > 0 ? `stairs down to Y ${g.ty}, ` : ""}a ${g.L}-block trunk ${g.w ?? 2} wide, then ${g.branchAt.length * 2} branches ${g.B} long with ${g.s} blocks between. Depositing at ${job.deposit.label}.`);
   }
 }
 
-/** @param {Entity} e @param {string | undefined} why  undefined = silent */
+const isDig = (/** @type {any} */ job) => job?.type === "quarry" || job?.type === "branch_mine";
+const digName = (/** @type {any} */ job) => (job.type === "quarry" ? "quarry" : "branch mine");
+
+/**
+ * Stops whatever the worker is doing. An unfinished quarry or branch mine is kept as the paused
+ * job (`crew:paused`), with its progress, so Continue picks it up where it left off.
+ * @param {Entity} e @param {string | undefined} why  undefined = silent
+ */
 export function stopJob(e, why) {
   const job = getJSON(e, "crew:job", undefined);
   if (job?.tickingArea) {
@@ -53,16 +122,50 @@ export function stopJob(e, why) {
       /* already gone */
     }
   }
-  if (job && why) emit(e, "stopped", { reason: why }, why);
+  if (isDig(job)) {
+    const st = active.get(e.id)?.st ?? getJSON(e, "crew:state", undefined);
+    if (st && st.i < job.geom.total) setJSON(e, "crew:paused", { job: { ...job, tickingArea: false }, st });
+  }
+  if (job && why) emit(e, "stopped", { reason: why }, isDig(job) ? `${why} Pick Continue in my menu to pick the ${digName(job)} up where I left off.` : why);
   active.delete(e.id);
   setJSON(e, "crew:job", undefined);
   setJSON(e, "crew:state", undefined);
   try {
     e.setProperty("crew:anim", 0);
+    if (job?.type === "rest") updateTag(e); // clears the Zzz
     if (job) e.triggerEvent("crew:stop_work");
   } catch {
     /* entity gone */
   }
+}
+
+/** The paused dig job, if any: what it is and how far along. @param {Entity} e */
+export function pausedJob(e) {
+  const saved = getJSON(e, "crew:paused", undefined);
+  if (!saved?.job || !saved?.st) return undefined;
+  return { name: digName(saved.job), pct: Math.floor((100 * saved.st.i) / saved.job.geom.total) };
+}
+
+/**
+ * Picks the paused dig job back up from where it stopped (walks back to its last spot first).
+ * Returns the job, or undefined if there's nothing to continue.
+ * @param {Entity} e
+ */
+export function resumeJob(e) {
+  const saved = getJSON(e, "crew:paused", undefined);
+  if (!saved?.job || !saved?.st) return undefined;
+  stopJob(e, undefined); // ends a drop-off or come-here in progress
+  setJSON(e, "crew:paused", undefined);
+  const job = { ...saved.job, tickingArea: false };
+  const st = { ...saved.st, cool: 0, move: undefined, walkAfter: false, needTool: undefined, wait: undefined, blinks: 0 };
+  st.phase = st.i === 0 && !st.stand ? "travel_in" : "return";
+  setJSON(e, "crew:job", job);
+  setJSON(e, "crew:state", st);
+  e.triggerEvent("crew:start_work");
+  active.set(e.id, { e, job, st, saveIn: 20, areaIn: 0 });
+  const pct = Math.floor((100 * st.i) / job.geom.total);
+  emit(e, "job_resumed", { mode: job.type, step: st.i, total: job.geom.total }, `picking the ${digName(job)} back up at ${pct}% (step ${st.i} of ${job.geom.total}).`);
+  return job;
 }
 
 /** One-paragraph status for the menu and /crew:status. @param {Entity} e */
@@ -75,11 +178,19 @@ export function statusText(e) {
   const where = fmt(e.location);
   const last = getJSON(e, "crew:skipped", undefined);
   let line;
+  const paused = pausedJob(e);
   if (!job) {
     line = `Idle at ${where}.`;
+    if (paused) line += ` Its ${paused.name} is paused at ${paused.pct}%: pick Continue to pick it up.`;
     if (last?.blocks?.length) line += ` Last job left ${last.total} block${last.total === 1 ? "" : "s"} its tools couldn't harvest.`;
   } else if (job.type === "come") {
     line = `Walking to ${job.target.name}.`;
+  } else if (job.type === "drop_off") {
+    line = `Taking what it carries to ${job.deposit.label}.`;
+  } else if (job.type === "rest") {
+    const where = st.quality ? REST[/** @type {"safe"|"unsafe"|"rough"} */ (st.quality)].label : "";
+    line = st.phase === "asleep" ? `Asleep on ${where}.` : st.phase === "to_bed" ? "Walking home to sleep." : "Getting ready to sleep.";
+    if (paused) line += ` Its ${paused.name} (${paused.pct}%) is paused until it wakes.`;
   } else {
     const total = job.geom.total;
     const pct = Math.floor((100 * Math.min(st.i ?? 0, total)) / total);
@@ -88,7 +199,21 @@ export function statusText(e) {
     line = `${what} ${pct}% (step ${st.i ?? 0} of ${total}), ${doing}${st.wait ? ` (${st.wait})` : ""}, at ${where}.`;
     if (st.skipTotal) line += ` Left ${st.skipTotal} block${st.skipTotal === 1 ? "" : "s"} it couldn't harvest (${Object.entries(st.skipCount).map(([t, n]) => `${n} ${blockName(t)}`).join(", ")}).`;
   }
-  return `${line}\nHauling ${hauling}/${inv ? inv.size - KIT_SLOTS : 22} stacks. Tools: ${tools}.`;
+  const torches = inv ? countItem(inv, TORCH) : 0;
+  const en = energy(e);
+  const home = getHome(e);
+  const homeLine = home ? `Home: the bed at ${fmt(home.head)}${home.chest ? `, chest at ${fmt(home.chest)}` : ", no home chest"}.` : "No home yet (stand by a bed and pick Home, Set home).";
+  return `${line}\nEnergy ${Math.round(en)}% (${energyWord(en)}). ${homeLine}\nHauling ${hauling}/${inv ? inv.size - KIT_SLOTS : 22} stacks. Tools: ${tools}.${torches ? ` Torches: ${torches}.` : ""}`;
+}
+
+/** @param {Container} inv @param {string} id */
+export function countItem(inv, id) {
+  let n = 0;
+  for (let i = 0; i < inv.size; i++) {
+    const it = inv.getItem(i);
+    if (it?.typeId === id) n += it.amount;
+  }
+  return n;
 }
 
 // ---------- the tick loop ----------
@@ -102,8 +227,11 @@ export function startEngine() {
       try {
         keepLoaded(rt);
         if (rt.job.type === "come") stepCome(rt);
+        else if (rt.job.type === "drop_off") stepDropOff(rt);
+        else if (rt.job.type === "rest") stepRest(rt);
         else stepDig(rt);
-        if (--rt.saveIn <= 0 && active.has(rt.e.id)) {
+        // save progress now and then (only if this job is still the worker's job: a step may have started another)
+        if (--rt.saveIn <= 0 && active.get(rt.e.id) === rt) {
           setJSON(rt.e, "crew:state", rt.st);
           rt.saveIn = 20;
         }
@@ -119,11 +247,136 @@ export function startEngine() {
     }
   }, 1);
   system.runInterval(adopt, 40);
+  system.runInterval(routine, 20);
+}
+
+// ---------- the daily routine ----------
+/**
+ * Once a second: at night, a worker that is digging (or idle with a home) goes home to sleep; the
+ * dig is paused and picked back up at dawn. Jobs a player gave directly (come here, drop off) are
+ * left to finish first. Idle workers slowly get their energy back.
+ */
+function routine() {
+  const night = isNight();
+  for (const e of loadedWorkers()) {
+    try {
+      const job = active.get(e.id)?.job ?? getJSON(e, "crew:job", undefined);
+      if (job?.type === "rest") continue;
+      if (!job) setEnergy(e, energy(e) + 0.1);
+      if (!night) continue;
+      if (isDig(job) || (!job && getHome(e))) startRest(e, "night");
+    } catch (err) {
+      console.warn(`[Crew] routine: ${err}`);
+    }
+  }
+}
+
+/**
+ * Sends a worker to bed. A dig in progress is paused and marked to pick back up when it wakes.
+ * @param {Entity} e @param {"night" | "tired"} reason
+ */
+export function startRest(e, reason) {
+  const job = active.get(e.id)?.job ?? getJSON(e, "crew:job", undefined);
+  const resume = isDig(job);
+  const home = getHome(e);
+  startJob(e, { type: "rest", id: `rest${Date.now().toString(36)}`, by: { name: "routine", console: true }, reason, pace: "normal" });
+  if (resume) e.setDynamicProperty("crew:autoResume", true);
+  const what = resume ? ` I'll pick the ${digName(job)} back up ${reason === "night" ? "in the morning" : "after a rest"}.` : "";
+  const where = home ? "heading home to sleep" : "sleeping right here (I have no home: set one by a bed for a proper rest)";
+  emit(e, "rest", { reason, home: !!home }, reason === "night" ? `It's getting dark, so I'm ${where}.${what}` : `I'm worn out, so I'm ${where}.${what}`);
+}
+
+/**
+ * The rest job: walk home, unload into the home chest, sleep until morning (or until rested after
+ * a daytime nap), then restock from the home chest and pick the paused dig back up.
+ * @param {Runtime} rt
+ */
+function stepRest(rt) {
+  const { e, job, st } = rt;
+  const dim = e.dimension;
+  const home = getHome(e);
+  const inv = /** @type {Container} */ (e.getComponent("minecraft:inventory")?.container);
+  if (st.phase === "travel_in" || st.phase === "walking") st.phase = home ? "to_bed" : "lie_down";
+  switch (st.phase) {
+    case "to_bed": {
+      if (!home || home.dim !== dim.id) {
+        st.phase = "lie_down";
+        return;
+      }
+      e.setProperty("crew:anim", rt.walk?.path ? 1 : 0);
+      if (walkTo(rt, bedside(dim, home), 1.5) !== "arrived") return;
+      if (home.chest && inv) {
+        const r = deposit(e, { deposit: { ...home.chest, dim: home.dim, label: "my home chest" } }, inv);
+        if (r === "full") emit(e, "deposit_full", { deposit: "home chest" }, "my home chest is full, so I kept the rest.");
+      }
+      st.phase = "lie_down";
+      return;
+    }
+    case "lie_down": {
+      /** @type {"safe"|"unsafe"|"rough"} */
+      let quality = "rough";
+      if (home && home.dim === dim.id) {
+        const s = bedSafety(dim, home);
+        quality = s.safe ? "safe" : "unsafe";
+        if (!s.safe && !st.toldWhy) {
+          st.toldWhy = true;
+          emit(e, "unsafe_bed", { why: s.why }, `I won't sleep well tonight: ${s.why}.`);
+        }
+        const pose = bedPose(home);
+        e.teleport(pose.at, { facingLocation: pose.face });
+      }
+      st.quality = quality;
+      st.sleptNight = isNight();
+      st.phase = "asleep";
+      e.setProperty("crew:anim", 3);
+      holdTool(e, undefined);
+      e.nameTag = `${e.nameTag.split("\n§8Zzz")[0]}\n§8Zzz`;
+      return;
+    }
+    case "asleep": {
+      const q = REST[/** @type {"safe"|"unsafe"|"rough"} */ (st.quality ?? "rough")];
+      if (energy(e) < q.cap) setEnergy(e, Math.min(q.cap, energy(e) + q.rate));
+      const night = isNight();
+      if (night) st.sleptNight = true;
+      // wake at dawn after a night's sleep (fully rested for that bed), or once rested after a daytime nap
+      if (!night && (st.sleptNight || energy(e) >= q.cap * 0.95)) {
+        if (st.sleptNight) setEnergy(e, Math.max(energy(e), q.cap));
+        st.phase = "wake";
+      }
+      return;
+    }
+    case "wake": {
+      e.setProperty("crew:anim", 0);
+      let took = "";
+      if (home && home.dim === dim.id) {
+        const b = bedside(dim, home);
+        e.teleport({ x: b.x + 0.5, y: b.y, z: b.z + 0.5 });
+        if (inv) took = restock(dim, home, inv, roleOf(e));
+      }
+      updateTag(e);
+      const auto = !!e.getDynamicProperty("crew:autoResume");
+      e.setDynamicProperty("crew:autoResume", undefined);
+      const paused = pausedJob(e);
+      const morning = job.reason === "night" ? "Morning!" : "Rested.";
+      const stock = took ? ` Took ${took} from home.` : "";
+      if (auto && paused) {
+        emit(e, "woke", { energy: Math.round(energy(e)), took }, `${morning}${stock} Back to the ${paused.name}.`);
+        resumeJob(e);
+      } else {
+        if (took || job.reason !== "night") emit(e, "woke", { energy: Math.round(energy(e)), took }, `${morning}${stock}`);
+        stopJob(e, undefined);
+      }
+      return;
+    }
+    default:
+      st.phase = home ? "to_bed" : "lie_down";
+  }
 }
 
 /** Resumes saved jobs on workers that just loaded (after a restart or when a player comes back). */
 function adopt() {
   for (const e of loadedWorkers()) {
+    syncRole(e); // workers made before skins existed pick theirs up here
     if (active.has(e.id)) continue;
     const job = getJSON(e, "crew:job", undefined);
     if (!job) continue;
@@ -177,6 +430,23 @@ function stepCome(rt) {
     emit(rt.e, "arrived", { to: p.name }, `here, ${p.name}.`);
     stopJob(rt.e, undefined);
   }
+}
+
+// ---------- drop off ----------
+/** Carry everything (not the kit or torches) to the deposit, then go idle. @param {Runtime} rt */
+function stepDropOff(rt) {
+  const { e, job } = rt;
+  e.setProperty("crew:anim", rt.walk?.path ? 1 : 0);
+  if (walkTo(rt, job.deposit, 2.6) !== "arrived") return;
+  const inv = /** @type {Container} */ (e.getComponent("minecraft:inventory")?.container);
+  const r = deposit(e, job, inv);
+  if (r === "full") emit(e, "deposit_full", { deposit: job.deposit.label }, `${job.deposit.label} is full, so I kept the rest.`);
+  else if (r === "missing") emit(e, "deposit_missing", { deposit: job.deposit.label }, `can't find a chest or barrel at ${job.deposit.label}.`);
+  else {
+    const paused = pausedJob(e);
+    emit(e, "job_done", { mode: "drop_off" }, `all unloaded at ${job.deposit.label}.${paused ? ` Pick Continue in my menu to go back to the ${paused.name} (${paused.pct}% done).` : ""}`);
+  }
+  stopJob(e, undefined);
 }
 
 // ---------- digging jobs ----------
@@ -244,22 +514,36 @@ function stepDig(rt) {
   }
 }
 
-/** @param {Runtime} rt @param {Container} inv */
+/**
+ * One dig step, done the way a player digs: break one block, wait while it breaks (the tool's
+ * speed), then the next. Blocks still to break wait in st.q, so a step survives a trip to the
+ * chest or a restart. Stages: 0 start; 1 the step's own blocks; 2 ore in the walls is queued
+ * and dug; then where to stand (clearing a diggable block at head height first, or digging a
+ * detour around one it can't harvest); 4 torch and move.
+ * @param {Runtime} rt @param {Container} inv
+ */
 function work(rt, inv) {
   const { e, job, st } = rt;
   const dim = e.dimension;
 
-  // glide toward the cell just dug, one beat at a time
+  // breaking a block, or gliding to the next spot
   if (st.cool > 0) {
     st.cool--;
     if (st.move) {
       const t = 1 - st.cool / st.move.n;
-      e.teleport(lerp(st.move.from, st.move.to, t), st.move.face ? { facingLocation: st.move.face } : undefined);
+      e.teleport(glideAt(st.move, t), st.move.face ? { facingLocation: st.move.face } : undefined);
     }
+    return;
+  }
+  if (st.walkAfter) {
+    // the next spot is more than a step away, or around something solid: walk there by path
+    st.walkAfter = false;
+    st.phase = "return";
     return;
   }
   if (st.done) {
     st.done = false;
+    st.stage = 0;
     if (st.grav && (st.regrav ?? 0) < 16) st.regrav = (st.regrav ?? 0) + 1; // sand or gravel was above: check this step again
     else {
       st.i++;
@@ -267,77 +551,311 @@ function work(rt, inv) {
       progress(rt);
     }
   }
-  e.setProperty("crew:anim", 2);
 
-  const total = job.geom.total;
-  if (st.i >= total) {
-    st.final = true;
-    if (job.keep === "nothing" || freeHaulSlots(inv) === inv.size - KIT_SLOTS) finish(rt);
-    else st.phase = "to_deposit";
-    return;
+  if (!st.stage) {
+    if (st.i >= job.geom.total) {
+      st.final = true;
+      if (job.keep === "nothing" || freeHaulSlots(inv) === inv.size - KIT_SLOTS) finish(rt);
+      else st.phase = "to_deposit";
+      return;
+    }
+    if (job.keep !== "nothing" && freeHaulSlots(inv) <= 1) {
+      st.phase = "to_deposit";
+      return;
+    }
   }
-  if (job.keep !== "nothing" && freeHaulSlots(inv) <= 1) {
-    st.phase = "to_deposit";
-    return;
-  }
-  let k = kit(inv);
+  const k = kit(inv);
   if (!k.length) return needTool(rt, "tool");
-
   const s = stepAt(job, st.i);
-  if (s.keep) {
-    if (patchStair(rt, s.keep, inv, k) === "unloaded") st.wait = "chunk not loaded";
-    else st.i++;
-    return;
+
+  if (!st.stage) {
+    // tired: eat if it carries food; worn out with nothing to eat: rest, then carry on
+    const en = energy(e);
+    if (en < TIRED && !st.saidTired) {
+      st.saidTired = true;
+      emit(e, "tired", { energy: Math.round(en) }, "I'm getting tired, so I'm digging slower. Food or a night's sleep will fix that.");
+    }
+    if (en < TIRED && eatOne(e, inv) > 0) {
+      st.saidTired = false;
+      e.setProperty("crew:anim", 4);
+      st.move = undefined;
+      st.cool = 30;
+      return;
+    }
+    if (en < EXHAUSTED) {
+      startRest(e, "tired");
+      return;
+    }
+    if (s.keep) {
+      if (patchStair(rt, s.keep, inv, k) === "unloaded") st.wait = "chunk not loaded";
+      else {
+        if (s.torch) placeTorch(rt, inv, up(s.keep));
+        st.i++;
+      }
+      return;
+    }
+    st.q = (s.mine ?? []).map((/** @type {V3} */ c) => ({ x: c.x, y: c.y, z: c.z }));
+    st.stage = 1;
+    st.grav = false;
+    st.hc = 0;
+    st.side = 0;
+    st.vs = undefined;
+    st.vn = 0;
   }
 
-  let ticks = 0;
-  let grav = false;
-  for (const c of s.mine ?? []) {
+  // the next block in the queue: one per beat, at the speed of the tool it uses
+  while (st.q?.length) {
+    const c = st.q[0];
     const r = mineCell(rt, c, inv, k);
     if (r.res === "unloaded") {
       st.wait = "chunk not loaded";
       return;
     }
     if (r.res === "wait") return needTool(rt, "pickaxe");
-    ticks += r.ticks;
-    grav ||= r.grav;
-    if (r.res === "broke") {
-      k = kit(inv);
-      if (!k.length) return needTool(rt, "tool");
+    st.q.shift();
+    st.wait = undefined;
+    if (r.res === "air" || r.res === "left") continue; // nothing to break there: straight on to the next
+    st.grav ||= r.grav;
+    if (c.v) {
+      // ore from the wall: fill the hole back in and follow the vein
+      const fill = takeFiller(rt, inv);
+      if (fill) dim.setBlockType(c, fill);
+      st.veins = (st.veins ?? 0) + 1;
+      st.vn = (st.vn ?? 0) + 1;
+      lookForOre(rt, c);
+    }
+    swingAt(rt, c, r);
+    st.cool = r.ticks;
+    if (r.res === "broke" && !kit(inv).length) {
+      st.cool = 0;
+      return needTool(rt, "tool");
+    }
+    return;
+  }
+
+  if (st.stage === 1) {
+    // the step's blocks are out: look for ore in the walls around them
+    st.stage = 2;
+    if (job.type === "branch_mine" && s.mine?.length) {
+      for (const c of s.mine) lookForOre(rt, c);
+      if (st.q.length) return;
     }
   }
-  st.wait = undefined;
 
-  /** @type {V3 | undefined} */
-  let stand = s.stand;
-  if (s.mine?.length && s.sides && s.mine.every((/** @type {V3} */ c) => !passable(dim, c))) {
-    const d = detour(rt, s, inv, k);
-    ticks += d.ticks;
-    if (d.stand) stand = d.stand;
-    if (d.res === "wait") return needTool(rt, "pickaxe");
+  if (st.stage === 2) {
+    // where to stand next: somewhere with a floor and headroom, never inside a block
+    if (!s.stand) {
+      st.next = undefined;
+      st.stage = 4;
+    } else if (standOk(rt, s.stand, s.stand)) {
+      st.next = standOk(rt, s.stand, s.stand);
+      st.stage = 4;
+    } else {
+      // a block it can dig is at head height there: dig it out, like a player would
+      const head = st.hc < 2 ? clearableHead(rt, s.stand, k) : undefined;
+      if (head) {
+        st.hc++;
+        st.q.push(head);
+        return;
+      }
+      const alt = pickStand(rt, s.stand, s);
+      if (alt) {
+        st.next = alt;
+        st.stage = 4;
+      } else if (s.sides && s.mine?.length) {
+        // something it can't harvest blocks the tunnel: dig a U around it
+        st.stage = 3;
+        st.side = 0;
+        st.q.push(...detourCells(s, 0));
+        return;
+      } else {
+        st.next = undefined;
+        st.stage = 4;
+      }
+    }
   }
 
+  if (st.stage === 3) {
+    const mid = settle(dim, off(s.stand, s.sides[st.side], 1));
+    if (roomAt(dim, mid)) {
+      emit(e, "detour", { at: fmt(s.stand) }, `dug around blocks I can't harvest at ${fmt(s.stand)}.`);
+      st.next = mid;
+      st.stage = 4;
+    } else if (++st.side < s.sides.length) {
+      st.q.push(...detourCells(s, st.side));
+      return;
+    } else {
+      st.next = undefined;
+      st.stage = 4;
+    }
+  }
+
+  // stage 4: torch, then move to the next spot
+  if (s.torch && s.stand) placeTorch(rt, inv, s.stand);
+  /** @type {V3 | undefined} */
+  const stand = st.next;
+  st.next = undefined;
   const pace = /** @type {"normal"|"fast"} */ (job.pace);
-  if (stand) {
-    const n = Math.max(ticks, MOVE_TICKS[pace] ?? 4);
+  const cur = floorV(e.location);
+  st.move = undefined;
+  st.cool = 0;
+  if (stand && !sameV(cur, stand) && canGlide(dim, cur, stand)) {
+    const n = MOVE_TICKS[pace] ?? 4;
     const to = center(stand);
     const from = e.location;
-    const face = sameV(floorV(from), stand) ? undefined : { x: to.x + (to.x - from.x), y: to.y + 0.5, z: to.z + (to.z - from.z) };
+    const face = { x: to.x + (to.x - from.x), y: to.y + 0.5, z: to.z + (to.z - from.z) };
     st.stand = stand;
-    st.move = { from, to, face, n };
+    st.move = { from, to, mid: glideMid(from, to), face: Math.abs(to.x - from.x) + Math.abs(to.z - from.z) > 0.01 ? face : undefined, n };
     st.cool = n;
-  } else {
-    st.move = undefined;
-    st.cool = ticks;
+    e.setProperty("crew:anim", 1);
+  } else if (stand && !sameV(cur, stand)) {
+    // In a quarry, a worker on solid ground within reach just reaches over (like a player)
+    // rather than walking: the next cell may not be reachable until the one beside it is dug.
+    const reachOver = job.type === "quarry" && dist(cur, stand) <= 3 && roomAt(dim, cur) && !passable(dim, { x: cur.x, y: cur.y - 1, z: cur.z });
+    if (!reachOver) {
+      st.stand = stand;
+      st.walkAfter = true;
+    }
   }
-  st.grav = grav;
   st.done = true;
+}
+
+/** The spot c settles to, if it has a floor and headroom and is within reach of `want`. @param {Runtime} rt @param {V3} want @param {V3} c */
+function standOk(rt, want, c) {
+  const dim = rt.e.dimension;
+  const p = settle(dim, c);
+  return want.y - p.y <= REACH_DOWN && roomAt(dim, p) ? p : undefined;
+}
+
+/**
+ * A block at head height over the spot it wants to stand on, that its tools can break (and that
+ * isn't a quarry stair step, a container with items, a liquid or a protected block).
+ * @param {Runtime} rt @param {V3} want @param {import("./tools.js").KitEntry[]} k
+ */
+function clearableHead(rt, want, k) {
+  const dim = rt.e.dimension;
+  const feet = settle(dim, want);
+  if (!passable(dim, feet) || want.y - feet.y > REACH_DOWN) return undefined;
+  const h = up(feet);
+  const b = dim.getBlock(h);
+  if (!b || passable(dim, h) || b.isLiquid || PROTECTED.has(b.typeId)) return undefined;
+  if (rt.job.type === "quarry" && isStairBlock(rt.job.geom, h)) return undefined;
+  const box = b.getComponent("minecraft:inventory")?.container;
+  if (box && box.emptySlotsCount < box.size) return undefined;
+  const ch = chooseTool(k, b.typeId);
+  if (ch.use === "skip" || ch.use === "wait") return undefined;
+  return { x: h.x, y: h.y, z: h.z };
+}
+
+/** The 2-tall side columns before, at and after a blocked tunnel spot, on one side. @param {any} s @param {number} i */
+function detourCells(s, i) {
+  /** @type {V3[]} */
+  const out = [];
+  for (const m of [-1, 0, 1]) for (const c of column(off(off(s.stand, s.fwd, m), s.sides[i], 1), 2)) out.push({ x: c.x, y: c.y, z: c.z });
+  return out;
+}
+
+/**
+ * Queues ore touching c that the plan won't dig anyway (the tunnel walls, floor and ceiling),
+ * up to VEIN_MAX blocks per step. Each one is dug and its hole filled back in.
+ * @param {Runtime} rt @param {V3} c
+ */
+function lookForOre(rt, c) {
+  const { job, st } = rt;
+  const dim = rt.e.dimension;
+  const seen = (st.vs ??= []);
+  for (const [dx, dy, dz] of DIR6) {
+    const q = { x: c.x + dx, y: c.y + dy, z: c.z + dz };
+    const kq = `${q.x},${q.y},${q.z}`;
+    if (seen.includes(kq)) continue;
+    seen.push(kq);
+    if (inBranchPlan(job.geom, q)) continue;
+    if ((st.vn ?? 0) + st.q.filter((/** @type {any} */ x) => x.v).length >= VEIN_MAX) return;
+    const b = dim.getBlock(q);
+    if (b && ORE.test(b.typeId)) st.q.push({ ...q, v: 1 });
+  }
+}
+
+/** Turns to the block, swings, shows the tool in hand and plays the dig sound. @param {Runtime} rt @param {V3} c @param {{tool?: string, id?: string}} r */
+function swingAt(rt, c, r) {
+  const e = rt.e;
+  try {
+    e.teleport(e.location, { facingLocation: { x: c.x + 0.5, y: c.y + 0.5, z: c.z + 0.5 } });
+  } catch {
+    /* fine */
+  }
+  e.setProperty("crew:anim", 2);
+  holdTool(e, r.tool);
+  if (r.id) {
+    try {
+      e.dimension.playSound(digSound(r.id), c, { volume: 0.6 });
+    } catch {
+      /* cosmetic only */
+    }
+  }
+}
+
+/** @param {string} id */
+function digSound(id) {
+  if (/sand/.test(id)) return "dig.sand";
+  if (/gravel/.test(id)) return "dig.gravel";
+  if (/dirt|grass|mud|clay|podzol|mycelium|farmland|snow/.test(id)) return "dig.grass";
+  if (bestKind(id) === "axe") return "dig.wood";
+  return "dig.stone";
+}
+
+/** One block of stone or dirt to fill a hole: from what it dug and didn't keep, else from what it carries. @param {Runtime} rt @param {Container} inv */
+function takeFiller(rt, inv) {
+  const sp = rt.st.spare;
+  if (sp) {
+    for (const [id, n] of Object.entries(sp)) {
+      if (n > 1) sp[id] = n - 1;
+      else delete sp[id];
+      return id;
+    }
+  }
+  for (let i = KIT_SLOTS; i < inv.size; i++) {
+    const it = inv.getItem(i);
+    if (!it || !FILL.test(it.typeId)) continue;
+    if (it.amount > 1) {
+      it.amount--;
+      inv.setItem(i, it);
+    } else inv.setItem(i, undefined);
+    return it.typeId;
+  }
+  return undefined;
+}
+
+/** Places a torch on the floor at c, if it carries one and the spot is open air on solid ground. @param {Runtime} rt @param {Container} inv @param {V3} c */
+function placeTorch(rt, inv, c) {
+  const dim = rt.e.dimension;
+  const b = dim.getBlock(c);
+  if (!b || !AIR.has(b.typeId) || passable(dim, { x: c.x, y: c.y - 1, z: c.z })) return;
+  for (let i = 0; i < inv.size; i++) {
+    const it = inv.getItem(i);
+    if (it?.typeId !== TORCH) continue;
+    try {
+      b.setPermutation(BlockPermutation.resolve(TORCH, { torch_facing_direction: "top" }));
+    } catch {
+      dim.setBlockType(c, TORCH);
+    }
+    if (it.amount > 1) {
+      it.amount--;
+      inv.setItem(i, it);
+    } else inv.setItem(i, undefined);
+    rt.st.torches = (rt.st.torches ?? 0) + 1;
+    return;
+  }
+  if (rt.st.torches && !rt.st.torchOut) {
+    rt.st.torchOut = true;
+    emit(rt.e, "torches_out", { placed: rt.st.torches }, `I'm out of torches after placing ${rt.st.torches}. Tap me holding torches to give me more.`);
+  }
 }
 
 /**
  * Breaks one block with the best tool in the kit.
  * @param {Runtime} rt @param {V3} c @param {Container} inv @param {import("./tools.js").KitEntry[]} k
- * @returns {{res: "air"|"mined"|"left"|"broke"|"wait"|"unloaded", ticks: number, grav: boolean}}
+ * @returns {{res: "air"|"mined"|"left"|"broke"|"wait"|"unloaded", ticks: number, grav: boolean, tool?: string, id?: string}}
  */
 function mineCell(rt, c, inv, k) {
   const { e, job, st } = rt;
@@ -372,7 +890,10 @@ function mineCell(rt, c, inv, k) {
   }
   if (sign) noteFind(rt, sign, c);
   const tool = choice.use === "tool" ? choice.tool : undefined;
-  const ticks = ticksFor(tool, inv, job.pace);
+  // a tired worker digs slower; every block it breaks tires it a little
+  const tired = energy(e) < TIRED;
+  const ticks = tired ? Math.round(ticksFor(tool, inv, job.pace) * TIRED_SLOWDOWN) : ticksFor(tool, inv, job.pace);
+  setEnergy(e, energy(e) - DRAIN_PER_BLOCK);
   const item = tool ? inv.getItem(tool.slot) : undefined;
   lootMgr ??= world.getLootTableManager();
   const drops = lootMgr.generateLootFromBlock(block, item) ?? [];
@@ -381,12 +902,21 @@ function mineCell(rt, c, inv, k) {
   dim.setBlockType(c, "minecraft:air");
   for (const drop of drops) {
     const keep = job.keep === "all" || (job.keep === "valuables" && VALUABLE.test(drop.typeId));
-    if (!keep) continue;
+    if (!keep) {
+      // voided stone and dirt is remembered (up to a stack) to fill holes left by ore veins
+      if (FILL.test(drop.typeId)) {
+        const sp = (st.spare ??= {});
+        const total = Object.values(sp).reduce((a, b) => a + b, 0);
+        if (total < SPARE_MAX) sp[drop.typeId] = (sp[drop.typeId] ?? 0) + Math.min(drop.amount, SPARE_MAX - total);
+      }
+      continue;
+    }
     const left = stash(inv, drop);
     if (left) dim.spawnItem(left, e.location); // never lose items
   }
-  if (!tool) return { res: "mined", ticks, grav };
+  if (!tool) return { res: "mined", ticks, grav, id };
   const label = tool.info.label;
+  const used = { tool: tool.info.id, id };
   const w = wear(inv, tool, st.uses);
   if (w === "low") emit(e, "tool_low", { tool: label }, `my ${label} is nearly worn out (10% left).`);
   if (w === "broke") {
@@ -394,40 +924,13 @@ function mineCell(rt, c, inv, k) {
     const next = rest.filter((t) => t.info.kind === tool.info.kind);
     emit(e, "tool_broke", { tool: label, left: kitText(rest) },
       `my ${label} broke. ${next.length ? `Switching to the ${next[0].info.label}.` : rest.length ? `Still have: ${kitText(rest)}.` : "That was my last tool."}`);
-    return { res: "broke", ticks, grav };
+    return { res: "broke", ticks, grav, ...used };
   }
-  return { res: "mined", ticks, grav };
+  return { res: "mined", ticks, grav, ...used };
 }
 /** @type {import("@minecraft/server").LootTableManager | undefined} */
 let lootMgr;
 
-/**
- * Every cell of a tunnel step had to be left (nothing in the kit can harvest it), so dig a
- * U-shaped detour beside it: the side columns before, at and after the blocked spot.
- * @param {Runtime} rt @param {any} s @param {Container} inv @param {import("./tools.js").KitEntry[]} k
- * @returns {{res: string, ticks: number, stand?: V3}}
- */
-function detour(rt, s, inv, k) {
-  const dim = rt.e.dimension;
-  let ticks = 0;
-  for (const side of s.sides) {
-    for (const m of [-1, 0, 1]) {
-      for (const c of column(off(off(s.stand, s.fwd, m), side, 1), 2)) {
-        const r = mineCell(rt, c, inv, k);
-        if (r.res === "wait") return { res: "wait", ticks };
-        ticks += r.ticks;
-        if (r.res === "broke") k = kit(inv);
-      }
-    }
-    const mid = off(s.stand, side, 1);
-    const midUp = { x: mid.x, y: mid.y + 1, z: mid.z };
-    if (passable(dim, mid) || passable(dim, midUp)) {
-      emit(rt.e, "detour", { at: fmt(s.stand) }, `dug around blocks I can't harvest at ${fmt(s.stand)}.`);
-      return { res: "ok", ticks, stand: passable(dim, mid) ? mid : midUp };
-    }
-  }
-  return { res: "blocked", ticks };
-}
 
 /**
  * Quarry stair block: keep what's there if it's solid, or patch it with cobblestone so the
@@ -500,7 +1003,7 @@ function deposit(e, job, inv) {
   let moved = 0;
   for (let i = 0; i < inv.size; i++) {
     const item = inv.getItem(i);
-    if (!item || (i < KIT_SLOTS && toolInfo(item))) continue; // the tool kit stays with the worker
+    if (!item || (i < KIT_SLOTS && toolInfo(item)) || isSupply(item.typeId)) continue; // the tool kit, torches and food stay with the worker
     const left = chest.addItem(item);
     inv.setItem(i, left);
     moved += item.amount - (left?.amount ?? 0);
@@ -528,8 +1031,10 @@ function finish(rt) {
   const what = job.type === "quarry" ? `the quarry at ${fmt(job.geom.anchor)}` : `the branch mine at ${fmt(job.geom.anchor)}`;
   const skipped = st.skipTotal ? ` Left ${st.skipTotal} block${st.skipTotal === 1 ? "" : "s"} my tools couldn't harvest; their spots are logged.` : "";
   if (st.skipTotal) setJSON(e, "crew:skipped", { job: job.id, total: st.skipTotal, counts: st.skipCount, blocks: st.skipped });
-  emit(e, "job_done", { mode: job.type, steps: job.geom.total, finds: st.finds.length, skipped: st.skipTotal ?? 0 },
-    `finished ${what}. ${st.finds.length} finds reported.${skipped}`);
+  const veins = st.veins ? ` Dug ${st.veins} ore block${st.veins === 1 ? "" : "s"} out of the walls.` : "";
+  const torches = st.torches ? ` Placed ${st.torches} torch${st.torches === 1 ? "" : "es"}.` : "";
+  emit(e, "job_done", { mode: job.type, steps: job.geom.total, finds: st.finds.length, skipped: st.skipTotal ?? 0, ore_from_walls: st.veins ?? 0, torches: st.torches ?? 0 },
+    `finished ${what}. ${st.finds.length} finds reported.${veins}${torches}${skipped}`);
   stopJob(e, undefined);
 }
 
@@ -548,7 +1053,8 @@ function walkTo(rt, goal, reach) {
   if (w.glide) {
     w.glide.t++;
     const to = w.glide.to;
-    e.teleport(lerp(w.glide.from, to, w.glide.t / w.glide.n), { facingLocation: { x: to.x + (to.x - w.glide.from.x), y: to.y + 0.5, z: to.z + (to.z - w.glide.from.z) } });
+    const flat = Math.abs(to.x - w.glide.from.x) + Math.abs(to.z - w.glide.from.z) > 0.01;
+    e.teleport(glideAt(w.glide, w.glide.t / w.glide.n), flat ? { facingLocation: { x: to.x + (to.x - w.glide.from.x), y: to.y + 0.5, z: to.z + (to.z - w.glide.from.z) } } : undefined);
     if (w.glide.t >= w.glide.n) w.glide = undefined;
     return "moving";
   }
@@ -579,7 +1085,8 @@ function walkTo(rt, goal, reach) {
   }
   const cur = floorV(e.location);
   const dy = next.y - cur.y;
-  w.glide = { from: e.location, to: center(next), t: 0, n: dy > 0 ? 6 : dy < 0 ? 3 + -dy : 4 };
+  const to = center(next);
+  w.glide = { from: e.location, to, mid: glideMid(e.location, to), t: 0, n: dy > 0 ? 6 : dy < 0 ? 3 + -dy : 4 };
   w.idx++;
   return "moving";
 }
@@ -589,7 +1096,7 @@ function blink(rt, target) {
   const e = rt.e;
   const dim = e.dimension;
   let spot = { ...target };
-  for (let k = 0; k < 12 && !passable(dim, spot); k++) spot = { x: spot.x, y: spot.y + 1, z: spot.z };
+  for (let k = 0; k < 12 && !roomAt(dim, spot); k++) spot = { x: spot.x, y: spot.y + 1, z: spot.z };
   e.teleport(center(spot));
   rt.walk = undefined;
   rt.st.blinks = (rt.st.blinks ?? 0) + 1;
