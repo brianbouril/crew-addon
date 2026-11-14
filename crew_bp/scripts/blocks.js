@@ -84,11 +84,44 @@ export function hardness(id) {
   return 1.5;
 }
 
+/** Doors and fence gates a worker walks through (opening wooden ones, iron ones only if already open). */
+const DOORWAY = /(_door$|^minecraft:wooden_door$|_fence_gate$|^minecraft:fence_gate$)/;
+const IRON_DOOR = /^minecraft:iron_(door|trapdoor)$/;
+/** Doors, gates and trapdoors are never broken, whatever the job. */
+const KEEP_INTACT = /(_door$|^minecraft:wooden_door$|_fence_gate$|^minecraft:fence_gate$|_trapdoor$|^minecraft:trapdoor$)/;
+/** Blocks a worker never breaks: bedrock, spawners, portals... and doors, gates and trapdoors. @param {string} id */
+export const keepIntact = (id) => PROTECTED.has(id) || KEEP_INTACT.test(id);
+
+/** @param {import("@minecraft/server").Block} b */
+export function isOpen(b) {
+  try {
+    return !!b.permutation.getState(/** @type {any} */ ("open_bit"));
+  } catch {
+    return false;
+  }
+}
+/** A door or gate it can walk through: wooden ones (it opens them), iron ones only when open. @param {import("@minecraft/server").Block} b */
+export function isDoorway(b) {
+  return DOORWAY.test(b.typeId) && (!IRON_DOOR.test(b.typeId) || isOpen(b));
+}
+/** A closed door or gate it should open to pass (wooden only). @param {import("@minecraft/server").Block} b */
+export const needsOpening = (b) => DOORWAY.test(b.typeId) && !IRON_DOOR.test(b.typeId) && !isOpen(b);
+/** Opens or closes a door or gate. Returns true if it changed. @param {import("@minecraft/server").Block} b @param {boolean} open */
+export function setOpen(b, open) {
+  try {
+    if (isOpen(b) === open) return false;
+    b.setPermutation(b.permutation.withState(/** @type {any} */ ("open_bit"), /** @type {any} */ (open)));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** @param {import("@minecraft/server").Dimension} dim @param {{x:number,y:number,z:number}} p */
 export function passable(dim, p) {
   const b = dim.getBlock(p);
   if (!b) return false;
-  return b.isAir || b.isLiquid || SOFT.test(b.typeId);
+  return b.isAir || b.isLiquid || SOFT.test(b.typeId) || isDoorway(b);
 }
 
 /** Friendly block name: "minecraft:deepslate_diamond_ore" -> "deepslate diamond ore". @param {string} id */

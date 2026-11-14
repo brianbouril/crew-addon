@@ -29,20 +29,23 @@ export class Container {
     return left ? new ItemStack(it.typeId, left) : undefined;
   }
 }
-export const BlockPermutation = { resolve: (id, states) => ({ id, states }) };
+/** @param {string} id @param {Record<string, any>} [states] */
+const perm = (id, states = {}) => ({ id, states, type: { id }, getState: (n) => states[n], withState: (n, v) => perm(id, { ...states, [n]: v }) });
+export const BlockPermutation = { resolve: (id, states) => perm(id, states) };
 const key = (p) => `${Math.floor(p.x)},${Math.floor(p.y)},${Math.floor(p.z)}`;
 export const log = { tele: 0, commands: [], spawnedItems: [] };
 class Dimension {
-  constructor(id) { this.id = id; this.blocks = new Map(); this.containers = new Map(); this.entities = []; }
+  constructor(id) { this.id = id; this.blocks = new Map(); this.states = new Map(); this.containers = new Map(); this.entities = []; }
   typeAt(p) { const k = key(p); if (this.blocks.has(k)) return this.blocks.get(k); return Math.floor(p.y) <= 64 ? "minecraft:stone" : "minecraft:air"; }
   getBlock(p) {
     const dim = this; const t = this.typeAt(p); const loc = { x: Math.floor(p.x), y: Math.floor(p.y), z: Math.floor(p.z) };
     return { typeId: t, isAir: t.endsWith("air"), isLiquid: /water|lava/.test(t), location: loc, x: loc.x, y: loc.y, z: loc.z, dimension: dim,
       getComponent(n) { if (n === "minecraft:inventory" && /chest|barrel/.test(t)) { const k = key(loc); if (!dim.containers.has(k)) dim.containers.set(k, new Container(54)); return { container: dim.containers.get(k) }; } return undefined; },
       below() { return dim.getBlock({ x: loc.x, y: loc.y - 1, z: loc.z }); }, bottomCenter() { return { x: loc.x + 0.5, y: loc.y, z: loc.z + 0.5 }; },
-      setPermutation(p) { dim.setBlockType(loc, p.id); } };
+      get permutation() { return perm(t, dim.states.get(key(loc))); },
+      setPermutation(p) { dim.setBlockType(loc, p.id); if (p.states && Object.keys(p.states).length) dim.states.set(key(loc), { ...p.states }); } };
   }
-  setBlockType(p, t) { this.blocks.set(key(p), t); }
+  setBlockType(p, t) { this.blocks.set(key(p), t); this.states.delete(key(p)); }
   getEntities(o) { if (o?.families) return this.entities.filter((e) => e.isValid && (e.families ?? []).some((f) => o.families.includes(f))); return this.entities.filter((e) => e.isValid && (!o?.type || e.typeId === o.type)); }
   spawnEntity(type, loc) { const e = new Entity(type, loc, this); this.entities.push(e); return e; }
   spawnItem(it, loc) { log.spawnedItems.push(it); }

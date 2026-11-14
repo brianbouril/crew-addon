@@ -5,7 +5,9 @@ turns it into that version's section.
 
 ## Unreleased
 
-(nothing yet)
+- Workers open wooden doors and fence gates as they walk and close them behind them, so a bed
+  inside a house is reached on foot (iron doors only when already open). They never break doors,
+  gates or trapdoors while digging.
 
 ## v0.4.0
 

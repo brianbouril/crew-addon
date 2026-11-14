@@ -2,7 +2,7 @@
 // Digging follows the step list from plans.js; trips to the deposit and back use the A*
 // pathfinder in path.js. Tools come from the worker's kit (tools.js).
 import { world, system, BlockPermutation } from "@minecraft/server";
-import { AIR, FILL, GRAVITY, ORE, PROTECTED, SIGNS, TORCH, VALUABLE, bestKind, blockName, passable } from "./blocks.js";
+import { AIR, FILL, GRAVITY, ORE, SIGNS, TORCH, VALUABLE, bestKind, blockName, keepIntact, needsOpening, passable, setOpen } from "./blocks.js";
 import { off, column, inBranchPlan, isStairBlock, startCell, stepAt } from "./plans.js";
 import { newSearch, advance } from "./path.js";
 import { KIT_SLOTS, chooseTool, freeHaulSlots, kit, kitText, stash, ticksFor, toolInfo, wear } from "./tools.js";
@@ -763,7 +763,7 @@ function clearableHead(rt, want, k) {
   if (!passable(dim, feet) || want.y - feet.y > REACH_DOWN) return undefined;
   const h = up(feet);
   const b = dim.getBlock(h);
-  if (!b || passable(dim, h) || b.isLiquid || PROTECTED.has(b.typeId)) return undefined;
+  if (!b || passable(dim, h) || b.isLiquid || keepIntact(b.typeId)) return undefined;
   if (rt.job.type === "quarry" && isStairBlock(rt.job.geom, h)) return undefined;
   const box = b.getComponent("minecraft:inventory")?.container;
   if (box && box.emptySlotsCount < box.size) return undefined;
@@ -899,7 +899,7 @@ function mineCell(rt, c, inv, k, dry) {
     return { res: "air", ...no };
   }
   const sign = /** @type {Record<string,string>} */ (SIGNS)[id];
-  if (PROTECTED.has(id)) {
+  if (keepIntact(id)) {
     if (sign) noteFind(rt, sign, c);
     return { res: "left", ...no };
   }
@@ -971,7 +971,7 @@ function patchStair(rt, c, inv, k) {
   const block = dim.getBlock(c);
   if (!block) return "unloaded";
   const id = block.typeId;
-  if (PROTECTED.has(id)) return "kept";
+  if (keepIntact(id)) return "kept";
   const soft = passable(dim, c);
   if (!soft && !GRAVITY.test(id)) return "kept";
   if (!soft) {
@@ -1077,8 +1077,16 @@ function finish(rt) {
 function walkTo(rt, goal, reach) {
   const e = rt.e;
   const dim = e.dimension;
-  if (!rt.walk || !sameV(rt.walk.goal, goal) || rt.walk.reach !== reach) rt.walk = { goal: { x: goal.x, y: goal.y, z: goal.z }, reach, idx: 0, replans: 0 };
+  if (!rt.walk || !sameV(rt.walk.goal, goal) || rt.walk.reach !== reach) {
+    if (rt.walk) closeDoors(rt, undefined);
+    rt.walk = { goal: { x: goal.x, y: goal.y, z: goal.z }, reach, idx: 0, replans: 0 };
+  }
   const w = rt.walk;
+  const done = () => {
+    closeDoors(rt, [floorV(e.location)]);
+    rt.walk = undefined;
+    return /** @type {"arrived"} */ ("arrived");
+  };
   if (w.glide) {
     w.glide.t++;
     const to = w.glide.to;
@@ -1089,10 +1097,7 @@ function walkTo(rt, goal, reach) {
     return "moving";
   }
   if (!w.path) {
-    if (dist(floorV(e.location), goal) <= reach) {
-      rt.walk = undefined;
-      return "arrived";
-    }
+    if (dist(floorV(e.location), goal) <= reach) return done();
     w.search ??= newSearch(dim, e.location, goal, reach);
     const r = advance(w.search, SEARCH_BUDGET);
     if (r === "searching") return "moving";
@@ -1102,10 +1107,7 @@ function walkTo(rt, goal, reach) {
     w.idx = 0;
   }
   const path = /** @type {V3[]} */ (w.path);
-  if (w.idx >= path.length) {
-    rt.walk = undefined;
-    return "arrived";
-  }
+  if (w.idx >= path.length) return done();
   const next = path[w.idx];
   if (!passable(dim, next)) {
     // something changed (a block was placed); plan again
@@ -1114,6 +1116,9 @@ function walkTo(rt, goal, reach) {
     return "moving";
   }
   const cur = floorV(e.location);
+  // doors: shut the ones it opened and has walked past, then open any closed one it's stepping into
+  closeDoors(rt, [cur, next]);
+  for (const c of [next, up(next)]) openDoor(rt, c);
   const dy = next.y - cur.y;
   const to = center(next);
   w.idx++;
@@ -1123,10 +1128,54 @@ function walkTo(rt, goal, reach) {
   return "moving";
 }
 
+/** Opens a closed wooden door or fence gate at c, and remembers it so it gets closed again. @param {Runtime} rt @param {V3} c */
+function openDoor(rt, c) {
+  const dim = rt.e.dimension;
+  const b = dim.getBlock(c);
+  if (!b || !needsOpening(b) || !setOpen(b, true)) return;
+  (rt.walk.opened ??= []).push({ x: c.x, y: c.y, z: c.z });
+  try {
+    dim.playSound("random.door_open", c, { volume: 0.7 });
+  } catch {
+    /* cosmetic only */
+  }
+}
+
+/**
+ * Closes the doors it opened on this walk, except any in the columns it's standing in or stepping
+ * into (keep), so it never shuts a door on itself. Doors someone else opened are left alone.
+ * @param {Runtime} rt @param {V3[] | undefined} keep
+ */
+function closeDoors(rt, keep) {
+  const w = rt.walk;
+  if (!w?.opened?.length) return;
+  const dim = rt.e.dimension;
+  /** @type {V3[]} */
+  const still = [];
+  let shut = false;
+  for (const p of w.opened) {
+    if (keep?.some((k) => k.x === p.x && k.z === p.z)) {
+      still.push(p);
+      continue;
+    }
+    const b = dim.getBlock(p);
+    if (b && setOpen(b, false)) shut = true;
+  }
+  w.opened = still;
+  if (shut) {
+    try {
+      dim.playSound("random.door_close", rt.e.location, { volume: 0.7 });
+    } catch {
+      /* cosmetic only */
+    }
+  }
+}
+
 /** @param {Runtime} rt @param {V3} target @returns {"arrived"} */
 function blink(rt, target) {
   const e = rt.e;
   const dim = e.dimension;
+  closeDoors(rt, undefined);
   let spot = { ...target };
   for (let k = 0; k < 12 && !roomAt(dim, spot); k++) spot = { x: spot.x, y: spot.y + 1, z: spot.z };
   e.teleport(center(spot));
