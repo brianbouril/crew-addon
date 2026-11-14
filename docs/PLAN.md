@@ -202,7 +202,7 @@ can't hurt workers yet**; Quarry and Branch mine stay as precise jobs.
   installed on BDS (server world backed up first). Sections below kept for the record.
 
 ### Next fixes (0.4.x patch, from server testing)
-- [x] **Doors** (Brian, Nov 14; built and mock-tested Nov 14, on the server for testing): workers treat every door as a wall, so a bed inside a house is
+- [x] **Doors** (Brian, Nov 14; built Nov 14, works in game on the server): workers treat every door as a wall, so a bed inside a house is
   reached by a "shortcut" teleport. Make wooden doors, fence gates and trapdoors walkable in A*
   (`path.js`, `passable`): open one on arrival, step through, close it behind (keeps mobs out).
   Iron doors and iron trapdoors only when already open (they need redstone). Never break a door,
