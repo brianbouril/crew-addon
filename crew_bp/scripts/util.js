@@ -1,7 +1,7 @@
 // Small shared helpers. No game state lives here.
 import { world } from "@minecraft/server";
 
-export const VERSION = "0.2.0";
+export const VERSION = "0.4.0";
 export const DIMS = ["minecraft:overworld", "minecraft:nether", "minecraft:the_end"];
 
 /** @param {{x:number,y:number,z:number}} v */

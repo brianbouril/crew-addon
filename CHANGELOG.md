@@ -5,6 +5,10 @@ turns it into that version's section.
 
 ## Unreleased
 
+(nothing yet)
+
+## v0.4.0
+
 **From the first in-game test of v0.4**
 - The Survey Stake is now a remote: tap a worker to link it, then tap a bed (its home, from any
   distance), a chest (home chest, drop-off or named place), the ground (plan a dig, then start it
