@@ -53,7 +53,7 @@ Get one: pick **Get a Survey Stake** in a worker's menu, type **/crew:stake**, o
 
 Plan a dig
 1. **Face the way you want to dig** and tap the ground block where it should start.
-2. Pick Quarry or Branch mine and set the size with the sliders.
+2. Pick Quarry or Branch mine and set the size with the sliders. For a quarry, **Clear above** also takes off the hill or trees on top of it.
 3. A **white outline** shows the plan while you hold the stake (flames point forward).
 4. Tap with the stake again (any block, or the air) and pick **Confirm**. The outline turns green.
 5. **Start it with** the linked worker right there, or later from its orders. Choose where it drops off, what to bring back and the pace, then Start.
@@ -68,7 +68,9 @@ Digs out a whole box, top layer first, row by row. The block you staked is the t
 
 It leaves a **staircase in the wall** spiralling down, so you and the worker can walk in and out.
 
-It only digs inside the box. The one exception: if a block is in its way at head height just above the box, it clears it.
+**Clear above** (on unless you switch it off): before digging, it clears everything over the box up to open sky, top down, so no hill, tree or overhang is left floating. The outline shows how high that goes. It won't do this for a quarry staked underground (more than 48 blocks overhead).
+
+Otherwise it only digs inside the box. The one exception: if a block is in its way at head height just above the box, it clears it.
 
 Up to 128 blocks on each side.
 

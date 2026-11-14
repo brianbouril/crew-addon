@@ -6,6 +6,7 @@ import { ItemStack, system, world } from "@minecraft/server";
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
 import { DEFAULTS, MAX_SIDE, MAX_TRUNK_WIDTH } from "./catalog.js";
 import { arrow, branchGeom, facingFromYaw, outline, quarryGeom } from "./plans.js";
+import { CLEAR_ABOVE_MAX, layersAbove } from "./blocks.js";
 import { dist, fmt, getJSON, sameV, setJSON, tell } from "./util.js";
 import { show } from "./forms.js";
 import { PAGES, openGuide } from "./guide.js";
@@ -21,18 +22,33 @@ export const STAKE = "crew:survey_stake";
 /**
  * @typedef {{x:number,y:number,z:number}} V3
  * @typedef {{mode: "quarry"|"branch", dim: string, anchor: V3, facing: string, confirmed: boolean,
- *   length: number, width: number, depth: number, trunk: number, trunkWidth?: number, branch: number, spacing: number, targetY: number}} Plan
+ *   length: number, width: number, depth: number, trunk: number, trunkWidth?: number, branch: number, spacing: number, targetY: number,
+ *   clearAbove?: boolean, above?: number, aboveTooHigh?: boolean}} Plan
  */
 
 /** @param {import("@minecraft/server").Player} p @returns {Plan | undefined} */
 export const getPlan = (p) => getJSON(p, "crew:plan", undefined);
 /** @param {import("@minecraft/server").Player} p @param {Plan | undefined} plan */
-const savePlan = (p, plan) => setJSON(p, "crew:plan", plan);
+const savePlan = (p, plan) => setJSON(p, "crew:plan", plan && measureAbove(plan));
+
+/** For a quarry with Clear above: how many layers over it would be cleared (shown in the outline). @param {Plan} plan */
+function measureAbove(plan) {
+  if (plan.mode !== "quarry" || !plan.clearAbove) return { ...plan, above: undefined, aboveTooHigh: undefined };
+  try {
+    const g = quarryGeom(plan.anchor, plan.facing, plan.length, plan.width, plan.depth);
+    const h = layersAbove(world.getDimension(plan.dim), g.min, g.max);
+    return { ...plan, above: h.open ? h.up : undefined, aboveTooHigh: !h.open && !h.unloaded ? true : undefined };
+  } catch {
+    return plan;
+  }
+}
 
 /** One line describing a plan. @param {Plan} plan */
 export function planText(plan) {
   if (plan.mode === "quarry") {
-    return `Quarry ${plan.length} forward x ${plan.width} to the right x ${plan.depth} deep from the corner at ${fmt(plan.anchor)}, heading ${plan.facing} (${plan.length * plan.width * plan.depth} blocks).`;
+    const above = !plan.clearAbove ? "" : plan.aboveTooHigh ? `\n§cClear above is on, but there's more than ${CLEAR_ABOVE_MAX} blocks over it (underground?): turn it off or plan at the surface.§r`
+      : plan.above ? `\nFirst it clears the ${plan.above} layer${plan.above === 1 ? "" : "s"} above it (hills, trees), so nothing is left floating.` : "\nNothing above it to clear.";
+    return `Quarry ${plan.length} forward x ${plan.width} to the right x ${plan.depth} deep from the corner at ${fmt(plan.anchor)}, heading ${plan.facing} (${plan.length * plan.width * plan.depth} blocks).${above}`;
   }
   const g = branchGeom(plan.anchor, plan.facing, { ...plan, width: plan.trunkWidth ?? DEFAULTS.width });
   return `Branch mine from ${fmt(plan.anchor)} heading ${plan.facing}: ${g.n > 0 ? `stairs down to Y ${plan.targetY}, ` : ""}a ${plan.trunk}-block trunk ${g.w} wide, ${g.branchAt.length * 2} branches ${plan.branch} long with ${plan.spacing} solid blocks between.`;
@@ -42,7 +58,7 @@ export function planText(plan) {
 export function planOrder(plan) {
   if (plan.mode === "quarry") {
     const g = quarryGeom(plan.anchor, plan.facing, plan.length, plan.width, plan.depth);
-    return { job: "quarry", params: { from: g.min, to: g.max, facing: plan.facing } };
+    return { job: "quarry", params: { from: g.min, to: g.max, facing: plan.facing, clear_above: !!plan.clearAbove } };
   }
   return { job: "branch_mine", params: { start: plan.anchor, facing: plan.facing, target_y: plan.targetY, trunk_length: plan.trunk, trunk_width: plan.trunkWidth ?? DEFAULTS.width, branch_length: plan.branch, spacing: plan.spacing } };
 }
@@ -166,7 +182,7 @@ export async function stakeTap(p, block) {
  */
 async function newPlan(p, block, plan) {
   const facing = facingFromYaw(p.getRotation().y);
-  const base = plan ?? { mode: "quarry", length: 16, width: 16, depth: 16, trunk: DEFAULTS.trunk, trunkWidth: DEFAULTS.width, branch: DEFAULTS.branch, spacing: DEFAULTS.spacing, targetY: DEFAULTS.targetY };
+  const base = plan ?? { mode: "quarry", length: 16, width: 16, depth: 16, trunk: DEFAULTS.trunk, trunkWidth: DEFAULTS.width, branch: DEFAULTS.branch, spacing: DEFAULTS.spacing, targetY: DEFAULTS.targetY, clearAbove: true };
   /** @type {Plan} */
   const next = { ...base, dim: block.dimension.id, anchor: { ...block.location }, facing, confirmed: false };
   if (next.targetY > next.anchor.y + 1) next.targetY = next.anchor.y + 1;
@@ -179,7 +195,7 @@ async function newPlan(p, block, plan) {
   next.mode = r.selection === 0 ? "quarry" : "branch";
   if (!(await sizeForm(p, next))) return;
   savePlan(p, next);
-  tell(p, `${planText(next)}\nCheck the white outline, then tap any block (or the air) with the stake to confirm or change it.`);
+  tell(p, `${planText(getPlan(p) ?? next)}\nCheck the white outline, then tap any block (or the air) with the stake to confirm or change it.`);
 }
 
 /**
@@ -296,7 +312,7 @@ async function planActions(p, tapped) {
       return;
   }
   savePlan(p, next);
-  tell(p, `${planText(next)}\nCheck the outline, then tap with the stake again to confirm.`);
+  tell(p, `${planText(getPlan(p) ?? next)}\nCheck the outline, then tap with the stake again to confirm.`);
 }
 
 /** Asks for the sizes of a plan; edits it in place. @param {import("@minecraft/server").Player} p @param {Plan} plan */
@@ -306,10 +322,13 @@ async function sizeForm(p, plan) {
       .slider("Length (forward)", 2, MAX_SIDE, { defaultValue: clamp(plan.length, 2, MAX_SIDE), valueStep: 1 })
       .slider("Width (to the right)", 2, MAX_SIDE, { defaultValue: clamp(plan.width, 2, MAX_SIDE), valueStep: 1 })
       .slider("Depth (down, this block's layer included)", 1, MAX_SIDE, { defaultValue: clamp(plan.depth, 1, MAX_SIDE), valueStep: 1 })
+      .toggle("Clear above first (hills, trees: nothing left floating)", { defaultValue: plan.clearAbove ?? true })
       .submitButton("Show outline");
     const r = await show(p, f);
     if (!r?.formValues) return false;
-    [plan.length, plan.width, plan.depth] = r.formValues.map(Number);
+    const [l, w, d, ca] = r.formValues;
+    [plan.length, plan.width, plan.depth] = [l, w, d].map(Number);
+    plan.clearAbove = !!ca;
     return true;
   }
   const maxY = plan.anchor.y + 1;

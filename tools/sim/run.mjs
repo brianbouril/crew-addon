@@ -32,6 +32,7 @@ const steps = [
   ["stop, drop off, continue", ["resume_test.mjs"]],
   ["home, sleep, energy", ["life_test.mjs"]],
   ["doors", ["door_test.mjs"]],
+  ["quarry, clear above (hill and tree)", ["clear_test.mjs"]],
   ["main.js loads", ["-e", 'import("./scripts/main.js").then(() => console.log("ok"))']],
 ];
 let failed = 0;

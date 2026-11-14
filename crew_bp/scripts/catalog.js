@@ -23,7 +23,8 @@ export const JOBS = {
       facing: { type: "enum", values: FACINGS, default: "east", description: "Which way the staircase starts along the wall from its top corner." },
       deposit: { type: "place", required: true, description: "A saved place name (e.g. 'blue base') or the coordinates of a chest or barrel." },
       keep: { type: "enum", values: KEEP, default: "all", description: "What to bring back. 'all' keeps everything it digs; 'valuables' keeps ores, gems and raw metals and throws the rest away; 'nothing' just digs." },
-      pace: { type: "enum", values: PACE, default: "normal", description: "normal = tool speed (about 2 to 7 blocks a second), fast = five times faster." },
+      pace: { type: "enum", values: PACE, default: "normal", description: "normal = as fast as a player with the same tool, fast = five times faster." },
+      clear_above: { type: "bool", default: false, description: "First clear everything over the box up to open sky (hills, trees, overhangs), top down, so nothing is left floating. Refused if there's more than 48 blocks of it (the box is underground)." },
     },
   },
   branch_mine: {
@@ -77,6 +78,7 @@ export function toolSchemas() {
       if (spec.type === "vec3") properties[p] = { type: "array", items: { type: "integer" }, minItems: 3, maxItems: 3, description: spec.description };
       else if (spec.type === "enum") properties[p] = { type: "string", enum: spec.values, description: spec.description };
       else if (spec.type === "int") properties[p] = { type: "integer", minimum: spec.min, maximum: spec.max, description: spec.description };
+      else if (spec.type === "bool") properties[p] = { type: "boolean", description: spec.description };
       else if (spec.type === "place") properties[p] = { anyOf: [{ type: "string" }, { type: "array", items: { type: "integer" }, minItems: 3, maxItems: 3 }], description: spec.description };
       else properties[p] = { type: "string", description: spec.description };
       if (spec.required) required.push(p);
@@ -128,6 +130,11 @@ export function validate(jobName, params) {
       const n = Math.round(Number(v));
       if (!Number.isFinite(n) || n < (spec.min ?? -Infinity) || n > (spec.max ?? Infinity)) return { ok: false, error: `'${p}' must be a whole number from ${spec.min} to ${spec.max}.` };
       out[p] = n;
+    } else if (spec.type === "bool") {
+      const s = String(v).toLowerCase();
+      if (v === true || ["true", "yes", "on", "1"].includes(s)) out[p] = true;
+      else if (v === false || ["false", "no", "off", "0"].includes(s)) out[p] = false;
+      else return { ok: false, error: `'${p}' must be true or false.` };
     } else if (spec.type === "place") {
       out[p] = toVec3(v) ?? String(v);
     } else {

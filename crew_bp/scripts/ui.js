@@ -235,7 +235,8 @@ export async function digForm(p, by, e, mode) {
   if (mode === "quarry") {
     f.slider("Length (forward)", 2, MAX_SIDE, { defaultValue: plan.length, valueStep: 1 })
       .slider("Width (to the right)", 2, MAX_SIDE, { defaultValue: plan.width, valueStep: 1 })
-      .slider("Depth", 1, MAX_SIDE, { defaultValue: plan.depth, valueStep: 1 });
+      .slider("Depth", 1, MAX_SIDE, { defaultValue: plan.depth, valueStep: 1 })
+      .toggle("Clear above first (hills, trees: nothing left floating)", { defaultValue: plan.clearAbove ?? true });
   } else {
     f.slider("Trunk length", 1, MAX_SIDE, { defaultValue: plan.trunk, valueStep: 1 })
       .slider("Trunk width (extra lanes to the right)", 1, MAX_TRUNK_WIDTH, { defaultValue: plan.trunkWidth ?? DEFAULTS.width, valueStep: 1 })
@@ -250,12 +251,12 @@ export async function digForm(p, by, e, mode) {
   const r = await show(p, f);
   if (!r?.formValues) return;
   const v = r.formValues;
-  if (mode === "quarry") updatePlan(p, { length: Number(v[0]), width: Number(v[1]), depth: Number(v[2]), confirmed: true });
+  if (mode === "quarry") updatePlan(p, { length: Number(v[0]), width: Number(v[1]), depth: Number(v[2]), clearAbove: !!v[3], confirmed: true });
   else {
     const ty = Math.round(Number(v[4]));
     updatePlan(p, { trunk: Number(v[0]), trunkWidth: Number(v[1]), branch: Number(v[2]), spacing: Number(v[3]), targetY: Number.isFinite(ty) ? ty : plan.targetY, confirmed: true });
   }
-  const tail = v.slice(mode === "quarry" ? 3 : 5);
+  const tail = v.slice(mode === "quarry" ? 4 : 5);
   const now = /** @type {import("./marker.js").Plan} */ (getPlan(p));
   const o = planOrder(now);
   const res = dispatch(by, { worker: m.name, job: o.job, params: { ...o.params, deposit: deps[Number(tail[0])].value, keep: KEEP[Number(tail[1])], pace: PACE[Number(tail[2])] } });

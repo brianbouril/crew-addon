@@ -267,6 +267,12 @@ food; below 10 it rests; safe bed restores to 100, unsafe 75, rough 50; it packs
    path searches.
 9. **Finds:** reports structures it breaks into (mineshaft, dungeon, geode, ancient city,
    stronghold) and big ore finds; stats on the sign or in the menu.
+10. **Makes its own tools** (Brian, Nov 14): when a tool breaks or wears low and it has no spare,
+   a worker with a crafting table within 8 blocks of its bed crafts a replacement at home from
+   materials in its home chest, using vanilla recipes (sticks from planks if needed; best tier the
+   materials allow, never better than the tool it lost unless the owner allows it). It walks home
+   to do it (or does it during the morning restock), says what it made and what it used, and asks
+   for materials when it can't. Fits with "out of pickaxes: home, asks for tools" above.
 - **Gate:** "prospect for diamonds here, quota 5" runs over several in-game days with no help
   beyond tools, and the entrance and sign look right.
 

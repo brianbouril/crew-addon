@@ -30,15 +30,24 @@ export const column = (p, h) => Array.from({ length: h }, (_, i) => ({ x: p.x, y
  * Quarry from the corner block on the surface: L blocks forward, W to the right, D down
  * (the corner's own layer included). A 1-wide staircase spirals down the walls clockwise,
  * starting at the corner, one block down per block along.
- * @param {V3} anchor @param {string} facing @param {number} L @param {number} W @param {number} D
+ * With `up` > 0 ("clear above"), the `up` layers over the box (hills, trees) are cleared first,
+ * top down, so nothing is left floating; those `pre` steps come before the quarry's own.
+ * @param {V3} anchor @param {string} facing @param {number} L @param {number} W @param {number} D @param {number} [up]
  */
-export function quarryGeom(anchor, facing, L, W, D) {
+export function quarryGeom(anchor, facing, L, W, D, up = 0) {
   const d = DIRS[facing], r = rightOf(d);
   const far = off(off(anchor, d, L - 1), r, W - 1);
   const min = { x: Math.min(anchor.x, far.x), y: anchor.y - D + 1, z: Math.min(anchor.z, far.z) };
   const max = { x: Math.max(anchor.x, far.x), y: anchor.y, z: Math.max(anchor.z, far.z) };
   const size = { x: max.x - min.x + 1, y: D, z: max.z - min.z + 1 };
-  return { anchor, facing, L, W, D, min, max, size, total: size.x * size.y * size.z };
+  const pre = up * size.x * size.z;
+  return { anchor, facing, L, W, D, up, pre, min, max, size, total: pre + size.x * size.y * size.z };
+}
+
+/** Clearing step i (i < pre): the layers over the box, top down, serpentine like the quarry. @param {any} g @param {number} i */
+export function aboveCell(g, i) {
+  const c = quarryCell(g, i);
+  return { x: c.x, y: c.y + g.up, z: c.z };
 }
 
 /** Quarry geometry from two corners (for orders that only give a box). @param {V3} min @param {V3} max @param {string} facing */
@@ -204,7 +213,12 @@ export const trunkTorchEvery = (w) => Math.max(4, 2 * (7 - w));
 export function stepAt(job, i) {
   if (job.type === "quarry") {
     const g = job.geom;
-    const c = quarryCell(g, i);
+    const pre = g.pre ?? 0;
+    if (i < pre) {
+      const a = aboveCell(g, i);
+      return { stand: a, mine: [a], above: true };
+    }
+    const c = quarryCell(g, i - pre);
     // torches go on top of stair steps, so the way in and out is lit
     return isStairBlock(g, c) ? { keep: c, torch: torchAt(g.max.y - 1 - c.y, g.D - 1) } : { stand: c, mine: [c] };
   }
@@ -234,7 +248,8 @@ export function outline(plan) {
   const segs = [];
   if (plan.mode === "quarry") {
     const g = quarryGeom(plan.anchor, plan.facing, plan.length, plan.width, plan.depth);
-    const a = g.min, b = { x: g.max.x + 1, y: g.max.y + 1, z: g.max.z + 1 };
+    // with Clear above, the outline goes up to the top of what will be cleared
+    const a = g.min, b = { x: g.max.x + 1, y: g.max.y + 1 + (plan.clearAbove ? plan.above ?? 0 : 0), z: g.max.z + 1 };
     const xs = [a.x, b.x], ys = [a.y, b.y], zs = [a.z, b.z];
     for (const y of ys) for (const z of zs) segs.push([{ x: a.x, y, z }, { x: b.x, y, z }]);
     for (const x of xs) for (const z of zs) segs.push([{ x, y: a.y, z }, { x, y: b.y, z }]);

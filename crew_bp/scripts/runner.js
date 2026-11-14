@@ -105,7 +105,7 @@ export function startJob(e, job) {
   if (job.type === "quarry") {
     const g = job.geom;
     emit(e, "job_started", { mode: "quarry", corner: fmt(g.anchor), facing: g.facing, size: [g.L, g.W, g.D], blocks: g.total, deposit: job.deposit.label },
-      `starting a ${g.L}x${g.W} quarry, ${g.D} deep (${g.total} blocks) from ${fmt(g.anchor)} heading ${g.facing}. Depositing at ${job.deposit.label}.`);
+      `starting a ${g.L}x${g.W} quarry, ${g.D} deep from ${fmt(g.anchor)} heading ${g.facing}${g.up ? `, clearing the ${g.up} layer${g.up === 1 ? "" : "s"} above it first` : ""}. Depositing at ${job.deposit.label}.`);
   } else if (job.type === "branch_mine") {
     const g = job.geom;
     emit(e, "job_started", { mode: "branch_mine", start: fmt(g.anchor), facing: g.facing, target_y: g.ty, trunk: g.L, trunk_width: g.w ?? 2, branch: g.B, spacing: g.s, deposit: job.deposit.label },
@@ -464,14 +464,21 @@ function stepDig(rt) {
   const inv = /** @type {Container} */ (e.getComponent("minecraft:inventory")?.container);
   if (!inv) throw new Error("worker has no inventory");
   switch (st.phase) {
-    case "travel_in":
+    case "travel_in": {
       e.setProperty("crew:anim", rt.walk?.path ? 1 : 0);
-      if (walkTo(rt, startCell(job), 1.8) === "arrived") {
+      // clearing above first: the corner may be buried under the hill, so head for the ground on top of it
+      if (job.geom.pre && st.i < job.geom.pre && !st.entry) {
+        const a = job.geom.anchor;
+        st.entry = groundNear(e.dimension, { x: a.x, y: a.y + job.geom.up + 1, z: a.z }, floorV(e.location), job.geom.up + 3) ?? startCell(job);
+      }
+      const goal = job.geom.pre && st.i < job.geom.pre ? st.entry : startCell(job);
+      if (walkTo(rt, goal, 1.8) === "arrived") {
         st.phase = "working";
         st.cool = 0;
         st.move = undefined;
       }
       return;
+    }
     case "to_deposit": {
       e.setProperty("crew:anim", rt.walk?.path ? 1 : 0);
       if (walkTo(rt, job.deposit, 2.6) !== "arrived") return;
@@ -577,7 +584,32 @@ function work(rt, inv) {
   }
   const k = kit(inv);
   if (!k.length) return needTool(rt, "tool");
-  const s = stepAt(job, st.i);
+  let s = stepAt(job, st.i);
+
+  if (!st.stage && s.above) {
+    // clearing over a quarry: most of those layers are open air, so skip empty cells quickly
+    let n = 0;
+    while (s.above && n < 512 && (passable(dim, s.mine[0]) || keepIntact(dim.getBlock(s.mine[0])?.typeId ?? ""))) {
+      st.i++;
+      n++;
+      if (st.i >= job.geom.total) return;
+      s = stepAt(job, st.i);
+    }
+    if (n) progress(rt);
+    if (s.above) {
+      // out of reach from here (a treetop, the far side of a hill): walk to the ground under it first
+      const c = s.mine[0];
+      const cur = floorV(e.location);
+      if (!inReach(cur, c)) {
+        const spot = groundNear(dim, c, cur);
+        if (spot && !sameV(spot, cur)) {
+          st.stand = spot;
+          st.phase = "return";
+          return;
+        }
+      }
+    }
+  }
 
   if (!st.stage) {
     // tired: eat if it carries food; worn out with nothing to eat: rest, then carry on
@@ -667,6 +699,15 @@ function work(rt, inv) {
     }
   }
 
+  if (st.stage === 2 && s.above) {
+    // clearing above: follow the ground down as it's dug away, but never climb onto a tree or
+    // up a cliff to stand somewhere it couldn't walk (it reaches up instead, like a player)
+    const p = standOk(rt, s.stand, s.stand);
+    const cur = floorV(e.location);
+    st.next = p && Math.abs(p.y - cur.y) <= 1 && Math.abs(p.x - cur.x) + Math.abs(p.z - cur.z) <= 1 ? p : undefined;
+    st.stage = 4;
+  }
+
   if (st.stage === 2) {
     // where to stand next: somewhere with a floor and headroom, never inside a block
     if (!s.stand) {
@@ -743,6 +784,39 @@ function work(rt, inv) {
     }
   }
   st.done = true;
+}
+
+/** Can it reach block c from standing at cur (eyes about 1.6 up), like a player? @param {V3} cur @param {V3} c */
+function inReach(cur, c) {
+  const dx = c.x - cur.x, dy = c.y - (cur.y + 1), dz = c.z - cur.z;
+  return Math.hypot(dx, dy, dz) <= 5;
+}
+
+/**
+ * Somewhere to stand on the ground under or beside block c (looking `depth` blocks down), the
+ * closest to c. For reaching the blocks of a hill or tree over a quarry.
+ * @param {import("@minecraft/server").Dimension} dim @param {V3} c @param {V3} cur @param {number} [depth]
+ */
+function groundNear(dim, c, cur, depth = 12) {
+  /** @type {V3 | undefined} */
+  let best;
+  let bestD = Infinity;
+  for (let dx = -2; dx <= 2; dx++) {
+    for (let dz = -2; dz <= 2; dz++) {
+      for (let y = c.y; y >= c.y - depth; y--) {
+        const p = { x: c.x + dx, y, z: c.z + dz };
+        if (!roomAt(dim, p)) continue;
+        if (passable(dim, { x: p.x, y: p.y - 1, z: p.z })) continue;
+        const d = Math.hypot(p.x - c.x, p.y + 1 - c.y, p.z - c.z) + 0.01 * dist(p, cur);
+        if (d < bestD) {
+          bestD = d;
+          best = p;
+        }
+        break;
+      }
+    }
+  }
+  return best;
 }
 
 /** The spot c settles to, if it has a floor and headroom and is within reach of `want`. @param {Runtime} rt @param {V3} want @param {V3} c */

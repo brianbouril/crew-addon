@@ -72,7 +72,7 @@ Tap it holding a tool or torches to hand them over.
   white outline, then tap again (anywhere) and Confirm. It offers to start it with the linked worker.
 - tap the **air**: the worker's orders, your plan, link another worker, put the stake away
 
-**Quarry** digs a box top-down and leaves a staircase in the wall. **Branch mine** digs stairs down
+**Quarry** digs a box top-down and leaves a staircase in the wall; with Clear above (on by default) it first clears any hill or trees over the box so nothing floats. **Branch mine** digs stairs down
 to a level (default Y -54), a trunk 1 to 4 wide, and side branches with 2 solid blocks between; it
 mines ore veins out of the walls and fills the holes. Blocks no tool can harvest are left and dug
 around. Torches go down so nothing spawns in its tunnels.

@@ -13,6 +13,8 @@ const loadedWorkersById = (id) => loadedWorkers().find((w) => w.id === id);
 /** Is this id a worker the registry still knows (loaded or not)? @param {string} id */
 const isKnownWorker = (id) => Object.values(getRegistry()).some((r) => r.id === id);
 import { kit } from "./tools.js";
+import { CLEAR_ABOVE_MAX, layersAbove } from "./blocks.js";
+import { quarryGeom } from "./plans.js";
 
 /** @typedef {import("./store.js").Commander} Commander */
 
@@ -97,13 +99,21 @@ export function dispatch(by, order) {
       const dep = depositFor(by, p.deposit, e.dimension.id);
       if (typeof dep === "string") return { ok: false, message: dep };
       if (dep.dim !== e.dimension.id) return { ok: false, message: `${dep.label} is in another dimension from ${m.name}.` };
+      if (v.job === "quarry" && p.clear_above) {
+        // measure what's over the box now, so the hills and trees on it come off first
+        const g0 = p.geom;
+        const h = layersAbove(e.dimension, g0.min, g0.max);
+        if (h.unloaded) return { ok: false, message: `The area over the quarry isn't loaded right now, so ${m.name} can't measure what to clear above it. Go closer and try again.` };
+        if (!h.open) return { ok: false, message: `There's more than ${CLEAR_ABOVE_MAX} blocks of ground over that quarry (is it underground?). Turn off "Clear above" or plan it at the surface.` };
+        p.geom = quarryGeom(g0.anchor, g0.facing, g0.L, g0.W, g0.D, h.up);
+      }
       setJSON(e, "crew:lastDeposit", dep);
       const job = { type: v.job, id: newId(), by: byRef, geom: p.geom, keep: p.keep, pace: p.pace, deposit: dep };
       startJob(e, job);
       setJSON(e, "crew:paused", undefined); // a new dig replaces any stopped one
       const g = p.geom;
       const what = v.job === "quarry"
-        ? `${g.L}x${g.W} quarry, ${g.D} deep, from ${fmt(g.anchor)} heading ${g.facing}`
+        ? `${g.L}x${g.W} quarry, ${g.D} deep, from ${fmt(g.anchor)} heading ${g.facing}${g.up ? `, first clearing ${g.up} layer${g.up === 1 ? "" : "s"} above it` : ""}`
         : `branch mine from ${fmt(g.anchor)} heading ${g.facing} at Y ${g.ty}: ${g.L}-block trunk ${g.w ?? 2} wide, ${g.branchAt.length * 2} branches of ${g.B}`;
       return { ok: true, message: `${m.name} is on it: ${what}. Depositing at ${dep.label}.` };
     }

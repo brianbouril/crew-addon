@@ -8,6 +8,9 @@ turns it into that version's section.
 - Workers open wooden doors and fence gates as they walk and close them behind them, so a bed
   inside a house is reached on foot (iron doors only when already open). They never break doors,
   gates or trapdoors while digging.
+- Quarry "Clear above" (on by default when planned with the stake): the worker first clears
+  everything over the box up to open sky, top down, so no hill, tree or overhang is left floating.
+  The outline shows the full height; a quarry staked underground (over 48 blocks overhead) is refused.
 
 ## v0.4.0
 

@@ -124,5 +124,36 @@ export function passable(dim, p) {
   return b.isAir || b.isLiquid || SOFT.test(b.typeId) || isDoorway(b);
 }
 
+/** Most layers "Clear above" will take off over a quarry before it decides the dig is underground. */
+export const CLEAR_ABOVE_MAX = 48;
+/**
+ * How many layers over a quarry's top hold something (hill, tree, overhang) that would be left
+ * floating, up to open sky: the scan stops after 3 empty layers in a row.
+ * `open` false = still solid after CLEAR_ABOVE_MAX layers (underground), or the area isn't loaded.
+ * @param {import("@minecraft/server").Dimension} dim @param {{x:number,y:number,z:number}} min @param {{x:number,y:number,z:number}} max
+ * @returns {{up: number, open: boolean, unloaded?: boolean}}
+ */
+export function layersAbove(dim, min, max) {
+  let last = 0;
+  let empty = 0;
+  for (let k = 1; k <= CLEAR_ABOVE_MAX + 3; k++) {
+    const y = max.y + k;
+    let solid = false;
+    for (let x = min.x; x <= max.x && !solid; x++) {
+      for (let z = min.z; z <= max.z && !solid; z++) {
+        const b = dim.getBlock({ x, y, z });
+        if (!b) return { up: last, open: false, unloaded: true };
+        if (!passable(dim, { x, y, z })) solid = true;
+      }
+    }
+    if (solid) {
+      if (k > CLEAR_ABOVE_MAX) return { up: CLEAR_ABOVE_MAX, open: false };
+      last = k;
+      empty = 0;
+    } else if (++empty >= 3) return { up: last, open: true };
+  }
+  return { up: last, open: false };
+}
+
 /** Friendly block name: "minecraft:deepslate_diamond_ore" -> "deepslate diamond ore". @param {string} id */
 export const blockName = (id) => id.replace(/^minecraft:/, "").replace(/_/g, " ");
