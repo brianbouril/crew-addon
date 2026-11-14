@@ -76,7 +76,8 @@ or decides block logic; it only picks jobs and fills parameters.
   digging at player speed, food. Fixed during it: idle homeless workers didn't sleep, stake plan menu
   looping back to the type picker, bump-and-bounce on each step, snapping during swings.
 - **Not yet tested:** anything on BDS (first server install of 0.4.0 is next).
-- **Next idea noted:** more natural walking, straight lines instead of right angles (PLAN v0.8).
+- **Next fixes:** PLAN "Next fixes (0.4.x patch)": doors (open, walk through, close; never break).
+  Later idea: more natural walking, straight lines instead of right angles (PLAN v0.8).
 
 ## Known limits
 - Movement is scripted gliding along an A* path, not vanilla AI; blinks once if no route.

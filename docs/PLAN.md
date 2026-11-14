@@ -198,8 +198,18 @@ can't hurt workers yet**; Quarry and Branch mine stay as precise jobs.
 - **v0.1 Miner:** one worker, box dig, places, permissions, Survey Stake corners.
 - **v0.2 Mining patterns and tools:** quarry with stair, branch mine, tool kits, crouch menu,
   Survey Stake outline. Tested in game Nov 12.
+- **v0.3 + v0.4, released together as 0.4.0 (Nov 14):** tested in game on the local world, then
+  installed on BDS (server world backed up first). Sections below kept for the record.
 
-### v0.3 Better digging (built, mock-tested; needs an in-game pass, then the first server install)
+### Next fixes (0.4.x patch, from server testing)
+- [ ] **Doors** (Brian, Nov 14): workers treat every door as a wall, so a bed inside a house is
+  reached by a "shortcut" teleport. Make wooden doors, fence gates and trapdoors walkable in A*
+  (`path.js`, `passable`): open one on arrival, step through, close it behind (keeps mobs out).
+  Iron doors and iron trapdoors only when already open (they need redstone). Never break a door,
+  gate or trapdoor while digging (`clearableHead`, `mineCell`): add them to the protected set.
+  Mock test: a bed in a walled house with a door is reached on foot, no shortcut, door closed after.
+
+### v0.3 Better digging (released in 0.4.0)
 Villager-style model with a skin per role; tool in hand; digs one block at a time; no hovering or
 clipping; clears diggable blocks at head height; ore veins in tunnel walls with backfill; torches
 at no-spawn spacing; trunk width 1-4; Take what it carries / Drop off / Stop-and-drop-off;
@@ -209,7 +219,7 @@ Continue after a stop; Get a Survey Stake from the menu, Put the stake away; in-
 - [ ] Back up the server world; install both packs on BDS; friends test.
 - **Gate:** a friend builds a worker from the guide alone and finishes a branch mine on the server.
 
-### v0.4 Home and daily routine (built Nov 13, mock-tested; needs an in-game pass)
+### v0.4 Home and daily routine (released in 0.4.0)
 Built as planned, in `life.js` (home, beds, energy, food, restock) and the `rest` job + `routine()`
 in `runner.js`. Differences from the task list below: the name tag doesn't mark a home (the menu
 status and Home screen show it); "yawning" is a one-time "getting tired" message, not an
