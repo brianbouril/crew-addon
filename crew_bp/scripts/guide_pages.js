@@ -182,7 +182,7 @@ export const PAGES = [
       "",
       `Only the ${K("owner")} and the players they allow can give a worker orders or tools. Owners add friends under ${K("Who can give orders")}. Server operators can always help out.`,
       "",
-      `${K("Workers dig whatever is inside the plan")}, whoever built it. So stake your digs away from other people's builds, and check the outline before you confirm.`,
+      `${K("Workers dig whatever is inside the plan")}, whoever built it, and with Clear above, everything over a quarry too. So stake your digs away from other people's builds, and check the outline (it shows the full height) before you confirm.`,
       "",
       `${K("Dismiss")} (owners only) gives back its tools, what it carries, the barrel and the pumpkin.`,
     ].join("\n"),
