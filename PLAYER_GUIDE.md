@@ -56,7 +56,7 @@ Plan a dig
 2. Pick Quarry or Branch mine and set the size with the sliders. For a quarry, **Clear above** also takes off the hill or trees on top of it.
 3. A **white outline** shows the plan while you hold the stake (flames point forward).
 4. Tap with the stake again (any block, or the air) and pick **Confirm**. The outline turns green.
-5. **Start it with** the linked worker right there, or later from its orders. Choose where it drops off, what to bring back and the pace, then Start.
+5. **Start it with** the linked worker right there, or later from its orders. Choose where it drops off and what to bring back, then Start.
 
 Done with the stake? Every stake menu has **Put the stake away**. Your plan and link are kept.
 
@@ -86,7 +86,7 @@ It digs the far branches first and works back toward the stairs.
 
 ## Tools and tough blocks
 
-It mines like you do: **one block at a time**, with the right tool, and **takes as long as you would** with that tool (stone with an iron pickaxe: under half a second; obsidian with diamond: about 9 seconds). It uses a shovel on dirt and gravel and a pickaxe on stone. It uses the weakest pickaxe that works, so your best one is saved for ore.
+It mines like you do: **one block at a time**, with the right tool, and **takes as long as you would** with that tool (stone with an iron pickaxe: under half a second; obsidian with diamond: about 9 seconds). It uses a shovel on dirt and gravel and a pickaxe on stone. It uses the weakest pickaxe that works, so your best one is saved for ore. Rather it used its best tool for everything (faster, but it wears out)? Pick **Use the fastest tool** in its Tools menu.
 
 Same rules as you: a stone pickaxe for iron, iron for diamonds, diamond for obsidian.
 
@@ -128,6 +128,7 @@ Workers live by the day, like villagers. **Give yours a home**: with the Survey 
 - **In the morning** it takes torches, food and spare tools from the home chest and goes back to its job where it left off.
 - **A safe bed** has a roof over it and no monsters nearby. It sleeps badly in an unsafe one and tells you why.
 - With no home it sleeps wherever it is, and rests less.
+- **Asleep?** Crouch and tap it (or its bed) for its menu: it keeps sleeping. Pick **Wake up** to get it up, or just give it an order. At night it stays up while it has something to do, then goes back to bed.
 
 **Energy:** digging tires it out. A tired worker digs slower; a worn-out one stops for a rest. Sleep gets its energy back. **Food** does too (bread, cooked meat or fish, baked potatoes and more): put some in its home chest, or give it some when you build it, and it eats when it's tired. Food is never required.
 
@@ -169,7 +170,7 @@ Only the **owner** and the players they allow can give a worker orders or tools.
 ## Tips
 
 - Workers keep working when you walk away (up to 10 working at once far from everyone).
-- Normal pace digs as fast as you would with the same tool. Fast pace digs 5 times faster.
+- It digs as fast as you would with the same tool. Better tools (and Efficiency) make it faster.
 - If it can't find a way somewhere, it takes a shortcut once and tells you.
 - It opens wooden doors and fence gates as it walks and shuts them behind it (iron doors only if they're already open).
 - It never breaks doors, gates, trapdoors, chests with items in them, spawners or bedrock, and it leaves water and lava alone. It tells you about lava, spawners and diamonds it finds.

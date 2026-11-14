@@ -31,7 +31,7 @@ or decides block logic; it only picks jobs and fills parameters.
 | 10 | Branch mine: stairs to target Y, 2-wide trunk, 1x2 branches both sides, **2 solid blocks between branches**, lengths editable | Brian corrected spacing to two solid blocks |
 | 11 | Survey Stake: particle outline, direction from facing, size by sliders, preview then confirm | Brian: "visual outline and a way to outline the direction, area, and size" |
 | 12 | Villager-style model (big head, nose) with working arms and a hard hat; one skin per role (Miner, Digger, Woodcutter, Farmer), picked by the `crew:role` entity property. About 1.75 blocks tall, so it needs 2 blocks of headroom | Brian, Nov 12: "try the villager model... each worker type has a skin that matches" (replaced the small 1-block model) |
-| 13 | Open settings, left as is until Brian says otherwise: fast pace (5x tool speed) open to everyone; server operators can command any worker | Defaults; Brian hasn't decided |
+| 13 | Server operators can command any worker (the 5x fast pace that was here was removed Nov 14, decision 30) | Default; Brian hasn't decided |
 | 14 | Workers never hover or pass through blocks: they stand only where there's a floor and 2 blocks of air, drop straight down rather than gliding over air, and walk by A* when the next spot is more than a step away | Brian, Nov 12: it hovered over the dug area and clipped through obsidian |
 | 15 | Branch mine digs ore veins out of the tunnel walls and fills each hole with stone/dirt it dug (walls stay solid) | Brian, Nov 12 |
 | 16 | Torches given to a worker are placed as it digs: every 12 blocks of branch, every 10 in the 2-wide trunk, on quarry stair steps. Keeps every tunnel block within 6 of a torch (light 8+) | Brian, Nov 12: "at a distance that will prevent enemy mobs from spawning" |
@@ -43,6 +43,10 @@ or decides block logic; it only picks jobs and fills parameters.
 | 23 | v0.4 living workers: a home (claimed bed, one worker per bed, + home chest within 8), dusk-to-dawn sleep (dig paused and auto-resumed), energy drained by digging and restored by sleep and optional food, morning restock of torches, food and tools from the home chest; no home = sleep rough in place | Brian, Nov 13 roadmap |
 | 24 | The Survey Stake is the remote: tap a worker to link it (`crew:linked` on the player); then a bed = its home (any distance), a chest = home chest / drop-off / named place, the ground = plan a dig (offers to start it with the linked worker), the air = its orders, your plan, link another. Works while the worker's area is loaded | Brian, Nov 13: setting a far bed meant standing by it with the worker's menu open; asked for one device to manage workers |
 | 25 | Workers keep everything they dig by default (`keep` default `all`), with 36 inventory slots like a player (kit in 0-4); night is dusk 12000 to dawn 23000 | Brian, Nov 13: chest looked empty; worker went to bed at dawn |
+| 28 | A sleeping worker's menu opens (crouch-tap it or its bed) without waking it; "Wake up" or any order wakes it; woken at night it stays up while busy and returns to bed after 60 s idle (`crew:stayUp`) | Brian, Nov 14 |
+| 29 | Tools menu setting: "Save my best tools" (default) or "Use the fastest tool" (`crew:toolPref`, `chooseTool` prefer) | Brian, Nov 14 |
+| 30 | No Fast pace: player speed only. The mock tests' 5x speed-up is `globalThis.crewTestFast`, set by the mock, not an order param | Brian, Nov 14 |
+| 31 | Workers dig only what they can see (`canSee` line of sight) and walk (never teleport) to a spot with a view; an `unstick` safety net logs `[Crew-Inside]` and steps out if one is ever inside a block | Brian, Nov 14: passed through a quarry stair |
 | 26 | Quarry "Clear above" (`clear_above`; on by default from the stake, off by default for raw orders): measured at plan and at start (`blocks.js layersAbove`: up to open sky, 3 empty layers in a row; refused past 48), cleared top down as `pre` steps before the quarry's own; the worker reaches up from the ground (never climbs onto what it clears) | Brian, Nov 14: "no floating blocks above the quarry area" |
 | 27 | Workers walk through wooden doors and fence gates (open, step through, close behind; iron only if open) and never break doors, gates or trapdoors | Brian, Nov 14 |
 | 21 | Every Survey Stake menu has "Put the stake away" (removes it from the inventory; the plan is kept). The worker menu has "Get a Survey Stake" (and the "no plan yet" message offers one); only one per player, `/crew:stake` follows the same rule | Brian, Nov 12 |
@@ -140,6 +144,8 @@ listed at the end of the roadmap.
 - **Install to a local world:** double-click the .mcaddon (Windows) or copy the folders into
   `development_behavior_packs` / `development_resource_packs` of your Minecraft data folder, then
   activate both packs on the world.
+- **Server rule (Brian, Nov 14):** never copy changes to the server (`Desktop\Minecraft Bedrock Server`)
+  or reload it without Brian's OK for that update. Local test world dev packs are fine. Back up first.
 - **Install to BDS:** see README "Install on Bedrock Dedicated Server" (pack UUIDs and
   `world_behavior_packs.json` / `world_resource_packs.json`, `texturepack-required=true`).
 - In game, watch the server console for `[Crew] v<version> loaded`, `[Crew-Event]` lines and script errors.

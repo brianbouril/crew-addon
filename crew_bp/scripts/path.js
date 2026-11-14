@@ -17,11 +17,12 @@ const key = (/** @type {V3} */ p) => `${p.x},${p.y},${p.z}`;
  * @param {V3} goal  block position
  * @param {number} reach  arrive when within this distance (block centers)
  * @param {boolean} [beside]  the goal is a block to stand next to (a chest), not on top of
+ * @param {number} [maxNodes]  give up after this many (short repositioning walks use a small limit)
  */
-export function newSearch(dim, from, goal, reach, beside = false) {
+export function newSearch(dim, from, goal, reach, beside = false, maxNodes = MAX_NODES) {
   const start = floorV(from);
   const s = {
-    dim, start, goal, reach, beside,
+    dim, start, goal, reach, beside, maxNodes,
     /** @type {Map<string, boolean>} */ pass: new Map(),
     /** @type {Map<string, number>} */ g: new Map([[key(start), 0]]),
     /** @type {Map<string, V3>} */ came: new Map(),
@@ -100,7 +101,7 @@ export function advance(s, budget) {
       s.path = path.reverse();
       return "found";
     }
-    if (++s.expanded > MAX_NODES) return "failed";
+    if (++s.expanded > s.maxNodes) return "failed";
     for (const { p, cost } of neighbors(s, c)) {
       const kp = key(p);
       const ng = gc + cost;

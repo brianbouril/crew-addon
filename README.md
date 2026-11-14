@@ -100,7 +100,7 @@ chest and goes back to the dig where it left off. Digging tires it; sleep or foo
 ## Slash commands
 
 `/crew:help`, `/crew:stake`, `/crew:menu`, `/crew:list`, `/crew:status`, `/crew:come`, `/crew:stop`,
-`/crew:continue`, `/crew:mine <worker> [drop-off] [keep] [pace]` (runs the confirmed stake plan),
+`/crew:continue`, `/crew:mine <worker> [drop-off] [keep]` (runs the confirmed stake plan),
 `/crew:minebox` (quarry by two corners), `/crew:allow`, `/crew:deny`, `/crew:crew`, `/crew:rename`,
 `/crew:dismiss`, `/crew:place`, `/crew:places`, `/crew:forget`, `/crew:jobs`, `/crew:hire` (operators),
 `/crew:exec` (console: the LLM seam).
@@ -119,7 +119,7 @@ chest and goes back to the dig where it left off. Digging tires it; sleep or foo
 
 ## Testing status
 
-- Mock world (`node tools/sim/run.mjs`): quarry (fast and normal pace, no position snapping), branch
+- Mock world (`node tools/sim/run.mjs`): quarry (no position snapping, never inside a block), branch
   mines 1 to 3 wide, tool kits and wear, permissions and resume, drop off, headroom, stop and
   continue, and a full day: home, night, sleep, dawn, food, homeless sleep, bed claims.
 - In game on a local world (v0.4.0, Nov 14 2026): all of the above, the stake remote, sleep poses,

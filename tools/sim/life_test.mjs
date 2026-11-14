@@ -4,7 +4,7 @@
 // back to the dig where it left off. Later, tired, it eats from its packed lunch. A worker with no
 // home sleeps where it stands. A bed under the open sky is reported unsafe.
 import { world, tick, ItemStack, setTimeOfDay } from "@minecraft/server";
-import { startEngine } from "./scripts/runner.js";
+import { startEngine, wakeUp } from "./scripts/runner.js";
 import { spawnWorker } from "./scripts/workers.js";
 import { dispatch } from "./scripts/orders.js";
 import { energy, setEnergy } from "./scripts/life.js";
@@ -35,7 +35,7 @@ const run = (until, max) => { const end = t + max; while (!until() && t < end) t
 
 // day: start a branch mine, dig for a while
 setTimeOfDay(1000);
-dispatch(by, { worker: "Bea", job: "branch_mine", params: { start: [600, 64, 610], facing: "south", target_y: 60, trunk_length: 10, branch_length: 3, spacing: 2, deposit: [chestAt.x, chestAt.y, chestAt.z], keep: "all", pace: "fast" } });
+dispatch(by, { worker: "Bea", job: "branch_mine", params: { start: [600, 64, 610], facing: "south", target_y: 60, trunk_length: 10, branch_length: 3, spacing: 2, deposit: [chestAt.x, chestAt.y, chestAt.z], keep: "all" } });
 run(() => (st().i ?? 0) >= 30, 20000);
 const dugBeforeNight = st().i;
 // dusk
@@ -59,7 +59,7 @@ const finished = !job();
 
 // no home: it sleeps where it stands, and less well
 const { e: e2 } = spawnWorker(ow, { x: 700.5, y: 65, z: 700.5 }, { id: "p1", name: "Brian" }, "Rook", [new ItemStack("minecraft:iron_pickaxe")]);
-dispatch(by, { worker: "Rook", job: "quarry", params: { from: [700, 63, 700], to: [703, 64, 703], facing: "south", deposit: [chestAt.x, chestAt.y, chestAt.z], keep: "all", pace: "fast" } });
+dispatch(by, { worker: "Rook", job: "quarry", params: { from: [700, 63, 700], to: [703, 64, 703], facing: "south", deposit: [chestAt.x, chestAt.y, chestAt.z], keep: "all" } });
 run(() => JSON.parse(e2.getDynamicProperty("crew:state") ?? "{}").i >= 5, 4000);
 setEnergy(e2, 30);
 setTimeOfDay(13000);
@@ -83,6 +83,23 @@ run(() => !e.getDynamicProperty("crew:job"), 200);
 const dawn = { idleWorkerAt23000: dawnIdle, asleepAtNight, upAtDawn: !e.getDynamicProperty("crew:job") };
 function stopIfBusy(w) { if (w.getDynamicProperty("crew:job")) dispatch(by, { worker: "Bea", job: "stop", params: {} }); }
 
+// woken from its menu at night: it gets up beside the bed, stays up about a minute with nothing to
+// do, then goes back to bed. Given a dig at night, it stays up while it digs.
+setTimeOfDay(14000);
+run(() => st().phase === "asleep" && job()?.type === "rest", 3000);
+const wasAsleep = st().phase === "asleep";
+const woke = wakeUp(e);
+run(() => false, 40);
+const afterWake = { job: job()?.type ?? "idle", zzz: e.nameTag.includes("Zzz"), besideBed: Math.hypot(e.location.x - 600.5, e.location.z - 601) < 2.5 };
+run(() => false, 20 * 30);
+const after30s = job()?.type ?? "idle";
+run(() => job()?.type === "rest", 20 * 45);
+const afterAMinute = job()?.type ?? "idle";
+dispatch(by, { worker: "Bea", job: "quarry", params: { from: [610, 63, 590], to: [614, 64, 594], facing: "south", deposit: [chestAt.x, chestAt.y, chestAt.z], keep: "all" } });
+run(() => false, 20 * 20);
+const wake = { wasAsleep, woke, afterWake, after30s, afterAMinute, nightDigStaysUp: job()?.type };
+dispatch(by, { worker: "Bea", job: "stop", params: {} });
+
 // an idle worker with no home lies down where it stands at night
 const { e: e4 } = spawnWorker(ow, { x: 720.5, y: 65, z: 720.5 }, { id: "p1", name: "Brian" }, "Moss", [new ItemStack("minecraft:stone_pickaxe")]);
 setTimeOfDay(14000);
@@ -98,6 +115,6 @@ const openBed = dispatch(by, { worker: "Fern", job: "set_home", params: { bed: [
 const taken = dispatch(by, { worker: "Fern", job: "set_home", params: { bed: [600, 65, 601] } });
 
 console.log = out;
-console.log(JSON.stringify({ setHome: home.message, dugBeforeNight, night, morning, lunch, finished, homeless, dawn, idleHomeless, inventorySlots: e.inv.size, openBed: openBed.message, bedTaken: taken.message,
+console.log(JSON.stringify({ setHome: home.message, dugBeforeNight, night, morning, lunch, finished, homeless, dawn, wake, idleHomeless, inventorySlots: e.inv.size, openBed: openBed.message, bedTaken: taken.message,
   shortcutsTaken: logs.filter((l) => l.includes('"stuck"')).length }, null, 1));
 console.log(logs.filter((l) => /"rest"|woke|tired|unsafe_bed|stuck|WARN|failed/.test(l)).join("\n"));

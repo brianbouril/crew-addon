@@ -8,6 +8,7 @@ import { dispatch } from "./scripts/orders.js";
 import { statusText } from "./scripts/runner.js";
 import { Container } from "@minecraft/server";
 import { giveHeldTool } from "./scripts/ui.js";
+import { chooseTool, kit, setToolPref, toolPref } from "./scripts/tools.js";
 
 const logs = []; const out = console.log; console.log = (...a) => logs.push(a.join(" ")); console.warn = (...a) => logs.push("WARN " + a.join(" "));
 const ow = world.getDimension("minecraft:overworld");
@@ -18,7 +19,13 @@ startEngine();
 const by = { id: "p1", name: "Brian", isOp: false };
 const { e } = spawnWorker(ow, { x: 100.5, y: 65, z: 95.5 }, { id: "p1", name: "Brian" }, "Moss",
   [new ItemStack("minecraft:stone_pickaxe"), new ItemStack("minecraft:wooden_pickaxe"), new ItemStack("minecraft:wooden_shovel")]);
-const order = dispatch(by, { worker: "Moss", job: "quarry", params: { from: [100, 64, 100], to: [109, 61, 109], deposit: [100, 65, 96], keep: "all", pace: "fast" } });
+// "use the fastest tool": with stone and diamond pickaxes, stone is dug with diamond only then
+const { e: w } = spawnWorker(ow, { x: 150.5, y: 65, z: 150.5 }, { id: "p1", name: "Brian" }, "Quartz", [new ItemStack("minecraft:stone_pickaxe"), new ItemStack("minecraft:diamond_pickaxe")]);
+const pick = (block) => chooseTool(kit(w.inv), block, toolPref(w)).tool?.info.label;
+const toolSetting = { saveMyBest: { stone: pick("minecraft:stone"), obsidian: pick("minecraft:obsidian") } };
+setToolPref(w, "fastest");
+toolSetting.fastest = { stone: pick("minecraft:stone"), obsidian: pick("minecraft:obsidian") };
+const order = dispatch(by, { worker: "Moss", job: "quarry", params: { from: [100, 64, 100], to: [109, 61, 109], deposit: [100, 65, 96], keep: "all" } });
 let t = 0, waitedAt = null, statusWhileWaiting = "", gave = null;
 while (e.getDynamicProperty("crew:job") && t < 200000) {
   tick(++t);
@@ -35,6 +42,6 @@ while (e.getDynamicProperty("crew:job") && t < 200000) {
 }
 let left = 0; for (let x = 100; x < 110; x++) for (let y = 61; y <= 64; y++) for (let z = 100; z < 110; z++) if (!/air/.test(ow.typeAt({ x, y, z }))) left++;
 console.log = out;
-console.log(JSON.stringify({ order: order.message, ticks: t, waitedForToolAtTick: waitedAt, statusWhileWaiting, gave, leftInBox: left,
+console.log(JSON.stringify({ order: order.message, ticks: t, waitedForToolAtTick: waitedAt, statusWhileWaiting, gave, leftInBox: left, toolSetting,
   kitAfter: e.inv.items.slice(0, 5).filter(Boolean).map((s) => `${s.typeId.replace("minecraft:", "")} dmg ${s.damage}`) }, null, 1));
 console.log(logs.filter((l) => /tool_|job_done|stuck|WARN|failed/.test(l)).join("\n"));

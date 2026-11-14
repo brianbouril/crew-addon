@@ -5,7 +5,7 @@ import { world, system, BlockPermutation } from "@minecraft/server";
 import { AIR, FILL, GRAVITY, ORE, SIGNS, TORCH, VALUABLE, bestKind, blockName, keepIntact, needsOpening, passable, setOpen } from "./blocks.js";
 import { off, column, inBranchPlan, isStairBlock, startCell, stepAt } from "./plans.js";
 import { advance, near, newSearch } from "./path.js";
-import { KIT_SLOTS, addToKit, chooseTool, freeHaulSlots, kit, kitText, stash, ticksFor, toolInfo, wear } from "./tools.js";
+import { KIT_SLOTS, addToKit, chooseTool, freeHaulSlots, kit, kitText, stash, ticksFor, toolInfo, toolPref, wear } from "./tools.js";
 import { center, dist, floorV, fmt, getJSON, lerp, setJSON, onlinePlayer, sameV, up } from "./util.js";
 import { emit, holdTool, loadedWorkers, meta, roleOf, syncRole, updateTag } from "./workers.js";
 import { DRAIN_PER_BLOCK, EXHAUSTED, REST, TIRED, TIRED_SLOWDOWN, bedPose, bedSafety, bedside, eatOne, energy, energyWord, getHome, isNight, isSupply, restock, setEnergy } from "./life.js";
@@ -22,6 +22,11 @@ import { DRAIN_PER_BLOCK, EXHAUSTED, REST, TIRED, TIRED_SLOWDOWN, bedPose, bedSa
 const active = new Map();
 const SEARCH_BUDGET = 150; // A* expansions per worker per tick
 const MOVE_TICKS = { normal: 7, fast: 3 }; // ticks to step one block (normal: about a villager's walk, under 3 blocks a second)
+/**
+ * Mock tests only: dig and step 5x faster so the test suite runs quickly. Players can't turn it
+ * on (it isn't an order option); the mock world sets `globalThis.crewTestFast`.
+ */
+const testFast = () => /** @type {any} */ (globalThis).crewTestFast === true;
 const SKIP_LOG_MAX = 100;
 const REACH_DOWN = 4; // a worker can dig up to this many blocks above where it stands
 const VEIN_MAX = 32; // ore blocks taken out of the walls per tunnel step
@@ -135,6 +140,19 @@ export function stopJob(e, why) {
     if (st && st.i < job.geom.total) setJSON(e, "crew:paused", { job: { ...job, tickingArea: false }, st });
   }
   if (job && why) emit(e, "stopped", { reason: why }, isDig(job) ? `${why} Pick Continue in my menu to pick the ${digName(job)} up where I left off.` : why);
+  if (job?.type === "rest") {
+    // an order while it's lying in bed: get up beside the bed first
+    const rst = active.get(e.id)?.st ?? getJSON(e, "crew:state", undefined);
+    const home = getHome(e);
+    if (rst?.inBed && home && home.dim === e.dimension.id) {
+      const b = bedside(e.dimension, home);
+      try {
+        e.teleport({ x: b.x + 0.5, y: b.y, z: b.z + 0.5 });
+      } catch {
+        /* entity gone */
+      }
+    }
+  }
   active.delete(e.id);
   setJSON(e, "crew:job", undefined);
   setJSON(e, "crew:state", undefined);
@@ -198,6 +216,7 @@ export function statusText(e) {
   } else if (job.type === "rest") {
     const where = st.quality ? REST[/** @type {"safe"|"unsafe"|"rough"} */ (st.quality)].label : "";
     line = st.phase === "asleep" ? `Asleep on ${where}.` : st.phase === "to_bed" ? "Walking home to sleep." : "Getting ready to sleep.";
+    line += job.reason === "night" ? " Gets up at dawn (or pick Wake up)." : " Gets up once rested (or pick Wake up).";
     if (paused) line += ` Its ${paused.name} (${paused.pct}%) is paused until it wakes.`;
   } else {
     const total = job.geom.total;
@@ -211,7 +230,7 @@ export function statusText(e) {
   const en = energy(e);
   const home = getHome(e);
   const homeLine = home ? `Home: the bed at ${fmt(home.head)}${home.chest ? `, chest at ${fmt(home.chest)}` : ", no home chest"}.` : "No home yet (stand by a bed and pick Home, Set home).";
-  return `${line}\nEnergy ${Math.round(en)}% (${energyWord(en)}). ${homeLine}\nCarrying ${hauling}/${inv ? inv.size - KIT_SLOTS : 31} stacks. Tools: ${tools}.${torches ? ` Torches: ${torches}.` : ""}`;
+  return `${line}\nEnergy ${Math.round(en)}% (${energyWord(en)}). ${homeLine}\nCarrying ${hauling}/${inv ? inv.size - KIT_SLOTS : 31} stacks. Tools: ${tools}${toolPref(e) === "fastest" ? " (uses the fastest)" : ""}.${torches ? ` Torches: ${torches}.` : ""}`;
 }
 
 /** @param {Container} inv @param {string} id */
@@ -238,6 +257,11 @@ export function startEngine() {
         else if (rt.job.type === "drop_off") stepDropOff(rt);
         else if (rt.job.type === "rest") stepRest(rt);
         else stepDig(rt);
+        // twice a second: never inside a block (not while lying on its bed, which is meant to overlap)
+        if (rt.job.type !== "rest" && active.get(rt.e.id) === rt && (rt.unstickIn = (rt.unstickIn ?? 10) - 1) <= 0) {
+          rt.unstickIn = 10;
+          unstick(rt);
+        }
         // save progress now and then (only if this job is still the worker's job: a step may have started another)
         if (--rt.saveIn <= 0 && active.get(rt.e.id) === rt) {
           setJSON(rt.e, "crew:state", rt.st);
@@ -259,24 +283,69 @@ export function startEngine() {
 }
 
 // ---------- the daily routine ----------
+/** Seconds a worker woken (or given an order) at night stays up once it has nothing to do. */
+const STAY_UP_IDLE = 60;
 /**
  * Once a second: at night, a worker that is digging or idle goes home to sleep (no home: it lies
  * down where it is); the dig is paused and picked back up at dawn. Jobs a player gave directly (come here, drop off) are
  * left to finish first. Idle workers slowly get their energy back.
+ * A worker a player woke up or gave an order at night (`crew:stayUp`) stays up while it has a job,
+ * and goes back to bed after STAY_UP_IDLE seconds with nothing to do.
  */
 function routine() {
   const night = isNight();
   for (const e of loadedWorkers()) {
     try {
       const job = active.get(e.id)?.job ?? getJSON(e, "crew:job", undefined);
+      if (!night && e.getDynamicProperty("crew:stayUp")) e.setDynamicProperty("crew:stayUp", undefined);
       if (job?.type === "rest") continue;
       if (!job) setEnergy(e, energy(e) + 0.1);
       if (!night) continue;
+      const up = e.getDynamicProperty("crew:stayUp");
+      if (typeof up === "number") {
+        if (job) {
+          e.setDynamicProperty("crew:stayUp", 1); // busy: the idle count starts over
+          continue;
+        }
+        if (up < STAY_UP_IDLE) {
+          e.setDynamicProperty("crew:stayUp", up + 1);
+          continue;
+        }
+        e.setDynamicProperty("crew:stayUp", undefined);
+      }
       if (isDig(job) || !job) startRest(e, "night");
     } catch (err) {
       console.warn(`[Crew] routine: ${err}`);
     }
   }
+}
+
+/**
+ * At night: keep this worker up (a player woke it or gave it an order). The routine leaves it be
+ * while it has a job and sends it back to bed once it has been idle for a minute.
+ * @param {Entity} e
+ */
+export function keepUp(e) {
+  if (isNight()) e.setDynamicProperty("crew:stayUp", 1);
+}
+
+/** Is it in bed (or on its way there)? @param {Entity} e */
+export function isResting(e) {
+  return (active.get(e.id)?.job ?? getJSON(e, "crew:job", undefined))?.type === "rest";
+}
+
+/**
+ * Wakes a resting worker (from its menu). It gets up beside its bed and, if a dig was paused for
+ * the night, goes back to it, keeping the rest it got so far. At night it then stays up a while.
+ * @param {Entity} e
+ */
+export function wakeUp(e) {
+  const rt = active.get(e.id);
+  if (!rt || rt.job.type !== "rest") return false;
+  keepUp(e);
+  rt.st.byHand = true;
+  rt.st.phase = "wake";
+  return true;
 }
 
 /**
@@ -287,7 +356,7 @@ export function startRest(e, reason) {
   const job = active.get(e.id)?.job ?? getJSON(e, "crew:job", undefined);
   const resume = isDig(job);
   const home = getHome(e);
-  startJob(e, { type: "rest", id: `rest${Date.now().toString(36)}`, by: { name: "routine", console: true }, reason, pace: "normal" });
+  startJob(e, { type: "rest", id: `rest${Date.now().toString(36)}`, by: { name: "routine", console: true }, reason });
   if (resume) e.setDynamicProperty("crew:autoResume", true);
   const what = resume ? ` I'll pick the ${digName(job)} back up ${reason === "night" ? "in the morning" : "after a rest"}.` : "";
   const where = home ? "heading home to sleep" : "sleeping right here (I have no home: set one by a bed for a proper rest)";
@@ -332,6 +401,7 @@ function stepRest(rt) {
         }
         const pose = bedPose(home);
         e.teleport(pose.at, { facingLocation: pose.face });
+        st.inBed = true;
       }
       st.quality = quality;
       st.sleptNight = isNight();
@@ -356,7 +426,8 @@ function stepRest(rt) {
     case "wake": {
       e.setProperty("crew:anim", 0);
       let took = "";
-      if (home && home.dim === dim.id) {
+      // out of bed (only if it got that far: woken on the way home, it just stops where it is)
+      if (home && home.dim === dim.id && (st.inBed || !st.byHand)) {
         const b = bedside(dim, home);
         e.teleport({ x: b.x + 0.5, y: b.y, z: b.z + 0.5 });
         if (inv) took = restock(dim, home, inv, roleOf(e));
@@ -365,7 +436,12 @@ function stepRest(rt) {
       const auto = !!e.getDynamicProperty("crew:autoResume");
       e.setDynamicProperty("crew:autoResume", undefined);
       const paused = pausedJob(e);
-      const morning = job.reason === "night" ? "Morning!" : "Rested.";
+      const morning = st.byHand ? `I'm up (energy ${Math.round(energy(e))}%).` : job.reason === "night" ? "Morning!" : "Rested.";
+      if (st.byHand && !(auto && paused)) {
+        emit(e, "woke", { energy: Math.round(energy(e)), took, by_hand: true }, `${morning}${took ? ` Took ${took} from home.` : ""}`);
+        stopJob(e, undefined);
+        return;
+      }
       const stock = took ? ` Took ${took} from home.` : "";
       if (auto && paused) {
         emit(e, "woke", { energy: Math.round(energy(e)), took }, `${morning}${stock} Back to the ${paused.name}.`);
@@ -535,14 +611,19 @@ function stepDig(rt) {
       st.retry = 100;
       return;
     }
-    case "return":
+    case "return": {
       e.setProperty("crew:anim", rt.walk?.path ? 1 : 0);
-      if (walkTo(rt, st.stand ?? startCell(job), st.stand ? 0.5 : 1.8) === "arrived") {
+      // a spot picked to see a block better is only worth it on foot: no shortcut there
+      const r = walkTo(rt, st.stand ?? startCell(job), st.stand ? 0.5 : 1.8, false, !!st.view);
+      if (r === "failed") st.stay = st.i; // can't get there: dig this one from where it is
+      if (r !== "moving") {
+        st.view = undefined;
         st.phase = "working";
         st.cool = 0;
         st.move = undefined;
       }
       return;
+    }
     case "working":
       work(rt, inv);
       return;
@@ -622,13 +703,16 @@ function work(rt, inv) {
       // Clearing above, it stands on the ground under it; in the pit, on top of the block itself.
       const c = s.mine[0];
       const cur = floorV(e.location);
-      if (!inReach(cur, c)) {
-        const spot = groundNear(dim, c, cur, 12, !s.above);
+      if (st.stay !== st.i && (!inReach(cur, c) || !canSee(dim, cur, c))) {
+        // somewhere within reach with a clear view of it (else the nearest ground, as a last resort)
+        const spot = groundNear(dim, c, cur, 12, !s.above, (p) => inReach(p, c) && canSee(dim, p, c)) ?? groundNear(dim, c, cur, 12, !s.above);
         if (spot && !sameV(spot, cur)) {
           st.stand = spot;
+          st.view = true;
           st.phase = "return";
           return;
         }
+        if (!canSee(dim, cur, c)) console.warn(`[Crew-NoSight] ${JSON.stringify({ worker: meta(e).name, at: fmt(cur), block: fmt(c), step: st.i })}`);
       }
     }
   }
@@ -783,7 +867,7 @@ function work(rt, inv) {
   /** @type {V3 | undefined} */
   const stand = st.next;
   st.next = undefined;
-  const pace = /** @type {"normal"|"fast"} */ (job.pace);
+  const pace = testFast() ? "fast" : "normal";
   const cur = floorV(e.location);
   st.move = undefined;
   st.cool = 0;
@@ -815,12 +899,58 @@ function inReach(cur, c) {
 }
 
 /**
+ * Can it see block c from standing at cur, with nothing solid in between (like a player, who
+ * can't dig through a wall)? Traces from its eyes to the nearest point of c's faces.
+ * @param {import("@minecraft/server").Dimension} dim @param {V3} cur @param {V3} c
+ */
+function canSee(dim, cur, c) {
+  const eye = { x: cur.x + 0.5, y: cur.y + 1.6, z: cur.z + 0.5 };
+  // the nearest point of the block to its eyes, nudged just inside the block
+  const clampIn = (/** @type {number} */ v, /** @type {number} */ lo) => Math.min(lo + 0.95, Math.max(lo + 0.05, v));
+  const to = { x: clampIn(eye.x, c.x), y: clampIn(eye.y, c.y), z: clampIn(eye.z, c.z) };
+  const len = Math.hypot(to.x - eye.x, to.y - eye.y, to.z - eye.z);
+  const steps = Math.max(1, Math.ceil(len / 0.2));
+  for (let s = 1; s < steps; s++) {
+    const f = s / steps;
+    const p = { x: Math.floor(eye.x + (to.x - eye.x) * f), y: Math.floor(eye.y + (to.y - eye.y) * f), z: Math.floor(eye.z + (to.z - eye.z) * f) };
+    if (sameV(p, c)) return true;
+    if (p.x === cur.x && p.z === cur.z && (p.y === cur.y || p.y === cur.y + 1)) continue; // its own body
+    if (!passable(dim, p)) return false;
+  }
+  return true;
+}
+
+/**
+ * Safety net: if a worker is ever inside a solid block (feet or head), move it up to the nearest
+ * open spot and log it, so it never stands or walks inside blocks. @param {Runtime} rt
+ */
+function unstick(rt) {
+  const e = rt.e;
+  const dim = e.dimension;
+  const cur = floorV(e.location);
+  if (roomAt(dim, cur) || st_moving(rt)) return;
+  const solid = [cur, up(cur)].find((p) => !passable(dim, p));
+  for (let k = 1; k <= 6; k++) {
+    const opts = [{ x: cur.x, y: cur.y + k, z: cur.z }, ...DIR4.map((d) => ({ x: cur.x + d.x, y: cur.y + k - 1, z: cur.z + d.z }))];
+    const spot = opts.find((p) => roomAt(dim, p) && !passable(dim, { x: p.x, y: p.y - 1, z: p.z }));
+    if (spot) {
+      console.warn(`[Crew-Inside] ${JSON.stringify({ worker: meta(e).name, at: fmt(e.location), block: solid ? dim.getBlock(solid)?.typeId : "?", job: rt.job.type, phase: rt.st.phase, step: rt.st.i, movedTo: fmt(spot) })}`);
+      e.teleport(center(spot));
+      return;
+    }
+  }
+}
+/** Mid-step (gliding between two open spots), it may briefly overlap a block edge: leave it be. @param {Runtime} rt */
+const st_moving = (rt) => !!(rt.st.move && rt.st.cool > 0) || !!rt.walk?.glide;
+
+/**
  * Somewhere to stand on the ground under or beside block c (looking `depth` blocks down), the
  * closest to c. For reaching the blocks of a hill or tree over a quarry. `onTop`: standing on
  * top of c (or the blocks beside it) is fine too: in the pit, not for a tree it would climb.
- * @param {import("@minecraft/server").Dimension} dim @param {V3} c @param {V3} cur @param {number} [depth] @param {boolean} [onTop]
+ * `ok` (optional): only spots it accepts, e.g. ones with a clear view of c.
+ * @param {import("@minecraft/server").Dimension} dim @param {V3} c @param {V3} cur @param {number} [depth] @param {boolean} [onTop] @param {(p: V3) => boolean} [ok]
  */
-function groundNear(dim, c, cur, depth = 12, onTop = false) {
+function groundNear(dim, c, cur, depth = 12, onTop = false, ok = () => true) {
   /** @type {V3 | undefined} */
   let best;
   let bestD = Infinity;
@@ -830,6 +960,7 @@ function groundNear(dim, c, cur, depth = 12, onTop = false) {
         const p = { x: c.x + dx, y, z: c.z + dz };
         if (!roomAt(dim, p)) continue;
         if (passable(dim, { x: p.x, y: p.y - 1, z: p.z })) continue;
+        if (!ok(p)) break;
         const d = Math.hypot(p.x - c.x, p.y + 1 - c.y, p.z - c.z) + 0.01 * dist(p, cur);
         if (d < bestD) {
           bestD = d;
@@ -1005,7 +1136,7 @@ function mineCell(rt, c, inv, k, dry) {
     noteFind(rt, "container with items (possible structure loot)", c);
     return { res: "left", ...no };
   }
-  const choice = chooseTool(k, id);
+  const choice = chooseTool(k, id, toolPref(e));
   if (choice.use === "wait") return { res: "wait", ...no };
   if (choice.use === "skip") {
     logSkip(rt, id, c, choice.need);
@@ -1014,7 +1145,7 @@ function mineCell(rt, c, inv, k, dry) {
   const tool = choice.use === "tool" ? choice.tool : undefined;
   // a tired worker digs slower; every block it breaks tires it a little
   const tired = energy(e) < TIRED;
-  const base = ticksFor(tool, inv, job.pace, id);
+  const base = ticksFor(tool, inv, testFast(), id);
   const ticks = tired ? Math.round(base * TIRED_SLOWDOWN) : base;
   // first look: how long it takes and with what, so it can swing that long before the block breaks
   if (dry) return { res: "mined", ticks, grav: false, tool: tool?.info.id, id };
@@ -1231,10 +1362,11 @@ function finish(rt) {
  * Moves toward `goal` along an A* path, one block per beat. Searches a little each tick.
  * Falls back to a reported shortcut (teleport) if no route exists.
  * `beside`: the goal is a chest or barrel to stand next to, never on top of.
- * @param {Runtime} rt @param {V3} goal @param {number} reach @param {boolean} [beside]
- * @returns {"moving" | "arrived"}
+ * `noShortcut`: if there's no way there on foot, give up ("failed") instead of teleporting.
+ * @param {Runtime} rt @param {V3} goal @param {number} reach @param {boolean} [beside] @param {boolean} [noShortcut]
+ * @returns {"moving" | "arrived" | "failed"}
  */
-function walkTo(rt, goal, reach, beside = false) {
+function walkTo(rt, goal, reach, beside = false, noShortcut = false) {
   const e = rt.e;
   const dim = e.dimension;
   if (!rt.walk || !sameV(rt.walk.goal, goal) || rt.walk.reach !== reach) {
@@ -1258,10 +1390,16 @@ function walkTo(rt, goal, reach, beside = false) {
   }
   if (!w.path) {
     if (near(floorV(e.location), goal, reach, beside)) return done();
-    w.search ??= newSearch(dim, e.location, goal, reach, beside);
+    w.search ??= newSearch(dim, e.location, goal, reach, beside, noShortcut ? 1500 : undefined);
     const r = advance(w.search, SEARCH_BUDGET);
     if (r === "searching") return "moving";
-    if (r === "failed") return blink(rt, goal);
+    if (r === "failed") {
+      if (noShortcut) {
+        rt.walk = undefined;
+        return "failed";
+      }
+      return blink(rt, goal);
+    }
     w.path = w.search.path;
     w.search = undefined;
     w.idx = 0;
@@ -1345,6 +1483,7 @@ function blink(rt, target) {
   e.teleport(center(spot));
   rt.walk = undefined;
   rt.st.blinks = (rt.st.blinks ?? 0) + 1;
+  console.log(`[Crew-Blink] ${JSON.stringify({ worker: meta(e).name, to: fmt(spot), n: rt.st.blinks })}`);
   if (rt.st.blinks === 1) emit(e, "stuck", { at: fmt(e.location) }, "couldn't find a walkable route, so I took a shortcut.");
   return "arrived";
 }

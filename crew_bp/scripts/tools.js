@@ -70,19 +70,28 @@ export function defaultRole(k) {
   return best ? ROLES[best.info.kind] : "Miner";
 }
 
+/** The worker's tool setting: "save" its best tools (default) or use the "fastest". @param {import("@minecraft/server").Entity} e @returns {"save"|"fastest"} */
+export const toolPref = (e) => (e.getDynamicProperty("crew:toolPref") === "fastest" ? "fastest" : "save");
+/** @param {import("@minecraft/server").Entity} e @param {"save"|"fastest"} v */
+export const setToolPref = (e, v) => e.setDynamicProperty("crew:toolPref", v === "fastest" ? "fastest" : undefined);
+
 /** @param {KitEntry[]} k */
 export const kitText = (k) => (k.length ? k.map((t) => `${t.info.label} ${t.left}/${t.max}`).join(", ") : "no tools");
 
 /**
  * Picks how to break a block: the right kind of tool at the lowest tier that still harvests it,
  * saving better tools; the most worn of equals goes first.
- * @param {KitEntry[]} k @param {string} blockId
+ * With `prefer` "fastest" (the worker's Tools setting) it takes the highest tier instead (the
+ * fastest material of that tier, then the most worn), so it digs quicker but wears good tools.
+ * @param {KitEntry[]} k @param {string} blockId @param {"save"|"fastest"} [prefer]
  * @returns {{use: "tool", tool: KitEntry} | {use: "hand"} | {use: "skip", need: string} | {use: "wait", need: string}}
  */
-export function chooseTool(k, blockId) {
+export function chooseTool(k, blockId, prefer = "save") {
   const kind = bestKind(blockId);
   const need = kind === "pickaxe" ? requiredTier(blockId) : 0;
-  const fits = k.filter((t) => t.info.kind === kind && t.info.tier >= need).sort((a, b) => a.info.tier - b.info.tier || a.left - b.left);
+  const fits = k.filter((t) => t.info.kind === kind && t.info.tier >= need).sort(prefer === "fastest"
+    ? (a, b) => b.info.tier - a.info.tier || b.info.speed - a.info.speed || a.left - b.left
+    : (a, b) => a.info.tier - b.info.tier || a.left - b.left);
   if (fits.length) return { use: "tool", tool: fits[0] };
   if (kind !== "pickaxe") return { use: "hand" };
   if (k.some((t) => t.info.kind === "pickaxe")) return { use: "skip", need: `${TIER_NAMES[need]} pickaxe or better` };
@@ -93,10 +102,10 @@ export function chooseTool(k, blockId) {
  * Ticks to break one block, the way a player's are worked out: tool speed (plus Efficiency) over
  * the block's hardness. By hand, speed 1. Only tools that can harvest the block are ever used, so
  * it's always the "right tool" rate: hardness 1.5 stone takes 0.6 s with a stone pickaxe, 0.4 s
- * with iron; obsidian about 9.4 s with diamond. Fast pace is 5 times quicker.
- * @param {KitEntry | undefined} tool @param {Container} inv @param {string} pace @param {string} blockId
+ * with iron; obsidian about 9.4 s with diamond. `testFast` (mock tests only) is 5 times quicker.
+ * @param {KitEntry | undefined} tool @param {Container} inv @param {boolean} testFast @param {string} blockId
  */
-export function ticksFor(tool, inv, pace, blockId) {
+export function ticksFor(tool, inv, testFast, blockId) {
   let speed = 1;
   if (tool) {
     speed = tool.info.speed;
@@ -106,7 +115,7 @@ export function ticksFor(tool, inv, pace, blockId) {
   }
   const h = hardness(blockId);
   const base = h <= 0 ? 1 : Math.max(1, Math.ceil((30 * h) / speed));
-  return pace === "fast" ? Math.max(1, Math.round(base / 5)) : base;
+  return testFast ? Math.max(1, Math.round(base / 5)) : base;
 }
 
 /**

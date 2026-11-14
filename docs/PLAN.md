@@ -215,7 +215,7 @@ can't hurt workers yet**; Quarry and Branch mine stay as precise jobs.
   first, so nothing floats. Decision 26.
 - [x] **Restarted quarry retraced its steps** (Brian, Nov 14): already-dug cells are skipped without
   walking to them (`restart_test`).
-- [ ] **Talk to a sleeping worker** (Brian, Nov 14): crouch-tapping a worker asleep in bed (or
+- [x] **Talk to a sleeping worker** (Brian, Nov 14; built Nov 14, mock-tested): crouch-tapping a worker asleep in bed (or
   sleeping rough) opens its menu and it **keeps sleeping**. The menu gets a **Wake up** button
   (it gets up; with a paused dig it goes back to it, like at dawn, with the rest it had so far);
   giving it an order from the menu also wakes it. Opening the menu alone never wakes it, and at
@@ -224,7 +224,7 @@ can't hurt workers yet**; Quarry and Branch mine stay as precise jobs.
   so the tap lands on the bed (cancel the bed use, or route a crouch-tap on its claimed bed to the
   worker), and whether the sleep pose changes where the tap registers. The status should say it's
   asleep and when it'll get up.
-- [ ] **Never pass through blocks** (Brian, Nov 14): in a quarry he'd restarted (with Clear above),
+- [x] **Never pass through blocks** (Brian, Nov 14; built Nov 14: line of sight + unstick safety net; not reproduced in the mock, so watch the log for [Crew-Inside] / [Crew-NoSight]): in a quarry he'd restarted (with Clear above),
   a worker passed through a quarry stair block to dig behind it. Workers must only move through
   open space (decision 14) and only dig blocks they can reach with nothing solid in the way. To
   check: did it glide (one-block moves: `canGlide` only checks headroom when stepping up or down,
@@ -234,12 +234,12 @@ can't hurt workers yet**; Quarry and Branch mine stay as precise jobs.
   with onTop) can be on the far side of a stair. Fix: walk there by A* (never through), add a
   line-of-sight check to reach, and a mock test with a restarted quarry that checks the worker is
   never inside a solid block on any tick.
-- [ ] **"Use the fastest tool" option** (Brian, Nov 14): a per-worker setting in its Tools menu,
+- [x] **"Use the fastest tool" option** (Brian, Nov 14; built Nov 14): a per-worker setting in its Tools menu,
   saved on the worker: **Save my best tools** (today: lowest tier that harvests, most worn first;
   the default) or **Use the fastest tool** (highest tier of the right kind, then most worn). Applies
   to every job; `chooseTool` takes the preference. Shown in the status. Mock test: with stone +
   diamond pickaxes, stone is dug with diamond only under "fastest".
-- [ ] **Remove the Fast pace** (Brian, Nov 14): the 5x "Fast" pace was for early testing. Take it
+- [x] **Remove the Fast pace** (Brian, Nov 14; built Nov 14): the 5x "Fast" pace was for early testing. Take it
   out of the start menus, `/crew:mine` and `/crew:minebox`, the catalog (`pace` param) and the
   guide; workers always dig at player speed (old saved jobs with pace "fast" just run normal).
   Keep a speed-up only inside the mock tests (a test-only setting, not an order param), so the

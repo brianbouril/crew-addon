@@ -1,7 +1,7 @@
 // Slash commands. Each one turns its arguments into an order or a small admin action.
 // Callbacks run in a read-only "before" context, so all real work is deferred with later().
 import { CommandPermissionLevel, CustomCommandParamType as T, CustomCommandSource, CustomCommandStatus, ItemStack } from "@minecraft/server";
-import { KEEP, PACE, catalogText, toolSchemas } from "./catalog.js";
+import { KEEP, catalogText, toolSchemas } from "./catalog.js";
 import { b64decode, fmt, onlinePlayer, setJSON, tell } from "./util.js";
 import { getPlaces, canUsePlace, removePlace, savePlace, getRegistry } from "./store.js";
 import { canCommand, canManage, dismissWorker, findWorker, later, loadedWorkers, meta, renameWorker, spawnWorker } from "./workers.js";
@@ -66,7 +66,6 @@ function workerFor(by, name, manage = false) {
 /** @param {import("@minecraft/server").CustomCommandRegistry} reg */
 export function registerCommands(reg) {
   reg.registerEnum("crew:keep", KEEP);
-  reg.registerEnum("crew:pace", PACE);
   const ANY = CommandPermissionLevel.Any;
 
   cmd(reg, { name: "crew:hire", description: "Debug: spawn a worker you own (operators only).", permissionLevel: CommandPermissionLevel.GameDirectors, optionalParameters: [{ name: "name", type: T.String }] },
@@ -129,8 +128,8 @@ export function registerCommands(reg) {
 
   cmd(reg, { name: "crew:mine", description: "Start the dig you planned and confirmed with the Survey Stake.", permissionLevel: ANY,
     mandatoryParameters: [{ name: "worker", type: T.String }],
-    optionalParameters: [{ name: "deposit", type: T.String }, { name: "crew:keep", type: T.Enum }, { name: "crew:pace", type: T.Enum }] },
-    (by, worker, deposit, keep, pace) => {
+    optionalParameters: [{ name: "deposit", type: T.String }, { name: "crew:keep", type: T.Enum }] },
+    (by, worker, deposit, keep) => {
       const p = by.player;
       if (!p) return answer(by, false, "From the console, use /crew:minebox or /crew:exec.");
       const plan = getPlan(p);
@@ -142,7 +141,7 @@ export function registerCommands(reg) {
         dep = [d.x, d.y, d.z];
       }
       const o = planOrder(plan);
-      order(by, { worker, job: o.job, params: { ...o.params, deposit: dep, keep, pace } });
+      order(by, { worker, job: o.job, params: { ...o.params, deposit: dep, keep } });
     });
 
   cmd(reg, { name: "crew:menu", description: "Open a worker's menu (same as crouching and using it).", permissionLevel: ANY, mandatoryParameters: [{ name: "worker", type: T.String }] },
@@ -156,15 +155,15 @@ export function registerCommands(reg) {
 
   cmd(reg, { name: "crew:minebox", description: "Quarry a box given by two corners.", permissionLevel: ANY,
     mandatoryParameters: [{ name: "worker", type: T.String }, { name: "from", type: T.Location }, { name: "to", type: T.Location }],
-    optionalParameters: [{ name: "deposit", type: T.String }, { name: "crew:keep", type: T.Enum }, { name: "crew:pace", type: T.Enum }] },
-    (by, worker, from, to, deposit, keep, pace) => {
+    optionalParameters: [{ name: "deposit", type: T.String }, { name: "crew:keep", type: T.Enum }] },
+    (by, worker, from, to, deposit, keep) => {
       // quarry from two corners; the stairs start at the north-west top corner heading east
       let dep = deposit;
       if (!dep && by.player) {
         const d = by.player.getDynamicProperty("crew:deposit");
         if (typeof d === "object") dep = [d.x, d.y, d.z];
       }
-      order(by, { worker, job: "quarry", params: { from, to, deposit: dep, keep, pace } });
+      order(by, { worker, job: "quarry", params: { from, to, deposit: dep, keep } });
     });
 
   cmd(reg, { name: "crew:come", description: "Call a worker to you.", permissionLevel: ANY, mandatoryParameters: [{ name: "worker", type: T.String }] },

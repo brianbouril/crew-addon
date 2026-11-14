@@ -3,6 +3,8 @@
 // walk through every already-dug cell on the way (that looked like retracing its steps).
 import { world, tick, ItemStack } from "@minecraft/server";
 import { startEngine } from "./scripts/runner.js";
+import { insideTracker, blinkCount } from "./inside.mjs";
+const inside = insideTracker();
 import { spawnWorker } from "./scripts/workers.js";
 import { dispatch } from "./scripts/orders.js";
 import { quarryGeom } from "./scripts/plans.js";
@@ -17,7 +19,7 @@ const by = { id: "p1", name: "Brian", isOp: false };
 const { e } = spawnWorker(ow, { x: chest.x + 0.5, y: 65, z: chest.z - 2.5 }, { id: "p1", name: "Brian" }, "Flint",
   [new ItemStack("minecraft:diamond_pickaxe"), new ItemStack("minecraft:diamond_pickaxe"), new ItemStack("minecraft:iron_axe")]);
 const st = () => JSON.parse(e.getDynamicProperty("crew:state") ?? "{}");
-const order = (clear) => dispatch(by, { worker: "Flint", job: "quarry", params: { from: g.min, to: g.max, facing: "south", deposit: [chest.x, chest.y, chest.z], keep: "nothing", pace: "fast", clear_above: clear } });
+const order = (clear) => dispatch(by, { worker: "Flint", job: "quarry", params: { from: g.min, to: g.max, facing: "south", deposit: [chest.x, chest.y, chest.z], keep: "nothing", clear_above: clear } });
 let t = 0;
 // dig 5 of the 8 layers, then stop
 order(false);
@@ -35,6 +37,7 @@ const solidLeft = () => { let n = 0; for (let x = g.min.x; x <= g.max.x; x++) fo
 const before = solidLeft();
 while (e.getDynamicProperty("crew:job") && t < startT + 100000) {
   tick(++t);
+  inside.check(e, t);
   const l = e.location;
   walked += Math.hypot(l.x - last.x, l.y - last.y, l.z - last.z);
   last = { ...l };
@@ -43,5 +46,5 @@ while (e.getDynamicProperty("crew:job") && t < startT + 100000) {
 console.log = out;
 console.log(JSON.stringify({ layersAbove: job.geom.up, finished: !e.getDynamicProperty("crew:job"), blocksLeftWhenRestarted: before, leftAfter: solidLeft(),
   blocksWalkedAfterRestart: Math.round(walked), secondsToFirstDigInTheBox: firstDigAt === null ? null : +(firstDigAt / 20).toFixed(1),
-  shortcutsTaken: logs.filter((l) => l.includes('"stuck"')).length }, null, 1));
+  insideBlocks: inside.result(), blinks: blinkCount(logs), shortcutsTaken: logs.filter((l) => l.includes('"stuck"')).length }, null, 1));
 console.log(logs.filter((l) => /stuck|WARN|failed/.test(l)).slice(0, 5).join("\n"));

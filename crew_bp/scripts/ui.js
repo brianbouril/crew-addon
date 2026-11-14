@@ -3,12 +3,12 @@
 // Everyone else sees status only.
 import { CommandPermissionLevel, world } from "@minecraft/server";
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
-import { KEEP, PACE } from "./catalog.js";
+import { KEEP } from "./catalog.js";
 import { dispatch } from "./orders.js";
 import { getPlan, giveStake, hasStake, planOrder, planText, updatePlan } from "./marker.js";
-import { countItem, isWorking, pausedJob, statusText, stopJob } from "./runner.js";
+import { countItem, isResting, isWorking, pausedJob, statusText, stopJob, wakeUp } from "./runner.js";
 import { canUsePlace, getPlaces } from "./store.js";
-import { KIT_SLOTS, ROLE_LIST, addToKit, kit, stash, toolInfo } from "./tools.js";
+import { KIT_SLOTS, ROLE_LIST, addToKit, kit, setToolPref, stash, toolInfo, toolPref } from "./tools.js";
 import { TORCH } from "./blocks.js";
 import { TORCH_EVERY } from "./plans.js";
 import { fmt, getJSON, setJSON, tell } from "./util.js";
@@ -28,7 +28,6 @@ import { DEFAULTS, MAX_SIDE, MAX_TRUNK_WIDTH } from "./catalog.js";
 export const whoIs = (p) => ({ id: p.id, name: p.name, isOp: p.commandPermissionLevel >= CommandPermissionLevel.GameDirectors });
 
 const KEEP_LABELS = ["Everything it digs", "Valuables only (ores, gems, raw metals)", "Nothing (just dig)"]; // same order as KEEP
-const PACE_LABELS = ["Normal (tool speed)", "Fast (5x)"];
 
 /**
  * Builds and shows an action form whose buttons each run a function.
@@ -51,6 +50,9 @@ export async function openMenu(p, e) {
   if (!can) return menu(p, m.name, `${body}\n\nOnly ${m.ownerName} and the players they allow can give ${m.name} orders.`, [["How workers work", () => openGuide(p)], ["Close", () => {}]]);
   /** @type {[string, () => any][]} */
   const b = [];
+  // asleep (or heading to bed): opening the menu doesn't wake it; Wake up does, and so does an order
+  const resting = isResting(e);
+  if (resting) b.push(["Wake up", () => tell(p, wakeUp(e) ? `${m.name} is getting up.` : `${m.name} is already up.`)]);
   const paused = pausedJob(e);
   const digging = /quarry|branch_mine/.test(String(getJSON(e, "crew:job", undefined)?.type));
   if (roleOf(e) === "Miner" && paused && !digging) {
@@ -62,7 +64,7 @@ export async function openMenu(p, e) {
     if (!hasStake(p)) b.push(["Get a Survey Stake", () => tell(p, giveStake(p))]);
   }
   b.push(["Come here", () => say(p, dispatch(by, { worker: m.name, job: "come", params: {} }))]);
-  if (isWorking(e)) b.push(["Stop", () => stopMenu(p, by, e)]);
+  if (isWorking(e) && !resting) b.push(["Stop", () => stopMenu(p, by, e)]);
   const n = carried(e).reduce((a, x) => a + x.item.amount, 0);
   if (n > 0) {
     b.push([`Take what it carries (${n})`, () => takeCarried(p, e)]);
@@ -246,7 +248,6 @@ export async function digForm(p, by, e, mode) {
   }
   f.dropdown("Drop off at", deps.map((d) => d.label))
     .dropdown("Bring back", KEEP_LABELS, { defaultValueIndex: 0 })
-    .dropdown("Pace", PACE_LABELS, { defaultValueIndex: 0 })
     .submitButton("Start");
   const r = await show(p, f);
   if (!r?.formValues) return;
@@ -259,7 +260,7 @@ export async function digForm(p, by, e, mode) {
   const tail = v.slice(mode === "quarry" ? 4 : 5);
   const now = /** @type {import("./marker.js").Plan} */ (getPlan(p));
   const o = planOrder(now);
-  const res = dispatch(by, { worker: m.name, job: o.job, params: { ...o.params, deposit: deps[Number(tail[0])].value, keep: KEEP[Number(tail[1])], pace: PACE[Number(tail[2])] } });
+  const res = dispatch(by, { worker: m.name, job: o.job, params: { ...o.params, deposit: deps[Number(tail[0])].value, keep: KEEP[Number(tail[1])] } });
   say(p, res);
   if (res.ok) tell(p, `Plan: ${planText(now)}`);
 }
@@ -295,12 +296,19 @@ async function toolsMenu(p, by, e) {
   const k = kit(winv);
   const pinv = /** @type {import("@minecraft/server").Container} */ (p.getComponent("minecraft:inventory")?.container);
   const held = pinv.getItem(p.selectedSlotIndex);
-  const lines = k.length ? k.map((t) => `- ${t.info.label}: ${t.left}/${t.max} uses left`).join("\n") : "No tools. Add one so it can work.";
+  const pref = toolPref(e);
+  const lines = (k.length ? k.map((t) => `- ${t.info.label}: ${t.left}/${t.max} uses left`).join("\n") : "No tools. Add one so it can work.") +
+    `\n\n${pref === "fastest" ? "§eUses the fastest tool§r: its best tool that can do the job, so it digs quicker but wears good tools out." : "§eSaves its best tools§r: the weakest tool that can do the job, so the good ones last for ore."}`;
   /** @type {[string, () => any][]} */
   const b = [];
   if (toolInfo(held) && k.length < KIT_SLOTS) {
     b.push([`Add the ${toolInfo(held)?.label} in my hand`, () => giveHeldTool(p, e)]);
   }
+  b.push([pref === "fastest" ? "Switch to: save my best tools" : "Switch to: use the fastest tool", () => {
+    setToolPref(e, pref === "fastest" ? "save" : "fastest");
+    tell(p, pref === "fastest" ? `${m.name} will save its best tools for the blocks that need them.` : `${m.name} will use its fastest tool for everything.`);
+    return toolsMenu(p, by, e);
+  }]);
   if (manage) {
     for (const t of k) {
       b.push([`Take back the ${t.info.label} (${t.left}/${t.max})`, () => {

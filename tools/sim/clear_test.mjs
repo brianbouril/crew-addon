@@ -4,6 +4,8 @@
 // A quarry staked deep underground is refused instead of digging up to the surface.
 import { world, tick, ItemStack } from "@minecraft/server";
 import { startEngine } from "./scripts/runner.js";
+import { insideTracker, blinkCount } from "./inside.mjs";
+const inside = insideTracker();
 import { spawnWorker } from "./scripts/workers.js";
 import { dispatch } from "./scripts/orders.js";
 import { quarryGeom, isStairBlock } from "./scripts/plans.js";
@@ -28,11 +30,12 @@ startEngine();
 const by = { id: "p1", name: "Brian", isOp: false };
 const { e } = spawnWorker(ow, { x: max.x + 3.5, y: 65, z: min.z - 5.5 }, { id: "p1", name: "Brian" }, "Clay",
   [new ItemStack("minecraft:diamond_pickaxe"), new ItemStack("minecraft:iron_shovel"), new ItemStack("minecraft:iron_axe"), new ItemStack("minecraft:torch", 16)]);
-const order = dispatch(by, { worker: "Clay", job: "quarry", params: { from: min, to: max, facing: "south", deposit: [max.x + 3, 65, min.z - 3], keep: "all", pace: "fast", clear_above: true } });
+const order = dispatch(by, { worker: "Clay", job: "quarry", params: { from: min, to: max, facing: "south", deposit: [max.x + 3, 65, min.z - 3], keep: "all", clear_above: true } });
 const job = JSON.parse(e.getDynamicProperty("crew:job") ?? "null");
 let t = 0, maxJump = 0, last = { ...e.location }, highest = -99;
 while (e.getDynamicProperty("crew:job") && t < 200000) {
   tick(++t);
+  inside.check(e, t);
   const l = e.location;
   maxJump = Math.max(maxJump, Math.hypot(l.x - last.x, l.y - last.y, l.z - last.z));
   highest = Math.max(highest, l.y);
@@ -52,6 +55,6 @@ const deep = dispatch(by, { worker: "Mole", job: "quarry", params: { from: [1100
 console.log = out;
 console.log(JSON.stringify({ order: order.message, layersAbove: up, ticks: t, finished: !e.getDynamicProperty("crew:job"), leftAbove, leftovers: leftovers.slice(0, 8), leftInBox,
   highestY: +highest.toFixed(1), climbedTheTree: highest > 68, maxJump: +maxJump.toFixed(2), underground: { refused: !deep.ok, message: deep.message, started: !!e2.getDynamicProperty("crew:job") },
-  shortcutsTaken: logs.filter((l) => l.includes('"stuck"')).length,
+  insideBlocks: inside.result(), blinks: blinkCount(logs), shortcutsTaken: logs.filter((l) => l.includes('"stuck"')).length,
   stuckAt: e.getDynamicProperty("crew:job") ? (() => { const s = JSON.parse(e.getDynamicProperty("crew:state") ?? "{}"); return { phase: s.phase, i: s.i, of: job.geom.total, pre: job.geom.pre, stage: s.stage, wait: s.wait, stand: s.stand, q: s.q, at: e.location, carrying: e.inv.items.slice(5).filter(Boolean).length }; })() : undefined }, null, 1));
 console.log(logs.filter((l) => /stuck|WARN|failed/.test(l)).slice(0, 10).join("\n"));

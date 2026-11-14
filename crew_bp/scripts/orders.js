@@ -1,11 +1,11 @@
 // One entry point for every order, whoever gives it: the worker menu, a slash command, the
 // server console, or (Phase 2) an LLM bridge. Orders are plain objects:
-//   { worker: "Digby", job: "quarry", params: { from, to, facing, deposit, keep, pace } }
+//   { worker: "Digby", job: "quarry", params: { from, to, facing, deposit, keep, clear_above } }
 import { validate } from "./catalog.js";
 import { fmt, getJSON, setJSON } from "./util.js";
 import { getRegistry, resolvePlace } from "./store.js";
 import { canCommand, findWorker, loadedWorkers, meta, roleOf } from "./workers.js";
-import { pausedJob, resumeJob, startJob, stopJob, statusText } from "./runner.js";
+import { keepUp, pausedJob, resumeJob, startJob, stopJob, statusText } from "./runner.js";
 import { bedAt, bedClaimedBy, bedSafety, chestNear, getHome, setHome } from "./life.js";
 
 /** A loaded worker by its entity id. @param {string} id */
@@ -40,6 +40,8 @@ export function dispatch(by, order) {
   if (!v.ok) return { ok: false, message: v.error };
   const p = v.params;
   const byRef = { id: by.id, name: by.name, console: !!by.console };
+  // an order that gives it something to do wakes it, and at night it stays up to do it
+  if (["come", "drop_off", "resume", "quarry", "branch_mine"].includes(v.job)) keepUp(e);
 
   switch (v.job) {
     case "stop":
@@ -88,7 +90,7 @@ export function dispatch(by, order) {
       if (typeof dep === "string") return { ok: false, message: dep };
       if (dep.dim !== e.dimension.id) return { ok: false, message: `${dep.label} is in another dimension from ${m.name}.` };
       setJSON(e, "crew:lastDeposit", dep);
-      startJob(e, { type: "drop_off", id: newId(), by: byRef, deposit: dep, pace: "normal" });
+      startJob(e, { type: "drop_off", id: newId(), by: byRef, deposit: dep });
       return { ok: true, message: `${m.name} is taking what it carries to ${dep.label}.` };
     }
     case "quarry":
@@ -108,7 +110,7 @@ export function dispatch(by, order) {
         p.geom = quarryGeom(g0.anchor, g0.facing, g0.L, g0.W, g0.D, h.up);
       }
       setJSON(e, "crew:lastDeposit", dep);
-      const job = { type: v.job, id: newId(), by: byRef, geom: p.geom, keep: p.keep, pace: p.pace, deposit: dep };
+      const job = { type: v.job, id: newId(), by: byRef, geom: p.geom, keep: p.keep, deposit: dep };
       startJob(e, job);
       setJSON(e, "crew:paused", undefined); // a new dig replaces any stopped one
       const g = p.geom;

@@ -1,7 +1,8 @@
 // Crew Workers entry point.
 import { system, world } from "@minecraft/server";
 import { registerCommands } from "./commands.js";
-import { startEngine } from "./runner.js";
+import { isResting, startEngine } from "./runner.js";
+import { bedAt, getHome, sameBed } from "./life.js";
 import { toolSchemas } from "./catalog.js";
 import { STAKE, linkWorker, stakeTap, stakeUse, startOutlines } from "./marker.js";
 import { giveHeldTool, giveHeldTorches, openMenu } from "./ui.js";
@@ -9,7 +10,7 @@ import { TORCH } from "./blocks.js";
 import { startWelcome } from "./guide.js";
 import { KIT_SLOTS, toolInfo } from "./tools.js";
 import { VERSION, tell } from "./util.js";
-import { WORKER_TYPE, spawnWorker } from "./workers.js";
+import { WORKER_TYPE, loadedWorkers, spawnWorker } from "./workers.js";
 
 system.beforeEvents.startup.subscribe((ev) => {
   registerCommands(ev.customCommandRegistry);
@@ -45,6 +46,21 @@ world.beforeEvents.playerInteractWithBlock.subscribe((ev) => {
   if (!ev.isFirstEvent) return;
   const { player, block } = ev;
   system.run(() => stakeOnce(player, () => stakeTap(player, block)));
+});
+
+// Crouch-tapping a bed a worker is sleeping in opens that worker's menu (lying down, the tap can
+// land on the bed rather than on the worker). It keeps sleeping: Wake up is in the menu.
+world.beforeEvents.playerInteractWithBlock.subscribe((ev) => {
+  if (ev.itemStack?.typeId === STAKE || !ev.player.isSneaking || ev.block.typeId !== "minecraft:bed") return;
+  const bed = bedAt(ev.block.dimension, ev.block.location);
+  if (!bed) return;
+  const sleeper = loadedWorkers().find((w) => {
+    const home = getHome(w);
+    return home && home.dim === ev.block.dimension.id && sameBed(home, bed) && isResting(w);
+  });
+  if (!sleeper) return;
+  ev.cancel = true;
+  if (ev.isFirstEvent) workerMenu(ev.player, sleeper);
 });
 
 /** Player id -> tick their last worker menu opened, so one tap opens one menu. @type {Map<string, number>} */

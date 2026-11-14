@@ -37,7 +37,7 @@ for (const k of keepers) ow.setBlockType(k.p, k.id);
 ow.setBlockType({ x: 899, y: 65, z: 899 }, "minecraft:chest");
 setTimeOfDay(1000);
 const { e: e2 } = spawnWorker(ow, { x: 899.5, y: 65, z: 897.5 }, { id: "p1", name: "Brian" }, "Pike", [new ItemStack("minecraft:iron_pickaxe"), new ItemStack("minecraft:iron_axe")]);
-dispatch(by, { worker: "Pike", job: "quarry", params: { from: [900, 62, 900], to: [905, 64, 905], facing: "south", deposit: [899, 65, 899], keep: "all", pace: "fast" } });
+dispatch(by, { worker: "Pike", job: "quarry", params: { from: [900, 62, 900], to: [905, 64, 905], facing: "south", deposit: [899, 65, 899], keep: "all" } });
 let t2 = 0;
 while (e2.getDynamicProperty("crew:job") && t2 < 40000) { tick(++t); t2++; }
 const quarry = { finished: !e2.getDynamicProperty("crew:job"), keptIntact: keepers.filter((k) => ow.typeAt(k.p) === k.id).length + "/" + keepers.length };

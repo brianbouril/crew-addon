@@ -1,4 +1,6 @@
 // Minimal in-memory mock of the parts of @minecraft/server the add-on uses.
+// Tests run workers 5x faster (runner.js testFast); a test that wants real speed sets it false.
+globalThis.crewTestFast = true;
 export const CommandPermissionLevel = { Any: 0, GameDirectors: 1, Admin: 2, Host: 3, Owner: 4 };
 export const CustomCommandParamType = new Proxy({}, { get: (_, k) => k });
 export const CustomCommandSource = { Block: "Block", Entity: "Entity", NPCDialogue: "NPCDialogue", Server: "Server" };

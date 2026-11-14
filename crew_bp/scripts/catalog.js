@@ -5,7 +5,6 @@ import { FACINGS, branchGeom, quarryFromBox } from "./plans.js";
 export const MAX_SIDE = 128;
 /** What to bring back. "all" (the default) keeps everything it digs, like a player picking up drops. */
 export const KEEP = ["all", "valuables", "nothing"];
-export const PACE = ["normal", "fast"];
 export const DEFAULTS = { trunk: 32, branch: 32, spacing: 2, targetY: -54, width: 2 };
 export const MAX_TRUNK_WIDTH = 4;
 
@@ -23,7 +22,6 @@ export const JOBS = {
       facing: { type: "enum", values: FACINGS, default: "east", description: "Which way the staircase starts along the wall from its top corner." },
       deposit: { type: "place", required: true, description: "A saved place name (e.g. 'blue base') or the coordinates of a chest or barrel." },
       keep: { type: "enum", values: KEEP, default: "all", description: "What to bring back. 'all' keeps everything it digs; 'valuables' keeps ores, gems and raw metals and throws the rest away; 'nothing' just digs." },
-      pace: { type: "enum", values: PACE, default: "normal", description: "normal = as fast as a player with the same tool, fast = five times faster." },
       clear_above: { type: "bool", default: false, description: "First clear everything over the box up to open sky (hills, trees, overhangs), top down, so nothing is left floating. Refused if there's more than 48 blocks of it (the box is underground)." },
     },
   },
@@ -40,7 +38,6 @@ export const JOBS = {
       spacing: { type: "int", min: 1, max: 16, default: DEFAULTS.spacing, description: "Solid blocks left between neighbouring branches." },
       deposit: { type: "place", required: true, description: "A saved place name or the coordinates of a chest or barrel." },
       keep: { type: "enum", values: KEEP, default: "all", description: "What to bring back: all (default), valuables, or nothing." },
-      pace: { type: "enum", values: PACE, default: "normal", description: "normal or fast." },
     },
   },
   come: {

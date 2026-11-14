@@ -15,6 +15,14 @@ turns it into that version's section.
   chest for one, and goes back to work. Workers stand beside chests, not on top of them.
 - Restarting a quarry that was already partly dug no longer walks the worker through every dug-out
   spot: it skips them and heads straight for the first block still there.
+- A sleeping worker can be crouch-tapped (or its bed) for its menu and keeps sleeping; **Wake up**
+  gets it up, and so does any order. Woken at night, it stays up while it has a job, then goes back
+  to bed after about a minute idle.
+- Tools menu: **Use the fastest tool** (its best tool for everything) or **Save my best tools**
+  (the default: the weakest tool that works, saving good ones for ore).
+- Workers only dig blocks they can see, with nothing solid in the way; if one can't, it walks to
+  where it can. If a worker ever ends up inside a block, it steps out (and the log says so).
+- Removed the Fast pace: workers always dig at player speed.
 
 ## v0.4.0
 

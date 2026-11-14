@@ -2,6 +2,8 @@
 // leaves obsidian (iron pickaxe can't harvest it), and walks out by the stairs to deposit.
 import { world, tick, ItemStack, lootCalls } from "@minecraft/server";
 import { startEngine } from "./scripts/runner.js";
+import { insideTracker, blinkCount } from "./inside.mjs";
+const inside = insideTracker();
 import { spawnWorker } from "./scripts/workers.js";
 import { dispatch } from "./scripts/orders.js";
 import { savePlace } from "./scripts/store.js";
@@ -11,6 +13,7 @@ const logs = []; const out = console.log; console.log = (...a) => logs.push(a.jo
 const ow = world.getDimension("minecraft:overworld");
 const keep = process.argv[2] ?? "all";
 const pace = process.argv[3] ?? "fast";
+globalThis.crewTestFast = pace === "fast"; // "normal" = real player speed
 ow.setBlockType({ x: 0, y: 65, z: -4 }, "minecraft:chest");
 // corner (5,64,5) heading south: 12 forward (+z), 10 to the right (west, -x), 10 deep
 const g = quarryGeom({ x: 5, y: 64, z: 5 }, "south", 12, 10, 10);
@@ -34,6 +37,7 @@ let t = 0;
 let maxJump = 0, last = { ...e.location };
 while (e.getDynamicProperty("crew:job") && t < 400000) {
   tick(++t);
+  inside.check(e, t);
   const l = e.location;
   maxJump = Math.max(maxJump, Math.hypot(l.x - last.x, l.y - last.y, l.z - last.z));
   last = { ...l };
@@ -61,5 +65,5 @@ const kit = e.inv.items.slice(0, 5).filter(Boolean).map((s) => `${s.typeId.repla
 console.log = out;
 console.log(JSON.stringify({ order: order.message, keep, pace, maxJump: +maxJump.toFixed(2), ticks: t, minutes: +(t / 1200).toFixed(1), boxBlocks: g.total, stairs: stairs.size, stairsSolid, stairsHeadroomOk,
   leftInBox, leftovers, torchesPlaced: torches.length, torchesOnStairs, changedOutside, inChest, chestTypes: [...new Set(chest.items.filter(Boolean).map((s) => s.typeId))], kitAfter: kit,
-  toolUse, skipped: JSON.parse(e.getDynamicProperty("crew:skipped") ?? "null"), shortcutsTaken: logs.filter((l) => l.includes('"stuck"')).length }, null, 1));
+  toolUse, skipped: JSON.parse(e.getDynamicProperty("crew:skipped") ?? "null"), insideBlocks: inside.result(), blinks: blinkCount(logs), shortcutsTaken: logs.filter((l) => l.includes('"stuck"')).length }, null, 1));
 console.log(logs.filter((l) => /job_started|deposited|found|skipped"|hazard|job_done|stuck|WARN|failed/.test(l)).slice(0, 30).join("\n"));

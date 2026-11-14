@@ -10,7 +10,7 @@ startEngine();
 const { e } = spawnWorker(ow, { x: 0.5, y: 65, z: 0.5 }, { id: "p1", name: "Brian" }, "Pip", [new ItemStack("minecraft:iron_pickaxe")]);
 const sam = { id: "p2", name: "Sam", isOp: false };
 setJSON(e, "crew:crew", [{ id: "p2", name: "Sam" }]); // what /crew:allow Pip Sam does
-const r = dispatch(sam, { worker: "pip", job: "quarry", params: { from: [3, 64, 3], to: [8, 60, 8], deposit: [-3, 65, 2], keep: "all", pace: "normal" } });
+const r = dispatch(sam, { worker: "pip", job: "quarry", params: { from: [3, 64, 3], to: [8, 60, 8], deposit: [-3, 65, 2], keep: "all" } });
 let t = 0;
 for (; t < 400; t++) tick(t + 1);
 const mid = JSON.parse(e.getDynamicProperty("crew:state")).i;

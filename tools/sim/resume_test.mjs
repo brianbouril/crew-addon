@@ -14,7 +14,7 @@ startEngine();
 const by = { id: "p1", name: "Brian", isOp: false };
 const ub = new ItemStack("minecraft:iron_pickaxe"); ub.enchants.unbreaking = 3;
 const { e } = spawnWorker(ow, { x: 500.5, y: 65, z: 508.5 }, { id: "p1", name: "Brian" }, "Dot", [ub]);
-const params = { start: [500, 64, 500], facing: "north", target_y: 58, trunk_length: 12, branch_length: 4, spacing: 2, deposit: [chest.x, chest.y, chest.z], keep: "all", pace: "fast" };
+const params = { start: [500, 64, 500], facing: "north", target_y: 58, trunk_length: 12, branch_length: 4, spacing: 2, deposit: [chest.x, chest.y, chest.z], keep: "all" };
 const started = dispatch(by, { worker: "Dot", job: "branch_mine", params });
 const step = () => JSON.parse(e.getDynamicProperty("crew:state") ?? "{}").i ?? 0;
 let t = 0;
