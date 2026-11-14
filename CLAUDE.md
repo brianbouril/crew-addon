@@ -44,7 +44,8 @@ or decides block logic; it only picks jobs and fills parameters.
 | 21 | Every Survey Stake menu has "Put the stake away" (removes it from the inventory; the plan is kept). The worker menu has "Get a Survey Stake" (and the "no plan yet" message offers one); only one per player, `/crew:stake` follows the same rule | Brian, Nov 12 |
 
 ## What v0.2 does (state at hand-off, Nov 13 2026)
-- Packaged in `crew-addon.mcaddon`, manifests 0.2.0. README and `docs/PLAN.md` describe it.
+- Manifests still say 0.2.0 (last release, tag `v0.2.0`); the next release gets its version from
+  `tools/release.mjs`. README and `docs/PLAN.md` describe it.
 - Jobs: `quarry` (alias `mine_area`), `branch_mine`, `come`, `stop`, `resume`, `status`, `drop_off`,
   `set_home`, `clear_home`; plus the internal `rest` job the routine starts at dusk or when worn out.
 - `/reload` only reloads scripts. Changes to the model, textures or `entities/worker.json` need the
@@ -106,7 +107,7 @@ listed at the end of the roadmap.
   "How workers work" in menus, one-time welcome line; `guide.js`) and `PLAYER_GUIDE.md`
   (`node tools/make_guide.mjs`). **Update the pages whenever a feature a player sees changes,** then regenerate.
 - `crew_rp/` resource pack (model, textures, lang).
-- `tools/build.py` builds `crew-addon.mcaddon` (needs Python, not installed on Brian's PC yet).
+- `tools/release.mjs` cuts a release (tests, version bump, guide, `dist/crew-addon-<v>.mcaddon`, git commit + tag).
   `node tools/make_textures.mjs [previewDir]` redraws the role skins, stake and icons (optional 8x previews).
 - `tools/sim/` mock `@minecraft/server` + tests. Extend the mock when you use a new API.
 
@@ -116,8 +117,14 @@ listed at the end of the roadmap.
   check `missing`, `extraDug`, `leftInBox`, `shortcutsTaken`.
 - **Type-check (optional):** in a scratch folder `npm i typescript @minecraft/server@2.2.0 @minecraft/server-ui@2.0.0`,
   then `tsc --allowJs --checkJs --noEmit` over `crew_bp/scripts/*.js` (strict, ES2022, bundler resolution).
-- **Build:** `python3 tools/build.py` -> `crew-addon.mcaddon` (zip of `crew_bp.mcpack` + `crew_rp.mcpack`).
-- **Bump versions** in both manifests (header, modules, dependency) and `VERSION` in `util.js` together.
+- **Git:** the project is a git repo (Git for Windows, `C:\Program Files\Git\cmd\git.exe`; may not be on
+  PATH in an old shell). Branch `main`; releases are tags `vX.Y.Z`. Commit work as it lands; add a line
+  to `CHANGELOG.md` under "Unreleased" for anything a player would notice.
+- **Release:** `node tools/release.mjs X.Y.Z` with a clean tree: runs the tests (stops if they fail),
+  sets the version in both manifests (header, modules, BP->RP dependency) and `VERSION` in `util.js`,
+  turns "Unreleased" into that version, regenerates the guide, builds `dist/crew-addon-X.Y.Z.mcaddon`,
+  commits and tags. `--build-only` bumps and builds without git. Every server update needs a new
+  version, or players keep their cached old resource pack.
 - **Install to a local world:** double-click the .mcaddon (Windows) or copy the folders into
   `development_behavior_packs` / `development_resource_packs` of your Minecraft data folder, then
   activate both packs on the world.

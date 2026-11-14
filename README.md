@@ -8,9 +8,11 @@ can drive the same jobs later (see the plan doc).
 - `PLAYER_GUIDE.md`: the guide for players (also in game: `/crew:help`). Share this with friends.
 - `CLAUDE.md`: start here if you're picking up development (goal, decisions, state, what's left).
 - `docs/PLAN.md`: full plan, job spec, architecture and LLM bridge design.
-- `crew-addon.mcaddon`: the installable add-on (behavior pack + resource pack).
+- `dist/crew-addon-X.Y.Z.mcaddon`: the installable add-on (behavior pack + resource pack), made by
+  `node tools/release.mjs X.Y.Z`. `CHANGELOG.md` says what's in each version.
 - `crew_bp/`, `crew_rp/`: source. Scripts are plain JavaScript in `crew_bp/scripts/`.
-- `tools/build.py`: rebuilds the .mcaddon. `tools/make_textures.py`: redraws the textures.
+- `tools/release.mjs`: tests, sets the version, builds the .mcaddon, commits and tags a release.
+  `tools/make_textures.mjs`: redraws the textures. `tools/make_guide.mjs`: rebuilds `PLAYER_GUIDE.md`.
 - `tools/sim/run.sh`: runs the job logic against a mock world in Node (no Minecraft needed).
 
 Targets `@minecraft/server` 2.2.0 and `@minecraft/server-ui` 2.0.0 (both stable). No experiments,
@@ -19,13 +21,13 @@ no cheats needed.
 ## Install on Bedrock Dedicated Server
 
 1. Stop the server.
-2. Unzip `crew-addon.mcaddon`. Inside are `crew_bp.mcpack` and `crew_rp.mcpack`; unzip each:
+2. Unzip `dist/crew-addon-X.Y.Z.mcaddon` (or copy the `crew_bp` and `crew_rp` folders directly). Inside are `crew_bp.mcpack` and `crew_rp.mcpack`; unzip each:
    - `crew_bp.mcpack` -> `bedrock_server/behavior_packs/crew_bp/`
    - `crew_rp.mcpack` -> `bedrock_server/resource_packs/crew_rp/`
    (Upgrading from v0.1: delete the old `crew_bp` and `crew_rp` folders first.)
 3. In `bedrock_server/worlds/<level-name>/` add (or extend) two files:
-   - `world_behavior_packs.json`: `[{"pack_id": "45c91f8b-1a45-49e5-b41a-0c8206b5596c", "version": [0, 2, 0]}]`
-   - `world_resource_packs.json`: `[{"pack_id": "b077ee39-0d38-4590-9be0-8dd5396dbf7b", "version": [0, 2, 0]}]`
+   - `world_behavior_packs.json`: `[{"pack_id": "45c91f8b-1a45-49e5-b41a-0c8206b5596c", "version": [X, Y, Z]}]`
+   - `world_resource_packs.json`: `[{"pack_id": "b077ee39-0d38-4590-9be0-8dd5396dbf7b", "version": [X, Y, Z]}]`
 4. In `server.properties` set `texturepack-required=true`.
 5. Start the server. The console should show `[Crew] v0.2.0 loaded` and a `[Crew-Schema]` line.
    If it says a script module version isn't available, update BDS to the latest release.
