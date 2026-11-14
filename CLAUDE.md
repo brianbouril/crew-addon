@@ -145,6 +145,9 @@ listed at the end of the roadmap.
 - **Install to a local world:** double-click the .mcaddon (Windows) or copy the folders into
   `development_behavior_packs` / `development_resource_packs` of your Minecraft data folder, then
   activate both packs on the world.
+- **Shared roadmap (Brian, Nov 14):** every roadmap change in `docs/PLAN.md` also goes into the
+  Google Doc "Crew Workers Roadmap" that friends read (edit in place, same link, player wording, no
+  dates). Friends' comments there are shown to Brian and folded into the plan only after his OK.
 - **Server rule (Brian, Nov 14):** never copy changes to the server (`Desktop\Minecraft Bedrock Server`)
   or reload it without Brian's OK for that update. Local test world dev packs are fine. Back up first.
 - **Install to BDS:** see README "Install on Bedrock Dedicated Server" (pack UUIDs and
