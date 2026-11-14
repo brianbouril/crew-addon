@@ -224,6 +224,16 @@ can't hurt workers yet**; Quarry and Branch mine stay as precise jobs.
   so the tap lands on the bed (cancel the bed use, or route a crouch-tap on its claimed bed to the
   worker), and whether the sleep pose changes where the tap registers. The status should say it's
   asleep and when it'll get up.
+- [ ] **Never pass through blocks** (Brian, Nov 14): in a quarry he'd restarted (with Clear above),
+  a worker passed through a quarry stair block to dig behind it. Workers must only move through
+  open space (decision 14) and only dig blocks they can reach with nothing solid in the way. To
+  check: did it glide (one-block moves: `canGlide` only checks headroom when stepping up or down,
+  so check the cell it passes too), take a "shortcut" (blink: would say so in chat), or dig the
+  block behind the stair from the other side (no line-of-sight check in `mineCell` / `inReach`)?
+  Likely from the new "skip dug cells, walk if out of reach" step: the stand it picks (`groundNear`
+  with onTop) can be on the far side of a stair. Fix: walk there by A* (never through), add a
+  line-of-sight check to reach, and a mock test with a restarted quarry that checks the worker is
+  never inside a solid block on any tick.
 
 ### v0.3 Better digging (released in 0.4.0)
 Villager-style model with a skin per role; tool in hand; digs one block at a time; no hovering or
