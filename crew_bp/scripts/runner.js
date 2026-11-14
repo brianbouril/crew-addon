@@ -4,8 +4,8 @@
 import { world, system, BlockPermutation } from "@minecraft/server";
 import { AIR, FILL, GRAVITY, ORE, SIGNS, TORCH, VALUABLE, bestKind, blockName, keepIntact, needsOpening, passable, setOpen } from "./blocks.js";
 import { off, column, inBranchPlan, isStairBlock, startCell, stepAt } from "./plans.js";
-import { newSearch, advance } from "./path.js";
-import { KIT_SLOTS, chooseTool, freeHaulSlots, kit, kitText, stash, ticksFor, toolInfo, wear } from "./tools.js";
+import { advance, near, newSearch } from "./path.js";
+import { KIT_SLOTS, addToKit, chooseTool, freeHaulSlots, kit, kitText, stash, ticksFor, toolInfo, wear } from "./tools.js";
 import { center, dist, floorV, fmt, getJSON, lerp, setJSON, onlinePlayer, sameV, up } from "./util.js";
 import { emit, holdTool, loadedWorkers, meta, roleOf, syncRole, updateTag } from "./workers.js";
 import { DRAIN_PER_BLOCK, EXHAUSTED, REST, TIRED, TIRED_SLOWDOWN, bedPose, bedSafety, bedside, eatOne, energy, energyWord, getHome, isNight, isSupply, restock, setEnergy } from "./life.js";
@@ -203,7 +203,7 @@ export function statusText(e) {
     const total = job.geom.total;
     const pct = Math.floor((100 * Math.min(st.i ?? 0, total)) / total);
     const what = job.type === "quarry" ? "Quarry" : "Branch mine";
-    const doing = { travel_in: "heading to the site", working: "digging", to_deposit: "taking a load to the deposit", wait_deposit: "waiting for deposit space", wait_tool: `waiting at the deposit for ${st.needTool === "pickaxe" ? "a pickaxe" : "a tool"}`, return: "heading back to the dig" }[/** @type {string} */ (st.phase)] ?? st.phase;
+    const doing = { travel_in: "heading to the site", working: "digging", to_deposit: "taking a load to the deposit", wait_deposit: "waiting for deposit space", wait_tool: `waiting at the deposit for ${st.needTool === "pickaxe" ? "a pickaxe" : "a tool"} (put one in that chest or its home chest, or tap it holding one)`, fetch_tool: "fetching a tool from its home chest", return: "heading back to the dig" }[/** @type {string} */ (st.phase)] ?? st.phase;
     line = `${what} ${pct}% (step ${st.i ?? 0} of ${total}), ${doing}${st.wait ? ` (${st.wait})` : ""}, at ${where}.`;
     if (st.skipTotal) line += ` Left ${st.skipTotal} block${st.skipTotal === 1 ? "" : "s"} it couldn't harvest (${Object.entries(st.skipCount).map(([t, n]) => `${n} ${blockName(t)}`).join(", ")}).`;
   }
@@ -445,7 +445,7 @@ function stepCome(rt) {
 function stepDropOff(rt) {
   const { e, job } = rt;
   e.setProperty("crew:anim", rt.walk?.path ? 1 : 0);
-  if (walkTo(rt, job.deposit, 2.6) !== "arrived") return;
+  if (walkTo(rt, job.deposit, 2.6, true) !== "arrived") return;
   const inv = /** @type {Container} */ (e.getComponent("minecraft:inventory")?.container);
   const r = deposit(e, job, inv);
   if (r === "full") emit(e, "deposit_full", { deposit: job.deposit.label }, `${job.deposit.label} is full, so I kept the rest.`);
@@ -481,7 +481,7 @@ function stepDig(rt) {
     }
     case "to_deposit": {
       e.setProperty("crew:anim", rt.walk?.path ? 1 : 0);
-      if (walkTo(rt, job.deposit, 2.6) !== "arrived") return;
+      if (walkTo(rt, job.deposit, 2.6, true) !== "arrived") return;
       const r = deposit(e, job, inv);
       if (r !== "ok") {
         st.phase = "wait_deposit";
@@ -507,12 +507,32 @@ function stepDig(rt) {
       e.setProperty("crew:anim", 0);
       if (--st.retry > 0) return;
       st.retry = 20;
-      const k = kit(inv);
-      if (st.needTool === "pickaxe" ? k.some((t) => t.info.kind === "pickaxe") : k.length > 0) {
-        emit(e, "tool_ok", { tools: kitText(k) }, `got tools (${kitText(k)}). Back to work.`);
-        st.needTool = undefined;
-        st.phase = st.i === 0 ? "travel_in" : "return";
+      // a player handed it one, or someone put one in the chest it's waiting at: take it and go
+      const took = hasNeededTool(rt, inv) ? "" : takeTools(rt, job.deposit, inv);
+      if (hasNeededTool(rt, inv)) return backToWork(rt, inv, took, job.deposit.label);
+      // none here: its home chest may have one (it checks every 5 seconds or so)
+      const home = getHome(e);
+      if (home?.chest && home.dim === e.dimension.id && !sameV(home.chest, job.deposit) && chestHasTool(rt, home.chest)) {
+        st.phase = "fetch_tool";
+        return;
       }
+      st.retry = 100;
+      return;
+    }
+    case "fetch_tool": {
+      // walk to the home chest for the tool it saw there, then back to work
+      const home = getHome(e);
+      if (!home?.chest) {
+        st.phase = "wait_tool";
+        st.retry = 1;
+        return;
+      }
+      e.setProperty("crew:anim", rt.walk?.path ? 1 : 0);
+      if (walkTo(rt, home.chest, 2.6, true) !== "arrived") return;
+      const took = takeTools(rt, home.chest, inv);
+      if (hasNeededTool(rt, inv)) return backToWork(rt, inv, took, `my home chest at ${fmt(home.chest)}`);
+      st.phase = "wait_tool";
+      st.retry = 100;
       return;
     }
     case "return":
@@ -1072,9 +1092,71 @@ function needTool(rt, what) {
   const st = rt.st;
   if (!st.needTool) {
     st.needTool = what;
-    emit(rt.e, "tool_needed", { needs: what }, `I need ${what === "pickaxe" ? "a pickaxe" : "a tool"} to keep going. Taking what I have to ${rt.job.deposit.label} and waiting there. Crouch and use me to add one.`);
+    emit(rt.e, "tool_needed", { needs: what }, `I need ${what === "pickaxe" ? "a pickaxe" : "a tool"} to keep going. Taking what I have to ${rt.job.deposit.label} and waiting there. Put one in that chest or my home chest, or tap me holding one.`);
   }
   st.phase = "to_deposit";
+}
+
+/** The kinds of tool that would get it working again. @param {Runtime} rt */
+function toolKinds(rt) {
+  if (rt.st.needTool === "pickaxe") return ["pickaxe"];
+  const role = roleOf(rt.e);
+  return role === "Miner" ? ["pickaxe", "shovel"] : role === "Digger" ? ["shovel"] : role === "Woodcutter" ? ["axe"] : ["hoe"];
+}
+/** @param {Runtime} rt @param {Container} inv */
+function hasNeededTool(rt, inv) {
+  const k = kit(inv);
+  return rt.st.needTool === "pickaxe" ? k.some((t) => t.info.kind === "pickaxe") : k.length > 0;
+}
+/** @param {Runtime} rt @param {V3} at */
+function chestAt(rt, at) {
+  return rt.e.dimension.getBlock(at)?.getComponent("minecraft:inventory")?.container;
+}
+/** Does the chest at `at` hold a tool it could use? @param {Runtime} rt @param {V3} at */
+function chestHasTool(rt, at) {
+  const c = chestAt(rt, at);
+  if (!c) return false;
+  const kinds = toolKinds(rt);
+  for (let i = 0; i < c.size; i++) {
+    const info = toolInfo(c.getItem(i));
+    if (info && kinds.includes(info.kind)) return true;
+  }
+  return false;
+}
+/**
+ * Takes the tools it needs from the chest at `at` into its kit (up to 5 tools). Returns what it
+ * took, e.g. "Iron Pickaxe, Stone Pickaxe", or "".
+ * @param {Runtime} rt @param {V3} at @param {Container} inv
+ */
+function takeTools(rt, at, inv) {
+  const c = chestAt(rt, at);
+  if (!c) return "";
+  const kinds = toolKinds(rt);
+  /** @type {string[]} */
+  const took = [];
+  for (let i = 0; i < c.size && kit(inv).length < KIT_SLOTS; i++) {
+    const it = c.getItem(i);
+    const info = toolInfo(it);
+    if (!it || !info || !kinds.includes(info.kind)) continue;
+    const r = addToKit(inv, it);
+    if (!r.ok) break;
+    c.setItem(i, undefined);
+    if (r.spill) {
+      const left = c.addItem(r.spill);
+      if (left) rt.e.dimension.spawnItem(left, rt.e.location);
+    }
+    took.push(info.label);
+  }
+  if (took.length) updateTag(rt.e);
+  return took.join(", ");
+}
+/** @param {Runtime} rt @param {Container} inv @param {string} took @param {string} from */
+function backToWork(rt, inv, took, from) {
+  const { e, st } = rt;
+  const k = kit(inv);
+  emit(e, "tool_ok", { tools: kitText(k), took }, took ? `took ${took} from ${from}. Back to work.` : `got tools (${kitText(k)}). Back to work.`);
+  st.needTool = undefined;
+  st.phase = st.i === 0 ? "travel_in" : "return";
 }
 
 /** @param {Runtime} rt @param {string} kind @param {V3} at */
@@ -1145,15 +1227,16 @@ function finish(rt) {
 /**
  * Moves toward `goal` along an A* path, one block per beat. Searches a little each tick.
  * Falls back to a reported shortcut (teleport) if no route exists.
- * @param {Runtime} rt @param {V3} goal @param {number} reach
+ * `beside`: the goal is a chest or barrel to stand next to, never on top of.
+ * @param {Runtime} rt @param {V3} goal @param {number} reach @param {boolean} [beside]
  * @returns {"moving" | "arrived"}
  */
-function walkTo(rt, goal, reach) {
+function walkTo(rt, goal, reach, beside = false) {
   const e = rt.e;
   const dim = e.dimension;
   if (!rt.walk || !sameV(rt.walk.goal, goal) || rt.walk.reach !== reach) {
     if (rt.walk) closeDoors(rt, undefined);
-    rt.walk = { goal: { x: goal.x, y: goal.y, z: goal.z }, reach, idx: 0, replans: 0 };
+    rt.walk = { goal: { x: goal.x, y: goal.y, z: goal.z }, reach, idx: 0, replans: 0, beside };
   }
   const w = rt.walk;
   const done = () => {
@@ -1171,8 +1254,8 @@ function walkTo(rt, goal, reach) {
     return "moving";
   }
   if (!w.path) {
-    if (dist(floorV(e.location), goal) <= reach) return done();
-    w.search ??= newSearch(dim, e.location, goal, reach);
+    if (near(floorV(e.location), goal, reach, beside)) return done();
+    w.search ??= newSearch(dim, e.location, goal, reach, beside);
     const r = advance(w.search, SEARCH_BUDGET);
     if (r === "searching") return "moving";
     if (r === "failed") return blink(rt, goal);
@@ -1249,9 +1332,13 @@ function closeDoors(rt, keep) {
 function blink(rt, target) {
   const e = rt.e;
   const dim = e.dimension;
+  const beside = !!rt.walk?.beside;
   closeDoors(rt, undefined);
   let spot = { ...target };
-  for (let k = 0; k < 12 && !roomAt(dim, spot); k++) spot = { x: spot.x, y: spot.y + 1, z: spot.z };
+  // next to a chest rather than on it, if there's room beside it
+  const side = beside ? DIR4.map((d) => settle(dim, { x: target.x + d.x, y: target.y, z: target.z + d.z })).find((p) => roomAt(dim, p) && !passable(dim, { x: p.x, y: p.y - 1, z: p.z })) : undefined;
+  if (side) spot = side;
+  else for (let k = 0; k < 12 && !roomAt(dim, spot); k++) spot = { x: spot.x, y: spot.y + 1, z: spot.z };
   e.teleport(center(spot));
   rt.walk = undefined;
   rt.st.blinks = (rt.st.blinks ?? 0) + 1;

@@ -16,11 +16,12 @@ const key = (/** @type {V3} */ p) => `${p.x},${p.y},${p.z}`;
  * @param {V3} from  worker location
  * @param {V3} goal  block position
  * @param {number} reach  arrive when within this distance (block centers)
+ * @param {boolean} [beside]  the goal is a block to stand next to (a chest), not on top of
  */
-export function newSearch(dim, from, goal, reach) {
+export function newSearch(dim, from, goal, reach, beside = false) {
   const start = floorV(from);
   const s = {
-    dim, start, goal, reach,
+    dim, start, goal, reach, beside,
     /** @type {Map<string, boolean>} */ pass: new Map(),
     /** @type {Map<string, number>} */ g: new Map([[key(start), 0]]),
     /** @type {Map<string, V3>} */ came: new Map(),
@@ -34,8 +35,12 @@ export function newSearch(dim, from, goal, reach) {
 
 /** @param {V3} a @param {V3} b */
 const h = (a, b) => 1.2 * Math.max(Math.abs(a.x - b.x) + Math.abs(a.z - b.z), Math.abs(a.y - b.y));
-/** @param {V3} a @param {V3} b */
-const near = (a, b, reach) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) <= reach;
+/**
+ * Close enough to the goal. With `beside`, standing on top of the goal block doesn't count.
+ * @param {V3} a @param {V3} b @param {number} reach @param {boolean} [beside]
+ */
+export const near = (a, b, reach, beside = false) =>
+  Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) <= reach && !(beside && a.x === b.x && a.z === b.z && a.y > b.y);
 
 /** @param {ReturnType<typeof newSearch>} s @param {V3} p */
 function free(s, p) {
@@ -84,7 +89,7 @@ export function advance(s, budget) {
     const c = top[2];
     const kc = key(c);
     const gc = /** @type {number} */ (s.g.get(kc));
-    if (near(c, goalC, s.reach)) {
+    if (near(c, goalC, s.reach, s.beside)) {
       /** @type {V3[]} */
       const path = [];
       let p = c;

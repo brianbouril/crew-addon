@@ -90,7 +90,7 @@ It mines like you do: **one block at a time**, with the right tool, and **takes 
 
 Same rules as you: a stone pickaxe for iron, iron for diamonds, diamond for obsidian.
 
-Tools wear out. It **warns you at 10%** and switches tools when one breaks. Out of pickaxes? It goes back to the chest and waits: tap it holding a new one.
+Tools wear out. It **warns you at 10%** and switches tools when one breaks. Out of pickaxes? It takes what it dug to its drop-off chest and waits there. **Put a new one in that chest or its home chest** (it fetches it), or tap it holding one, and it goes back to work.
 
 If none of its tools can break a block (obsidian with an iron pickaxe), it **leaves it and digs around it**. Nothing is wasted.
 

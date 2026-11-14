@@ -208,6 +208,9 @@ can't hurt workers yet**; Quarry and Branch mine stay as precise jobs.
   Iron doors and iron trapdoors only when already open (they need redstone). Never break a door,
   gate or trapdoor while digging (`clearableHead`, `mineCell`): add them to the protected set.
   Mock test: a bed in a walled house with a door is reached on foot, no shortcut, door closed after.
+- [x] **Out of tools, fetch from a chest** (Brian, Nov 14): it waited at the drop-off and stood on
+  the chest, ignoring a pickaxe put in its home chest. Now it takes a tool from the chest it waits at
+  or walks to its home chest for one, then goes back to work; chest walks end beside the chest.
 
 ### v0.3 Better digging (released in 0.4.0)
 Villager-style model with a skin per role; tool in hand; digs one block at a time; no hovering or

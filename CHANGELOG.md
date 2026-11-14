@@ -11,6 +11,8 @@ turns it into that version's section.
 - Quarry "Clear above" (on by default when planned with the stake): the worker first clears
   everything over the box up to open sky, top down, so no hill, tree or overhang is left floating.
   The outline shows the full height; a quarry staked underground (over 48 blocks overhead) is refused.
+- A worker waiting for a tool now takes one put in the chest it's waiting at, or walks to its home
+  chest for one, and goes back to work. Workers stand beside chests, not on top of them.
 
 ## v0.4.0
 
