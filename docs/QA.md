@@ -68,6 +68,7 @@ is only in the local world.
 **Renamed commands**
 - [ ] 10. `/halt <worker>`, `/workers`, `/guide` and `/setplace "name"` work (short and with
       `crew:`). The server log has no "Custom Command alias ... already in use" warnings.
+      (On the server since Nov 15, applied to its 0.4.0 scripts only; no warnings at load.)
 
 ---
 
