@@ -37,7 +37,7 @@ a full server restart: `reload` refuses to re-register it.
       the worker clears it top down and no floating blocks are left. (Brian, Nov 14: good paths up)
 - [ ] 3b. Stake one deep underground (over 48 blocks of rock overhead): it's refused with a message.
 - [ ] 3c. Switch Clear above off in the size menu: it digs only the box.
-- [ ] 3d. Quarry size menu (stake and the worker's Quarry menu): the Depth slider says "how many
+- [x] 3d. Quarry size menu (stake and the worker's Quarry menu): the Depth slider says "how many
       blocks down" with the top layer's Y; the plan summary says "down to Y ..." and the outline's
       bottom is at that Y. (A friend on Xbox read Depth as a Y level and looked for a minus sign.)
 
@@ -45,9 +45,9 @@ a full server restart: `reload` refuses to re-register it.
 - [ ] 4. Let its last pickaxe break. It drops off what it dug, stands **beside** the chest (not on
       it), and asks for a pickaxe. Put one in that chest: it takes it and goes back to work.
 - [ ] 4b. Same, but put the pickaxe in its home chest instead: it walks home, takes it, goes back.
-- [ ] 5. Tools menu, "Use the fastest tool": with a stone and a diamond pickaxe, it uses the
+- [x] 5. Tools menu, "Use the fastest tool": with a stone and a diamond pickaxe, it uses the
       diamond one on stone. Switch back to "Save my best tools": it uses the stone one again. The
-      status line says which setting it's on.
+      status line says which setting it's on. (Brian, Nov 15, on the server)
 
 **Restarting a quarry**
 - [ ] 6. Stop a half-dug quarry, then Continue: it walks straight to the first block still there,
@@ -109,7 +109,8 @@ Quick pass before any server install. Takes about 15 minutes in the local world.
 
 Write what went wrong here during a pass; it moves to `docs/PLAN.md` "Next fixes" once it's a task.
 
-- (none open)
+- Nov 15: a door that was already open stays open after a worker walks through (it only closes
+  doors it opened). Now a task in `docs/PLAN.md` "Next fixes".
 
 ---
 

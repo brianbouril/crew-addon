@@ -238,7 +238,12 @@ can't hurt workers yet**; Quarry and Branch mine stay as precise jobs.
   saved on the worker: **Save my best tools** (today: lowest tier that harvests, most worn first;
   the default) or **Use the fastest tool** (highest tier of the right kind, then most worn). Applies
   to every job; `chooseTool` takes the preference. Shown in the status. Mock test: with stone +
-  diamond pickaxes, stone is dug with diamond only under "fastest".
+  diamond pickaxes, stone is dug with diamond only under "fastest". Works in game (Nov 15).
+- [ ] **Close doors that were already open** (Brian, Nov 15): today it only closes the wooden doors
+  and gates it opened itself (`openDoor` remembers them, `closeDoors` shuts them), so a door left
+  open stays open after it walks through. It should close any wooden door or fence gate it walks
+  through once it's past, open or not (keeps mobs out). Iron doors stay as they are (redstone).
+  Mock test: a house door left open is shut behind the worker.
 - [x] **Remove the Fast pace** (Brian, Nov 14; built Nov 14): the 5x "Fast" pace was for early testing. Take it
   out of the start menus, `/crew:mine` and `/crew:minebox`, the catalog (`pace` param) and the
   guide; workers always dig at player speed (old saved jobs with pace "fast" just run normal).
