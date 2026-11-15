@@ -66,9 +66,9 @@ is only in the local world.
       full quarry. (The stair pass-through Brian saw Nov 14 couldn't be reproduced in the mock.)
 
 **Renamed commands**
-- [ ] 10. `/halt <worker>`, `/workers`, `/guide` and `/setplace "name"` work (short and with
+- [x] 10. `/halt <worker>`, `/workers`, `/guide` and `/setplace "name"` work (short and with
       `crew:`). The server log has no "Custom Command alias ... already in use" warnings.
-      (On the server since Nov 15, applied to its 0.4.0 scripts only; no warnings at load.)
+      (On the server since Nov 15, applied to its 0.4.0 scripts only; no warnings at load. Brian, Nov 15: all four work.)
 
 ---
 
