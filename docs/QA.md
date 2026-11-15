@@ -21,9 +21,10 @@ server, which runs as SYSTEM: `C:\Windows\System32\config\systemprofile\AppData\
 
 ## Next release (0.4.1, unreleased)
 
-Built Nov 14 2026 and mock-tested. The server already runs the scripts for doors, Clear above,
-fetching tools (4, 4b) and restarting (6), copied there Nov 14 under 0.4.0. The rest (5, 7, 8, 9)
-is only in the local world.
+Built Nov 14 2026 and mock-tested. Nov 15 (Brian's OK) the server got all of it, through the
+Depth wording (3d), as scripts under 0.4.0 (backup in `C:\MinecraftServer-backups\`), so 5, 7, 8
+and 9 go out to friends before their local test. A script change to a slash command's options needs
+a full server restart: `reload` refuses to re-register it.
 
 **Doors**
 - [x] 1. A worker walking to a bed inside a house opens the wooden door, walks through and shuts it
