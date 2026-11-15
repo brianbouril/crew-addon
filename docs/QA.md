@@ -65,6 +65,10 @@ is only in the local world.
       it walks round to where it can see the block. No `[Crew-Inside]` lines in the log after a
       full quarry. (The stair pass-through Brian saw Nov 14 couldn't be reproduced in the mock.)
 
+**Renamed commands**
+- [ ] 10. `/halt <worker>`, `/workers`, `/guide` and `/setplace "name"` work (short and with
+      `crew:`). The server log has no "Custom Command alias ... already in use" warnings.
+
 ---
 
 ## Every release (regression)
@@ -83,7 +87,7 @@ Quick pass before any server install. Takes about 15 minutes in the local world.
 - [ ] Home: set a bed and chest. At dusk it goes home, unloads, sleeps; at dawn it restocks and
       goes back to its dig.
 - [ ] Leave the world and come back (or restart the server): it carries on.
-- [ ] `/crew:help` opens the guide and its pages match what the worker does.
+- [ ] `/crew:guide` opens the guide and its pages match what the worker does.
 - [ ] Log shows `[Crew] v<new version> loaded` and no script errors.
 
 ## Server install checks (after Brian's OK)

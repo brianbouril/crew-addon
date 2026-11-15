@@ -1,6 +1,6 @@
 # Crew Workers: player guide
 
-Little workers that dig for you on this server. The same guide is in game: type `/crew:help`,
+Little workers that dig for you on this server. The same guide is in game: type `/crew:guide`,
 or pick "How workers work" in any worker's menu.
 
 1. [Build a worker](#build-a-worker)
@@ -154,16 +154,16 @@ Only the **owner** and the players they allow can give a worker orders or tools.
 
 ## Commands
 
-- **/crew:help**: this guide
+- **/crew:guide**: this guide
 - **/crew:stake**: get a Survey Stake
 - **/crew:menu <worker>**: open a worker's menu from anywhere
-- **/crew:list**: the workers you can give orders to
+- **/crew:workers**: the workers you can give orders to
 - **/crew:status <worker>**: what it's doing
 - **/crew:come <worker>**: call it to you
-- **/crew:stop <worker>**: stop it
+- **/crew:halt <worker>**: stop it
 - **/crew:continue <worker>**: pick its dig back up
 - **/crew:allow <worker> <player>**: let a friend give orders
-- **/crew:place "name"**: save the chest you're looking at as a named drop-off (add **true** to share it with everyone)
+- **/crew:setplace "name"**: save the chest you're looking at as a named drop-off (add **true** to share it with everyone)
 - **/crew:places**: list saved places
 - **/crew:jobs**: every job and its options
 

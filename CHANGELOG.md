@@ -5,6 +5,10 @@ turns it into that version's section.
 
 ## Unreleased
 
+- Four commands are renamed because their short forms clashed with vanilla commands:
+  `/crew:stop` is now `/crew:halt`, `/crew:list` is `/crew:workers`, `/crew:help` is
+  `/crew:guide` and `/crew:place` is `/crew:setplace`. Like the other crew commands, they now also
+  work without the `crew:` prefix (`/halt Digby`, `/workers`, `/guide`).
 - Workers open wooden doors and fence gates as they walk and close them behind them, so a bed
   inside a house is reached on foot (iron doors only when already open). They never break doors,
   gates or trapdoors while digging.

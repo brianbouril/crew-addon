@@ -1,5 +1,5 @@
 // Writes PLAYER_GUIDE.md from the in-game guide pages (crew_bp/scripts/guide_pages.js), so the
-// shareable guide always says the same as /crew:help. Node 18+, no installs.
+// shareable guide always says the same as /crew:guide. Node 18+, no installs.
 // Usage: node tools/make_guide.mjs   (from the project folder)
 import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -14,7 +14,7 @@ const md = (s) => s.replace(/§e(.*?)§r/g, "**$1**").replace(/§./g, "");
 const out = [
   "# Crew Workers: player guide",
   "",
-  "Little workers that dig for you on this server. The same guide is in game: type `/crew:help`,",
+  "Little workers that dig for you on this server. The same guide is in game: type `/crew:guide`,",
   "or pick \"How workers work\" in any worker's menu.",
   "",
   ...PAGES.map((p, i) => `${i + 1}. [${p.title}](#${p.title.toLowerCase().replace(/[^a-z0-9 -]/g, "").replace(/ /g, "-")})`),

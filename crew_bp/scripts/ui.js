@@ -158,7 +158,7 @@ async function dropOff(p, by, e) {
   const m = meta(e);
   const last = e.getDynamicProperty("crew:lastDeposit") ?? getHome(e)?.chest; // with no last chest, the home chest
   const deps = depositChoices(p, by, e.dimension.id);
-  if (!last && !deps.length) return menu(p, m.name, "Where should it drop things off? Use the Survey Stake on a chest or barrel, or save one with /crew:place \"name\".", [["OK", () => {}]]);
+  if (!last && !deps.length) return menu(p, m.name, "Where should it drop things off? Use the Survey Stake on a chest or barrel, or save one with /crew:setplace \"name\".", [["OK", () => {}]]);
   if (last && !deps.length) return say(p, dispatch(by, { worker: m.name, job: "drop_off", params: {} }));
   const labels = [...(last ? [e.getDynamicProperty("crew:lastDeposit") ? "Where it dropped off last" : "Its home chest"] : []), ...deps.map((d) => d.label)];
   const f = new ModalFormData().title(`${m.name}: drop off`).dropdown("Take everything it carries to", labels).submitButton("Go");
@@ -231,7 +231,7 @@ export async function digForm(p, by, e, mode) {
   const deps = depositChoices(p, by, e.dimension.id);
   const home = getHome(e);
   if (home?.chest && home.dim === e.dimension.id) deps.unshift({ label: `Its home chest at ${fmt(home.chest)}`, value: [home.chest.x, home.chest.y, home.chest.z] });
-  if (!deps.length) return menu(p, m.name, "Where should it drop things off? Give it a home (Home in its menu), use the Survey Stake on a chest or barrel, or save one with /crew:place \"name\".", [["OK", () => {}]]);
+  if (!deps.length) return menu(p, m.name, "Where should it drop things off? Give it a home (Home in its menu), use the Survey Stake on a chest or barrel, or save one with /crew:setplace \"name\".", [["OK", () => {}]]);
 
   const f = new ModalFormData().title(`${m.name}: ${label} at ${fmt(plan.anchor)} heading ${plan.facing}`);
   if (mode === "quarry") {

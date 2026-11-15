@@ -119,7 +119,7 @@ listed at the end of the roadmap.
   kit; `blocks.js` block tiers and best tool kind; `catalog.js` job schema; `orders.js` dispatcher;
   `ui.js` + `forms.js` menus; `marker.js` Survey Stake; `commands.js` slash commands; `store.js`
   persistence (places); `util.js` helpers. `entities/worker.json`, `items/`, `recipes/survey_stake.json`.
-- Player guide: `crew_bp/scripts/guide_pages.js` is the one source for the in-game guide (`/crew:help`,
+- Player guide: `crew_bp/scripts/guide_pages.js` is the one source for the in-game guide (`/crew:guide`,
   "How workers work" in menus, one-time welcome line; `guide.js`) and `PLAYER_GUIDE.md`
   (`node tools/make_guide.mjs`). **Update the pages whenever a feature a player sees changes,** then regenerate.
 - `crew_rp/` resource pack (model, textures, lang).

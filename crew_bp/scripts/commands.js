@@ -82,11 +82,11 @@ export function registerCommands(reg) {
       answer(by, msg.startsWith("Survey Stake added"), msg);
     });
 
-  cmd(reg, { name: "crew:place", description: "Save the chest you're looking at (or where you stand) as a named place.", permissionLevel: ANY,
+  cmd(reg, { name: "crew:setplace", description: "Save the chest you're looking at (or where you stand) as a named place.", permissionLevel: ANY,
     mandatoryParameters: [{ name: "name", type: T.String }], optionalParameters: [{ name: "shared", type: T.Boolean }] },
     (by, name, shared) => {
       const p = by.player;
-      if (!p) return answer(by, false, "Run /crew:place as a player.");
+      if (!p) return answer(by, false, "Run /crew:setplace as a player.");
       const hit = p.getBlockFromViewDirection({ maxDistance: 6 });
       const isBox = !!hit?.block.getComponent("minecraft:inventory");
       const loc = isBox && hit ? hit.block.location : p.location;
@@ -103,10 +103,10 @@ export function registerCommands(reg) {
   cmd(reg, { name: "crew:places", description: "List the places you can use.", permissionLevel: ANY },
     (by) => {
       const list = getPlaces().filter((p) => canUsePlace(by, p));
-      answer(by, true, list.length ? list.map((p) => `${p.name} @ ${p.x} ${p.y} ${p.z}${p.shared ? " (shared)" : ""} by ${p.ownerName}`).join("\n") : "No places yet. Look at a chest and run /crew:place \"name\".");
+      answer(by, true, list.length ? list.map((p) => `${p.name} @ ${p.x} ${p.y} ${p.z}${p.shared ? " (shared)" : ""} by ${p.ownerName}`).join("\n") : "No places yet. Look at a chest and run /crew:setplace \"name\".");
     });
 
-  cmd(reg, { name: "crew:list", description: "List workers you can command.", permissionLevel: ANY },
+  cmd(reg, { name: "crew:workers", description: "List workers you can command.", permissionLevel: ANY },
     (by) => {
       const lines = [];
       const seen = new Set();
@@ -169,7 +169,7 @@ export function registerCommands(reg) {
   cmd(reg, { name: "crew:come", description: "Call a worker to you.", permissionLevel: ANY, mandatoryParameters: [{ name: "worker", type: T.String }] },
     (by, worker) => order(by, { worker, job: "come", params: {} }));
 
-  cmd(reg, { name: "crew:stop", description: "Stop a worker's job.", permissionLevel: ANY, mandatoryParameters: [{ name: "worker", type: T.String }] },
+  cmd(reg, { name: "crew:halt", description: "Stop a worker's job.", permissionLevel: ANY, mandatoryParameters: [{ name: "worker", type: T.String }] },
     (by, worker) => order(by, { worker, job: "stop", params: {} }));
 
   cmd(reg, { name: "crew:continue", description: "Continue a worker's stopped quarry or branch mine where it left off.", permissionLevel: ANY, mandatoryParameters: [{ name: "worker", type: T.String }] },
@@ -231,9 +231,9 @@ export function registerCommands(reg) {
   cmd(reg, { name: "crew:jobs", description: "List the jobs workers know.", permissionLevel: ANY },
     (by) => answer(by, true, catalogText()));
 
-  cmd(reg, { name: "crew:help", description: "How Crew Workers work: a short in-game guide.", permissionLevel: ANY },
+  cmd(reg, { name: "crew:guide", description: "How Crew Workers work: a short in-game guide.", permissionLevel: ANY },
     (by) => {
-      if (!by.player) return answer(by, true, "The guide is in game: players type /crew:help.");
+      if (!by.player) return answer(by, true, "The guide is in game: players type /crew:guide.");
       openGuide(by.player).catch(() => {});
     });
 

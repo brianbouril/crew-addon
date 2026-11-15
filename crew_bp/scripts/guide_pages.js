@@ -1,4 +1,4 @@
-// The player guide's pages: the single source for the in-game guide (/crew:help, guide.js)
+// The player guide's pages: the single source for the in-game guide (/crew:guide, guide.js)
 // and PLAYER_GUIDE.md (node tools/make_guide.mjs). No game imports, so tools can read it.
 // Text uses Minecraft colour codes: §l bold, §6 gold, §e yellow, §r reset.
 
@@ -193,16 +193,16 @@ export const PAGES = [
     body: [
       H("Commands"),
       "",
-      `- ${K("/crew:help")}: this guide`,
+      `- ${K("/crew:guide")}: this guide`,
       `- ${K("/crew:stake")}: get a Survey Stake`,
       `- ${K("/crew:menu <worker>")}: open a worker's menu from anywhere`,
-      `- ${K("/crew:list")}: the workers you can give orders to`,
+      `- ${K("/crew:workers")}: the workers you can give orders to`,
       `- ${K("/crew:status <worker>")}: what it's doing`,
       `- ${K("/crew:come <worker>")}: call it to you`,
-      `- ${K("/crew:stop <worker>")}: stop it`,
+      `- ${K("/crew:halt <worker>")}: stop it`,
       `- ${K("/crew:continue <worker>")}: pick its dig back up`,
       `- ${K("/crew:allow <worker> <player>")}: let a friend give orders`,
-      `- ${K("/crew:place \"name\"")}: save the chest you're looking at as a named drop-off (add ${K("true")} to share it with everyone)`,
+      `- ${K("/crew:setplace \"name\"")}: save the chest you're looking at as a named drop-off (add ${K("true")} to share it with everyone)`,
       `- ${K("/crew:places")}: list saved places`,
       `- ${K("/crew:jobs")}: every job and its options`,
     ].join("\n"),

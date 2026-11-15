@@ -154,5 +154,5 @@ world.afterEvents.playerPlaceBlock.subscribe((ev) => {
   const { e, spill } = spawnWorker(dim, at, { id: ev.player.id, name: ev.player.name }, undefined, ordered);
   for (const it of spill) dim.spawnItem(it, at);
   const extra = tools.length > KIT_SLOTS ? ` Only ${KIT_SLOTS} tools fit in the kit; the other ${tools.length - KIT_SLOTS} are carried and will go in the deposit chest.` : "";
-  tell(ev.player, `Crouch and use ${e.getDynamicProperty("crew:name")} to give it orders. New to workers? Type /crew:help.${extra}`);
+  tell(ev.player, `Crouch and use ${e.getDynamicProperty("crew:name")} to give it orders. New to workers? Type /crew:guide.${extra}`);
 });

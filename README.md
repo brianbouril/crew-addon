@@ -6,7 +6,7 @@ and a carved pumpkin; it strip-mines or quarries the area you stake out, keeps e
 goes home to its own bed at dusk and gets back to work in the morning. Every job is a typed order,
 so an LLM can drive the same jobs later (see the plan doc).
 
-- `PLAYER_GUIDE.md`: the guide for players (also in game: `/crew:help`). Share this with friends.
+- `PLAYER_GUIDE.md`: the guide for players (also in game: `/crew:guide`). Share this with friends.
 - `CHANGELOG.md`: what's in each version.
 - `CLAUDE.md`: start here if you're picking up development (goal, decisions, state, what's left).
 - `docs/PLAN.md`: full plan, roadmap, job spec, architecture and LLM bridge design.
@@ -83,7 +83,7 @@ chest and goes back to the dig where it left off. Digging tires it; sleep or foo
 
 ## Test steps on a fresh world (about 20 minutes)
 
-1. **Load:** type `/crew:` and see the commands; `/crew:help` opens the guide.
+1. **Load:** type `/crew:` and see the commands; `/crew:guide` opens the guide.
 2. **Build:** barrel with a stone and an iron pickaxe and some torches, carved pumpkin on top.
 3. **Home:** place a bed and a chest under a roof. `/crew:stake`, tap the worker (linked), tap the bed.
 4. **Plan and start:** tap the ground facing the way to dig, pick Quarry 8 x 8 x 6, look at the
@@ -99,10 +99,10 @@ chest and goes back to the dig where it left off. Digging tires it; sleep or foo
 
 ## Slash commands
 
-`/crew:help`, `/crew:stake`, `/crew:menu`, `/crew:list`, `/crew:status`, `/crew:come`, `/crew:stop`,
+`/crew:guide`, `/crew:stake`, `/crew:menu`, `/crew:workers`, `/crew:status`, `/crew:come`, `/crew:halt`,
 `/crew:continue`, `/crew:mine <worker> [drop-off] [keep]` (runs the confirmed stake plan),
 `/crew:minebox` (quarry by two corners), `/crew:allow`, `/crew:deny`, `/crew:crew`, `/crew:rename`,
-`/crew:dismiss`, `/crew:place`, `/crew:places`, `/crew:forget`, `/crew:jobs`, `/crew:hire` (operators),
+`/crew:dismiss`, `/crew:setplace`, `/crew:places`, `/crew:forget`, `/crew:jobs`, `/crew:hire` (operators),
 `/crew:exec` (console: the LLM seam).
 
 ## Known limits

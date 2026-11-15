@@ -31,7 +31,7 @@ export function dispatch(by, order) {
   const e = findWorker(name);
   if (!e) {
     const known = getRegistry()[name.toLowerCase()];
-    return { ok: false, message: known ? `${known.name} isn't loaded right now (too far from any player).` : `No worker called '${name}'. Try /crew:list.` };
+    return { ok: false, message: known ? `${known.name} isn't loaded right now (too far from any player).` : `No worker called '${name}'. Try /crew:workers.` };
   }
   const m = meta(e);
   if (!canCommand(by, m)) return { ok: false, message: `${m.name} only takes orders from ${m.ownerName} and the players they allow.` };
@@ -132,7 +132,7 @@ export function dispatch(by, order) {
 function depositFor(by, d, dim) {
   if (typeof d === "string") {
     const place = resolvePlace(by, d);
-    if (!place) return `No place called '${d}' that you can use. Save one with /crew:place.`;
+    if (!place) return `No place called '${d}' that you can use. Save one with /crew:setplace.`;
     return { x: place.x, y: place.y, z: place.z, dim: place.dim, label: place.name };
   }
   return { ...d, dim, label: `the chest at ${fmt(d)}` };

@@ -1,4 +1,4 @@
-// The in-game player guide: /crew:help, "How it works" in the worker and stake menus, and a
+// The in-game player guide: /crew:guide, "How it works" in the worker and stake menus, and a
 // one-time welcome line for each player. Short pages, written for players, not developers.
 // Keep it in step with what the add-on does (README "How it works" says the same things).
 import { world } from "@minecraft/server";
@@ -44,6 +44,6 @@ export function startWelcome() {
     const p = ev.player;
     if (p.getDynamicProperty("crew:welcomed")) return;
     p.setDynamicProperty("crew:welcomed", true);
-    tell(p, "This world has §eCrew Workers§r: little workers that dig for you. Type §e/crew:help§r to see how they work.");
+    tell(p, "This world has §eCrew Workers§r: little workers that dig for you. Type §e/crew:guide§r to see how they work.");
   });
 }
