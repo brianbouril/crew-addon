@@ -239,6 +239,14 @@ can't hurt workers yet**; Quarry and Branch mine stay as precise jobs.
   the default) or **Use the fastest tool** (highest tier of the right kind, then most worn). Applies
   to every job; `chooseTool` takes the preference. Shown in the status. Mock test: with stone +
   diamond pickaxes, stone is dug with diamond only under "fastest". Works in game (Nov 15).
+- [x] **Light blocks are not walls** (Brian, Nov 15, server; built Nov 15, mock-tested `chest_test`):
+  a dynamic-light add-on places invisible `light_block_N` around the worker; `passable` treated
+  them as solid, so A* found no way out of the quarry and it blinked. Now passable like air
+  (`blocks.js LIGHT`) and protected from digging.
+- [x] **Stop where it can see the chest** (Brian, Nov 15, server; built Nov 15): arriving at a chest
+  needed only distance, so it stopped outside a house wall next to a chest inside. `path.js atGoal`
+  now also needs line of sight (`canSee`, moved to `blocks.js`); a blink to a chest lands on the
+  nearest standable spot that can see it (`landingNear`) instead of rising straight up.
 - [ ] **Close doors that were already open** (Brian, Nov 15): today it only closes the wooden doors
   and gates it opened itself (`openDoor` remembers them, `closeDoors` shuts them), so a door left
   open stays open after it walks through. It should close any wooden door or fence gate it walks

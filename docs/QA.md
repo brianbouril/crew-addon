@@ -50,8 +50,8 @@ a full server restart: `reload` refuses to re-register it.
       status line says which setting it's on. (Brian, Nov 15, on the server)
 
 **Restarting a quarry**
-- [ ] 6. Stop a half-dug quarry, then Continue: it walks straight to the first block still there,
-      without retracing every dug-out spot.
+- [x] 6. Stop a half-dug quarry, then Continue: it walks straight to the first block still there,
+      without retracing every dug-out spot. (Brian, Nov 15, on the server)
 
 **Sleeping worker**
 - [ ] 7. At night, crouch-tap a sleeping worker: its menu opens and it stays asleep. Crouch-tap its
@@ -109,6 +109,12 @@ Quick pass before any server install. Takes about 15 minutes in the local world.
 
 Write what went wrong here during a pass; it moves to `docs/PLAN.md` "Next fixes" once it's a task.
 
+- Nov 15 (check 4, server): when its last pickaxe broke in the quarry it teleported to the chest
+  (`[Crew-Blink]` to 12 blocks over the chest). Cause: a dynamic-light add-on on the server places
+  `light_block_15` around the worker and it treated them as walls (the two `[Crew-Inside]` lines in
+  that quarry were light blocks too). Fixed: walked through like air. Re-test 4.
+- Nov 15 (check 4b, server): it walked to its home chest but stopped outside the house, a block from
+  the chest through the wall. Fixed: it must see the chest from where it stops. Re-test 4b.
 - Nov 15: a door that was already open stays open after a worker walks through (it only closes
   doors it opened). Now a task in `docs/PLAN.md` "Next fixes".
 

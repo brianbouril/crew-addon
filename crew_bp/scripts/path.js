@@ -3,7 +3,7 @@
 // number of expansions per tick, so a long search never stalls the server.
 // The worker is villager-sized (under two blocks tall), so it needs two blocks of air on top of
 // something solid; it can step up 1 and drop up to 3.
-import { passable } from "./blocks.js";
+import { canSee, passable } from "./blocks.js";
 import { floorV } from "./util.js";
 
 /** @typedef {{x:number,y:number,z:number}} V3 */
@@ -42,6 +42,13 @@ const h = (a, b) => 1.2 * Math.max(Math.abs(a.x - b.x) + Math.abs(a.z - b.z), Ma
  */
 export const near = (a, b, reach, beside = false) =>
   Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) <= reach && !(beside && a.x === b.x && a.z === b.z && a.y > b.y);
+
+/**
+ * Arrived: close enough, and for a chest (`beside`) able to see it from there, so a wall between
+ * (a chest against the inside of a house wall, the worker outside) doesn't count.
+ * @param {import("@minecraft/server").Dimension} dim @param {V3} a @param {V3} b @param {number} reach @param {boolean} [beside]
+ */
+export const atGoal = (dim, a, b, reach, beside = false) => near(a, b, reach, beside) && (!beside || canSee(dim, a, b));
 
 /** @param {ReturnType<typeof newSearch>} s @param {V3} p */
 function free(s, p) {
@@ -90,7 +97,7 @@ export function advance(s, budget) {
     const c = top[2];
     const kc = key(c);
     const gc = /** @type {number} */ (s.g.get(kc));
-    if (near(c, goalC, s.reach, s.beside)) {
+    if (atGoal(s.dim, c, goalC, s.reach, s.beside)) {
       /** @type {V3[]} */
       const path = [];
       let p = c;

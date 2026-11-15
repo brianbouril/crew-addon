@@ -5,6 +5,12 @@ turns it into that version's section.
 
 ## Unreleased
 
+- Workers walk through invisible light blocks (placed by dynamic-light add-ons) instead of treating
+  them as walls, which boxed them in and made them take a shortcut. They never dig them.
+- A worker going to a chest stops where it can see the chest, so a chest against the inside of a
+  house wall is reached through the door, not from outside the wall. If it ever has to take a
+  shortcut to a chest, it lands beside the chest on the same side, not on the roof above it.
+
 - The quarry Depth slider now says it counts blocks down and shows the top layer's Y, and the
   plan summary says where the bottom ends up ("down to Y 45"). Players read it as a Y level and
   looked for a negative number (reported on Xbox).

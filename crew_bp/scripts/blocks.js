@@ -8,7 +8,11 @@ export const PROTECTED = new Set([
   "minecraft:end_portal_frame", "minecraft:end_portal", "minecraft:portal", "minecraft:end_gateway",
   "minecraft:mob_spawner", "minecraft:trial_spawner", "minecraft:vault", "minecraft:reinforced_deepslate",
   "minecraft:light_block", "minecraft:allow", "minecraft:deny", "minecraft:border_block",
+  // invisible light blocks come in 16 ids (light_block_0 to _15); dynamic-light add-ons place them around mobs
+  ...Array.from({ length: 16 }, (_, i) => `minecraft:light_block_${i}`),
 ]);
+/** Invisible light blocks: walked through like air, never dug. */
+export const LIGHT = /^minecraft:light_block(_\d+)?$/;
 /** Blocks worth telling the owner about, and what they usually mean. */
 export const SIGNS = {
   "minecraft:mob_spawner": "monster spawner (dungeon or mineshaft)",
@@ -121,7 +125,29 @@ export function setOpen(b, open) {
 export function passable(dim, p) {
   const b = dim.getBlock(p);
   if (!b) return false;
-  return b.isAir || b.isLiquid || SOFT.test(b.typeId) || isDoorway(b);
+  return b.isAir || b.isLiquid || SOFT.test(b.typeId) || LIGHT.test(b.typeId) || isDoorway(b);
+}
+
+/**
+ * Can a worker standing at cur see block c, with nothing solid in between (like a player, who
+ * can't reach through a wall)? Traces from its eyes (about 1.6 up) to the nearest point of c's faces.
+ * @param {import("@minecraft/server").Dimension} dim @param {{x:number,y:number,z:number}} cur @param {{x:number,y:number,z:number}} c
+ */
+export function canSee(dim, cur, c) {
+  const eye = { x: cur.x + 0.5, y: cur.y + 1.6, z: cur.z + 0.5 };
+  // the nearest point of the block to its eyes, nudged just inside the block
+  const clampIn = (/** @type {number} */ v, /** @type {number} */ lo) => Math.min(lo + 0.95, Math.max(lo + 0.05, v));
+  const to = { x: clampIn(eye.x, c.x), y: clampIn(eye.y, c.y), z: clampIn(eye.z, c.z) };
+  const len = Math.hypot(to.x - eye.x, to.y - eye.y, to.z - eye.z);
+  const steps = Math.max(1, Math.ceil(len / 0.2));
+  for (let s = 1; s < steps; s++) {
+    const f = s / steps;
+    const p = { x: Math.floor(eye.x + (to.x - eye.x) * f), y: Math.floor(eye.y + (to.y - eye.y) * f), z: Math.floor(eye.z + (to.z - eye.z) * f) };
+    if (p.x === c.x && p.y === c.y && p.z === c.z) return true;
+    if (p.x === cur.x && p.z === cur.z && (p.y === cur.y || p.y === cur.y + 1)) continue; // its own body
+    if (!passable(dim, p)) return false;
+  }
+  return true;
 }
 
 /** Most layers "Clear above" will take off over a quarry before it decides the dig is underground. */

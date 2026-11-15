@@ -2,9 +2,9 @@
 // Digging follows the step list from plans.js; trips to the deposit and back use the A*
 // pathfinder in path.js. Tools come from the worker's kit (tools.js).
 import { world, system, BlockPermutation } from "@minecraft/server";
-import { AIR, FILL, GRAVITY, ORE, SIGNS, TORCH, VALUABLE, bestKind, blockName, keepIntact, needsOpening, passable, setOpen } from "./blocks.js";
+import { AIR, FILL, GRAVITY, ORE, SIGNS, TORCH, VALUABLE, bestKind, blockName, canSee, keepIntact, needsOpening, passable, setOpen } from "./blocks.js";
 import { off, column, inBranchPlan, isStairBlock, startCell, stepAt } from "./plans.js";
-import { advance, near, newSearch } from "./path.js";
+import { advance, atGoal, near, newSearch } from "./path.js";
 import { KIT_SLOTS, addToKit, chooseTool, freeHaulSlots, kit, kitText, stash, ticksFor, toolInfo, toolPref, wear } from "./tools.js";
 import { center, dist, floorV, fmt, getJSON, lerp, setJSON, onlinePlayer, sameV, up } from "./util.js";
 import { emit, holdTool, loadedWorkers, meta, roleOf, syncRole, updateTag } from "./workers.js";
@@ -898,27 +898,6 @@ function inReach(cur, c) {
   return Math.hypot(dx, dy, dz) <= 5;
 }
 
-/**
- * Can it see block c from standing at cur, with nothing solid in between (like a player, who
- * can't dig through a wall)? Traces from its eyes to the nearest point of c's faces.
- * @param {import("@minecraft/server").Dimension} dim @param {V3} cur @param {V3} c
- */
-function canSee(dim, cur, c) {
-  const eye = { x: cur.x + 0.5, y: cur.y + 1.6, z: cur.z + 0.5 };
-  // the nearest point of the block to its eyes, nudged just inside the block
-  const clampIn = (/** @type {number} */ v, /** @type {number} */ lo) => Math.min(lo + 0.95, Math.max(lo + 0.05, v));
-  const to = { x: clampIn(eye.x, c.x), y: clampIn(eye.y, c.y), z: clampIn(eye.z, c.z) };
-  const len = Math.hypot(to.x - eye.x, to.y - eye.y, to.z - eye.z);
-  const steps = Math.max(1, Math.ceil(len / 0.2));
-  for (let s = 1; s < steps; s++) {
-    const f = s / steps;
-    const p = { x: Math.floor(eye.x + (to.x - eye.x) * f), y: Math.floor(eye.y + (to.y - eye.y) * f), z: Math.floor(eye.z + (to.z - eye.z) * f) };
-    if (sameV(p, c)) return true;
-    if (p.x === cur.x && p.z === cur.z && (p.y === cur.y || p.y === cur.y + 1)) continue; // its own body
-    if (!passable(dim, p)) return false;
-  }
-  return true;
-}
 
 /**
  * Safety net: if a worker is ever inside a solid block (feet or head), move it up to the nearest
@@ -1389,7 +1368,7 @@ function walkTo(rt, goal, reach, beside = false, noShortcut = false) {
     return "moving";
   }
   if (!w.path) {
-    if (near(floorV(e.location), goal, reach, beside)) return done();
+    if (atGoal(dim, floorV(e.location), goal, reach, beside)) return done();
     w.search ??= newSearch(dim, e.location, goal, reach, beside, noShortcut ? 1500 : undefined);
     const r = advance(w.search, SEARCH_BUDGET);
     if (r === "searching") return "moving";
@@ -1469,6 +1448,27 @@ function closeDoors(rt, keep) {
   }
 }
 
+/**
+ * The nearest place to stand around `target` (floor below, two blocks of room), searching out to 3
+ * blocks sideways and 2 up or down. With `beside` (a chest): not on top of it, and able to see it.
+ * @param {import("@minecraft/server").Dimension} dim @param {V3} target @param {boolean} beside
+ */
+function landingNear(dim, target, beside) {
+  /** @type {V3 | undefined} */
+  let best;
+  let bestD = Infinity;
+  for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) for (let dy = -2; dy <= 2; dy++) {
+    if (beside && dx === 0 && dz === 0) continue;
+    const p = { x: target.x + dx, y: target.y + dy, z: target.z + dz };
+    const d = Math.abs(dx) + Math.abs(dz) + Math.abs(dy) * 1.5;
+    if (d >= bestD || !roomAt(dim, p) || passable(dim, { x: p.x, y: p.y - 1, z: p.z })) continue;
+    if (beside && !canSee(dim, p, target)) continue;
+    best = p;
+    bestD = d;
+  }
+  return best;
+}
+
 /** @param {Runtime} rt @param {V3} target @returns {"arrived"} */
 function blink(rt, target) {
   const e = rt.e;
@@ -1476,8 +1476,9 @@ function blink(rt, target) {
   const beside = !!rt.walk?.beside;
   closeDoors(rt, undefined);
   let spot = { ...target };
-  // next to a chest rather than on it, if there's room beside it
-  const side = beside ? DIR4.map((d) => settle(dim, { x: target.x + d.x, y: target.y, z: target.z + d.z })).find((p) => roomAt(dim, p) && !passable(dim, { x: p.x, y: p.y - 1, z: p.z })) : undefined;
+  // the nearest spot with a floor and room to stand (for a chest: beside it, not on it, and where
+  // it can see it, so never on the far side of a wall)
+  const side = landingNear(dim, target, beside);
   if (side) spot = side;
   else for (let k = 0; k < 12 && !roomAt(dim, spot); k++) spot = { x: spot.x, y: spot.y + 1, z: spot.z };
   e.teleport(center(spot));
