@@ -5,7 +5,7 @@ import { CommandPermissionLevel, world } from "@minecraft/server";
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
 import { KEEP } from "./catalog.js";
 import { dispatch } from "./orders.js";
-import { getPlan, giveStake, hasStake, planOrder, planText, updatePlan } from "./marker.js";
+import { depthLabel, getPlan, giveStake, hasStake, planOrder, planText, updatePlan } from "./marker.js";
 import { countItem, isResting, isWorking, pausedJob, statusText, stopJob, wakeUp } from "./runner.js";
 import { canUsePlace, getPlaces } from "./store.js";
 import { KIT_SLOTS, ROLE_LIST, addToKit, kit, setToolPref, stash, toolInfo, toolPref } from "./tools.js";
@@ -237,7 +237,7 @@ export async function digForm(p, by, e, mode) {
   if (mode === "quarry") {
     f.slider("Length (forward)", 2, MAX_SIDE, { defaultValue: plan.length, valueStep: 1 })
       .slider("Width (to the right)", 2, MAX_SIDE, { defaultValue: plan.width, valueStep: 1 })
-      .slider("Depth", 1, MAX_SIDE, { defaultValue: plan.depth, valueStep: 1 })
+      .slider(depthLabel(plan.anchor.y), 1, MAX_SIDE, { defaultValue: plan.depth, valueStep: 1 })
       .toggle("Clear above first (hills, trees: nothing left floating)", { defaultValue: plan.clearAbove ?? true });
   } else {
     f.slider("Trunk length", 1, MAX_SIDE, { defaultValue: plan.trunk, valueStep: 1 })

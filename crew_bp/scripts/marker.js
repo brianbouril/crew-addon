@@ -43,12 +43,18 @@ function measureAbove(plan) {
   }
 }
 
+/**
+ * The quarry Depth slider's label: a count of blocks down (not a Y level), so players don't look
+ * for a negative number. @param {number} topY the staked block's Y (the top layer)
+ */
+export const depthLabel = (topY) => `Depth: how many blocks down (top layer is Y ${topY}, so 10 digs down to Y ${topY - 9})`;
+
 /** One line describing a plan. @param {Plan} plan */
 export function planText(plan) {
   if (plan.mode === "quarry") {
     const above = !plan.clearAbove ? "" : plan.aboveTooHigh ? `\n§cClear above is on, but there's more than ${CLEAR_ABOVE_MAX} blocks over it (underground?): turn it off or plan at the surface.§r`
       : plan.above ? `\nFirst it clears the ${plan.above} layer${plan.above === 1 ? "" : "s"} above it (hills, trees), so nothing is left floating.` : "\nNothing above it to clear.";
-    return `Quarry ${plan.length} forward x ${plan.width} to the right x ${plan.depth} deep from the corner at ${fmt(plan.anchor)}, heading ${plan.facing} (${plan.length * plan.width * plan.depth} blocks).${above}`;
+    return `Quarry ${plan.length} forward x ${plan.width} to the right x ${plan.depth} deep (down to Y ${plan.anchor.y - plan.depth + 1}) from the corner at ${fmt(plan.anchor)}, heading ${plan.facing} (${plan.length * plan.width * plan.depth} blocks).${above}`;
   }
   const g = branchGeom(plan.anchor, plan.facing, { ...plan, width: plan.trunkWidth ?? DEFAULTS.width });
   return `Branch mine from ${fmt(plan.anchor)} heading ${plan.facing}: ${g.n > 0 ? `stairs down to Y ${plan.targetY}, ` : ""}a ${plan.trunk}-block trunk ${g.w} wide, ${g.branchAt.length * 2} branches ${plan.branch} long with ${plan.spacing} solid blocks between.`;
@@ -321,7 +327,7 @@ async function sizeForm(p, plan) {
     const f = new ModalFormData().title("Quarry size")
       .slider("Length (forward)", 2, MAX_SIDE, { defaultValue: clamp(plan.length, 2, MAX_SIDE), valueStep: 1 })
       .slider("Width (to the right)", 2, MAX_SIDE, { defaultValue: clamp(plan.width, 2, MAX_SIDE), valueStep: 1 })
-      .slider("Depth (down, this block's layer included)", 1, MAX_SIDE, { defaultValue: clamp(plan.depth, 1, MAX_SIDE), valueStep: 1 })
+      .slider(depthLabel(plan.anchor.y), 1, MAX_SIDE, { defaultValue: clamp(plan.depth, 1, MAX_SIDE), valueStep: 1 })
       .toggle("Clear above first (hills, trees: nothing left floating)", { defaultValue: plan.clearAbove ?? true })
       .submitButton("Show outline");
     const r = await show(p, f);

@@ -5,6 +5,10 @@ turns it into that version's section.
 
 ## Unreleased
 
+- The quarry Depth slider now says it counts blocks down and shows the top layer's Y, and the
+  plan summary says where the bottom ends up ("down to Y 45"). Players read it as a Y level and
+  looked for a negative number (reported on Xbox).
+
 - Four commands are renamed because their short forms clashed with vanilla commands:
   `/crew:stop` is now `/crew:halt`, `/crew:list` is `/crew:workers`, `/crew:help` is
   `/crew:guide` and `/crew:place` is `/crew:setplace`. Like the other crew commands, they now also

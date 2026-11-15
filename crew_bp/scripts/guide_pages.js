@@ -73,6 +73,8 @@ export const PAGES = [
       "",
       "Digs out a whole box, top layer first, row by row. The block you staked is the top corner: it digs forward (the way you faced), to your right, and down.",
       "",
+      `${K("Depth")} is how many blocks down, not a Y level, so it never needs a minus sign: from Y 64, a depth of 20 digs down to Y 45. The plan's summary says where the bottom ends up.`,
+      "",
       `It leaves a ${K("staircase in the wall")} spiralling down, so you and the worker can walk in and out.`,
       "",
       `${K("Clear above")} (on unless you switch it off): before digging, it clears everything over the box up to open sky, top down, so no hill, tree or overhang is left floating. The outline shows how high that goes. It won't do this for a quarry staked underground (more than 48 blocks overhead).`,

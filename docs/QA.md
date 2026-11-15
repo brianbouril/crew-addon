@@ -36,6 +36,9 @@ is only in the local world.
       the worker clears it top down and no floating blocks are left. (Brian, Nov 14: good paths up)
 - [ ] 3b. Stake one deep underground (over 48 blocks of rock overhead): it's refused with a message.
 - [ ] 3c. Switch Clear above off in the size menu: it digs only the box.
+- [ ] 3d. Quarry size menu (stake and the worker's Quarry menu): the Depth slider says "how many
+      blocks down" with the top layer's Y; the plan summary says "down to Y ..." and the outline's
+      bottom is at that Y. (A friend on Xbox read Depth as a Y level and looked for a minus sign.)
 
 **Tools**
 - [ ] 4. Let its last pickaxe break. It drops off what it dug, stands **beside** the chest (not on
