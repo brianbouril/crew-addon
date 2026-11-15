@@ -10,7 +10,7 @@ Test in the local "Addon Test" world first (`/reload` picks up script changes; m
 OKs it.
 
 **While testing, watch for these log lines** (local: `%APPDATA%\Minecraft Bedrock\logs\ContentLog*.txt`;
-server: `AppData\Roaming\Minecraft Bedrock Server\logs\ContentLog*.txt`):
+server, which runs as SYSTEM: `C:\Windows\System32\config\systemprofile\AppData\Roaming\Minecraft Bedrock Server\logs\ContentLog*.txt`, admin to read):
 - `[Crew] v<version> loaded`: the right version is running.
 - `[Crew-Inside]`: a worker was inside a block (where, which block, what it was doing).
 - `[Crew-NoSight]`: it had to dig a block it couldn't see.

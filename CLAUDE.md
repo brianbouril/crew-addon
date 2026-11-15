@@ -148,7 +148,9 @@ listed at the end of the roadmap.
 - **Shared roadmap (Brian, Nov 14):** every roadmap change in `docs/PLAN.md` also goes into the
   Google Doc "Crew Workers Roadmap" that friends read (edit in place, same link, player wording, no
   dates). Friends' comments there are shown to Brian and folded into the plan only after his OK.
-- **Server rule (Brian, Nov 14):** never copy changes to the server (`Desktop\Minecraft Bedrock Server`)
+- **Server rule (Brian, Nov 14):** never copy changes to the server (`C:\MinecraftServer` since Nov 15; it runs headless from the
+  "Minecraft Bedrock Server" scheduled task: stop with its `stop-server.bat`, start again with
+  `Start-ScheduledTask 'Minecraft Bedrock Server'` as admin, output in its `logs\server.log`)
   or reload it without Brian's OK for that update. Local test world dev packs are fine. Back up first.
 - **Install to BDS:** see README "Install on Bedrock Dedicated Server" (pack UUIDs and
   `world_behavior_packs.json` / `world_resource_packs.json`, `texturepack-required=true`).
