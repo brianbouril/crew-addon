@@ -153,6 +153,12 @@ listed at the end of the roadmap.
 - **Shared roadmap (Brian, Nov 14):** every roadmap change in `docs/PLAN.md` also goes into the
   Google Doc "Crew Workers Roadmap" that friends read (edit in place, same link, player wording, no
   dates). Friends' comments there are shown to Brian and folded into the plan only after his OK.
+- **Sync snapshot (Brian, Nov 15):** Brian's Claude Duet channel reads Google Drive folder "Crew Addon
+  Sync". After every meaningful change (commit, server push, release, QA results, roadmap change)
+  refresh both: upload `crew-addon-source-<commit>.zip` (`git archive --format=zip
+  --prefix=crew-addon/ <commit>`: tracked files only, no worlds or builds) and update the Google Doc
+  "Crew Addon Status" in place (version and commit, changelog since v0.2, roles and jobs, server vs
+  Addon Test, open QA, roadmap next). Never change game code for it.
 - **Server rule (Brian, Nov 14):** never copy changes to the server (`C:\MinecraftServer` since Nov 15; it runs headless from the
   "Minecraft Bedrock Server" scheduled task: stop with its `stop-server.bat`, start again with
   `Start-ScheduledTask 'Minecraft Bedrock Server'` as admin, output in its `logs\server.log`)
