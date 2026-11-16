@@ -49,6 +49,7 @@ or decides block logic; it only picks jobs and fills parameters.
 | 31 | Workers dig only what they can see (`canSee` line of sight) and walk (never teleport) to a spot with a view; an `unstick` safety net logs `[Crew-Inside]` and steps out if one is ever inside a block | Brian, Nov 14: passed through a quarry stair |
 | 26 | Quarry "Clear above" (`clear_above`; on by default from the stake, off by default for raw orders): measured at plan and at start (`blocks.js layersAbove`: up to open sky, 3 empty layers in a row; refused past 48), cleared top down as `pre` steps before the quarry's own; the worker reaches up from the ground (never climbs onto what it clears) | Brian, Nov 14: "no floating blocks above the quarry area" |
 | 27 | Workers walk through wooden doors and fence gates (open, step through, close behind; iron only if open) and never break doors, gates or trapdoors | Brian, Nov 14 |
+| 32 | Two digging roles with a **hard split** (planned for v0.5): Digger (shovel) takes `quarry` and later earthworks; Miner (pickaxe) takes `branch_mine` and `prospect`, and inherits every Prospector decision (there's no separate Prospector worker). Each refuses the other's orders; come, stop, resume, status, drop off and home stay open to all. Role at build = first tool's kind | Brian, Nov 15: "we are still testing so I'd rather make a hard split between the roles and the orders they can take" |
 | 21 | Every Survey Stake menu has "Put the stake away" (removes it from the inventory; the plan is kept). The worker menu has "Get a Survey Stake" (and the "no plan yet" message offers one); only one per player, `/crew:stake` follows the same rule | Brian, Nov 12 |
 
 ## Current state (v0.4.0, released Nov 14 2026)
@@ -83,7 +84,7 @@ or decides block logic; it only picks jobs and fills parameters.
   looping back to the type picker, bump-and-bounce on each step, snapping during swings.
 - **Not yet tested:** anything on BDS (first server install of 0.4.0 is next).
 - **Next fixes:** PLAN "Next fixes (0.4.x patch)": doors (open, walk through, close; never break).
-  Later idea: more natural walking, straight lines instead of right angles (PLAN v0.8).
+  Later idea: more natural walking, straight lines instead of right angles (PLAN v0.9).
 
 ## Known limits
 - Movement is scripted gliding along an A* path, not vanilla AI; blinks once if no route.
@@ -102,12 +103,16 @@ each tested in game before the next:
    first server install.
 2. **v0.4 Home and daily routine:** bed + home chest, safe-bed check, day clock, routine over jobs,
    energy (sleep and optional food restore it), sleep/eat animations.
-3. **v0.5 Prospector:** autonomous `prospect` job (target, start, range, quota), wooden mine
-   entrance with a named sign and entrance chest, growing branch mine, caves, hazards, stop rules.
-4. **v0.6 Hauler:** new worker that collects from mine entrance chests and consolidates to a depot; `haul`.
-5. **v0.7 Character:** ranks, personality, talking, journal and "while you were away".
-6. **v0.8 Loose ends:** `collect_skipped`, `scout`, movement polish.
-7. **Later:** danger, social, other roles, LLM bridge, contractor mode.
+3. **v0.5 Two digging roles (decision 32):** hard split; Digger (shovel) quarries, Miner (pickaxe)
+   branch-mines; each refuses the other's orders.
+4. **v0.6 Miner: prospecting** (planned as "Prospector"; it's the Miner, not a new worker):
+   autonomous `prospect` job (target, start, range, quota), wooden mine entrance with a named sign
+   and entrance chest, growing branch mine, caves, hazards, stop rules, makes its own tools.
+5. **v0.7 Hauler:** new worker that collects from mine entrance chests and consolidates to a depot; `haul`.
+6. **v0.8 Character:** ranks, personality, talking, journal and "while you were away".
+7. **v0.9 Loose ends:** `collect_skipped`, `scout`, movement polish.
+8. **Later:** Digger earthworks (flatten, fill, trench, paths), danger, social, other roles, LLM
+   bridge, contractor mode.
 
 Decided Nov 13: living workers (home, routine, goals); no x-ray; home every night; food optional
 (restores energy like sleep); no mob danger yet; keep Quarry and Branch mine. Open questions are

@@ -16,8 +16,10 @@ typed command that a person, a script or later an LLM can call the same way.
   (`quarry` with a walk-up stair, `branch_mine`), a crouch menu, a Survey Stake that draws the plan,
   torches, ore veins, Continue, and an in-game guide. v0.2 was tested in game; v0.3 additions are
   mock-tested only.
-- **Next (v0.4 onward):** living workers with a home, a daily routine, energy, and autonomous goals
-  (Prospector), plus a Hauler that consolidates finds to a depot.
+- **Next (v0.4 onward):** living workers with a home, a daily routine, energy, and autonomous goals;
+  two digging roles with a hard split (Nov 15): the **Digger** (shovel) shapes land (quarry, later
+  flatten and fill) and the **Miner** (pickaxe) goes after ore (branch mine, then prospecting);
+  plus a Hauler that consolidates finds to a depot.
 - **Target platform:** Bedrock Dedicated Server (BDS) that Brian hosts for friends. Stable APIs only,
   so no experimental toggles.
 
@@ -128,6 +130,8 @@ branches sit every 3rd block along the trunk. Every block in those walls touches
 - **Skip and dig around:** if no tool can harvest a block, it's left, logged (type and position) and
   dug around (a U in a branch). With no pickaxe at all, the worker goes to the chest and waits.
 - **Role:** from the highest-tier tool, changeable in the menu. Dig jobs need the Miner role.
+  From v0.5 (Nov 15) each role takes only its own orders: Digger = quarry; Miner = branch mine and
+  prospect. See "v0.5 Two digging roles".
 
 ### Rules every job follows
 
@@ -297,7 +301,46 @@ food; below 10 it rests; safe bed restores to 100, unsafe 75, rough 50; it packs
 - **Gate:** a worker digs all day, walks home at dusk, sleeps, and is back at its dig the next
   morning, across a server restart and a skipped night.
 
-### v0.5 Prospector (autonomous miner)
+### v0.5 Two digging roles: Digger and Miner (Brian, Nov 15)
+A **hard split**: a worker's role decides which orders it takes, and it refuses the rest with a
+message naming the role that does it. Brian: we're still testing, so keep roles and their orders
+strictly apart. Common orders stay open to every role: come, stop, resume, status, drop off, take
+what it carries, set and clear home, and the daily routine.
+
+- **Digger (shovel): shapes the land to a plan you stake.** Takes `quarry` (alias `mine_area`) with
+  Clear above, the walk-up stair and stair torches, exactly as built in 0.4.x. Its kit is led by
+  shovels but holds pickaxes too, so a quarry through rock still works (`chooseTool` already picks
+  the right kind per block). Later earthworks jobs are listed under "Later".
+- **Miner (pickaxe): goes after ore.** Takes `branch_mine` (the fixed tunnel: stairs, trunk 1-4 wide,
+  branches with 2 solid blocks between, ore veins in the walls dug and filled, torches) and, in
+  v0.6, `prospect`. Every Prospector decision below belongs to the Miner; there is no separate
+  Prospector worker.
+
+1. **Orders by role:** `orders.js` checks the job against the worker's role (one table, e.g.
+   `JOB_ROLES` in `catalog.js`, so the LLM's tool list can say which role does what). Today's check
+   ("Set its role to Miner to dig") becomes per job: "Digby is a Miner. Quarries are a Digger's job:
+   build one with a shovel, or change its role in its menu."
+2. **Role at build:** the kind of the first tool in the barrel (slot order) sets the role, not the
+   highest tier, so a shovel plus a diamond pickaxe makes a Digger that can still dig stone.
+   Changeable in the menu, only while idle (no job, nothing paused).
+3. **Kit by role:** Digger takes shovels and pickaxes; Miner takes pickaxes and shovels (as today).
+   Morning restock (`life.js`) fetches both kinds for both.
+4. **Menus:** the worker menu lists only its role's dig jobs (Digger: Quarry; Miner: Branch mine).
+   The Survey Stake plan picker shows both types; confirming with a linked worker of the wrong role
+   is refused with the message above. Status and the guide name the role and its jobs.
+5. **Slash commands:** `/crew:minebox` is Digger only; `/crew:mine` checks the staked plan's type
+   against the worker. `/crew:jobs` groups the jobs by role.
+6. **Existing workers:** a Miner with a quarry running or paused finishes it (or Continues it); new
+   quarry orders go to Diggers. Old workers keep their saved role.
+7. **Skins:** Digger and Miner already have their own skins (decision 12); check they read apart at
+   a glance in game.
+8. Guide pages, mock tests (each role refuses the other's job; existing paused quarry on a Miner
+   still continues), docs.
+- **Gate:** build one of each; the Digger quarries, the Miner branch-mines, and each refuses the
+  other's job with a clear message, from the menu, the stake and slash commands.
+
+### v0.6 Miner: prospecting (autonomous mining)
+The Miner's own release (planned Nov 13 as "Prospector"); all of it is Miner only.
 1. **`prospect` job:** target (diamonds, iron, gold, redstone, lapis, coal, copper, emeralds,
    ancient debris, or any valuables), start (staked spot, "here" or "near home"), range (how far it
    may roam), optional quota ("10 diamonds"), optional mine name.
@@ -325,7 +368,7 @@ food; below 10 it rests; safe bed restores to 100, unsafe 75, rough 50; it packs
 - **Gate:** "prospect for diamonds here, quota 5" runs over several in-game days with no help
   beyond tools, and the entrance and sign look right.
 
-### v0.6 Hauler (new worker)
+### v0.7 Hauler (new worker)
 1. **New worker type** with its own look (backpack, no tool); build recipe to decide (see open
    questions); own menu.
 2. **Depot:** a designated spot (a named place like "blue base"); nearby chests count as one depot.
@@ -333,10 +376,10 @@ food; below 10 it rests; safe bed restores to 100, unsafe 75, rough 50; it packs
    carries to the depot, puts each item in a chest that already holds that item, else any free one.
 4. **`haul` job:** one-off move from one place to another, for the LLM and slash commands.
 5. Keeps the same daily routine (home, sleep, energy).
-- **Gate:** a hauler keeps two prospectors' entrance chests from filling up and the depot sorted,
+- **Gate:** a hauler keeps two prospecting Miners' entrance chests from filling up and the depot sorted,
   across 200+ blocks.
 
-### v0.7 Character
+### v0.8 Character
 1. **Ranks:** Novice, Apprentice, Journeyman, Expert, Master from blocks mined and finds; small perks
    (a bit faster, carries more, at Master notices ore one block into a wall).
 2. **Personality:** traits generated from the worker's id (same worker, same personality): favourite
@@ -354,9 +397,9 @@ food; below 10 it rests; safe bed restores to 100, unsafe 75, rough 50; it packs
    `random_stroll` held to its home, like villagers' `move_towards_dwelling_restriction`) instead
    of wherever it stands.
 
-### v0.8 Loose ends
-- `collect_skipped`: go back with a better tool for blocks it had to leave.
-- `scout`: walk an area without digging and report structures and exposed ores.
+### v0.9 Loose ends
+- `collect_skipped`: go back with a better tool for blocks it had to leave (the role that left it).
+- `scout`: walk an area without digging and report structures and exposed ores (Miner).
 - **Move like a villager** (Brian, Nov 14; from comparing with Mojang's vanilla villager files in
   bedrock-samples: `villager_v2.json`, `villager.animation.json`). The Script API can't hand a mob
   a destination, so travel stays scripted (A* + glide); these make it look and feel vanilla.
@@ -382,11 +425,12 @@ food; below 10 it rests; safe bed restores to 100, unsafe 75, rough 50; it packs
 ### Later
 - **Danger:** mobs can knock a worker out; it wakes in its bed and loses what it carried.
 - **Social:** workers greet and chat with each other, bunkhouses.
-- **Other roles:** Woodcutter (forests, replanting), Farmer (fields, cooks food for the crew),
-  Digger (clearing land, paths).
+- **Digger earthworks:** flatten an area to a level, fill holes (with dirt or stone it carries),
+  dig a trench or moat, terrace a hillside, lay paths, clear a build site. All staked like a quarry.
+- **Other roles:** Woodcutter (forests, replanting), Farmer (fields, cooks food for the crew).
 - **LLM bridge (Phase 2):** a program next to BDS reads `[Crew-Event]` lines and sends
   `crew:exec {json}` orders back. `/crew:ask Dig "find me diamonds and tell me if you find anything
-  weird"` becomes a `prospect` call. Gate: 10 plain-English orders in a row map to the right job.
+  weird"` becomes a `prospect` call to a Miner (the bridge picks a worker whose role takes the job). Gate: 10 plain-English orders in a row map to the right job.
 - **Contractor mode (Phase 3):** multi-step plans (prospect, then haul, then report), several
   workers splitting one goal, an approval step before big jobs.
 
