@@ -23,7 +23,9 @@ server, which runs as SYSTEM: `C:\Windows\System32\config\systemprofile\AppData\
 
 Built Nov 14 2026 and mock-tested. Nov 15 (Brian's OK) the server got all of it, through the
 Depth wording (3d), as scripts under 0.4.0 (backup in `C:\MinecraftServer-backups\`), so 5, 7, 8
-and 9 go out to friends before their local test. A script change to a slash command's options needs
+and 9 go out to friends before their local test. Nov 15 9:12 PM (Brian's OK) it also got the
+light-block and chest-in-sight fix by `reload` (backup
+`C:\MinecraftServer-backups\2026-11-15_2112_before-lightblock-fix`). A script change to a slash command's options needs
 a full server restart: `reload` refuses to re-register it.
 
 **Doors**
