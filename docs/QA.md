@@ -28,6 +28,19 @@ light-block and chest-in-sight fix by `reload` (backup
 `C:\MinecraftServer-backups\2026-11-15_2112_before-lightblock-fix`). A script change to a slash command's options needs
 a full server restart: `reload` refuses to re-register it.
 
+**What's left, in three test runs** (Nov 15; on the server, which has every fix):
+- **Run A, one daytime quarry (4, 4b, 9, 3c, 8):** with the worker's Quarry menu, check there's no
+  Pace option (8). Stake a small quarry (about 6x6x6) with Clear above **off** (3c), near its home,
+  with its home chest against the inside of a house wall. Give it only a nearly worn pickaxe and let
+  it run out (4); it waits beside the drop-off chest, so leave that chest empty and put a pickaxe in
+  the home chest (4b). Let it finish the quarry and check the log for `[Crew-Inside]` and
+  `[Crew-Blink]` (9). Also type `/crew:mine` and check it has no Pace option (8).
+- **Run B, doors and the deep refusal (2, 3b):** put an iron door on its way home, shut, then open
+  (2). Stake a quarry with a door or trapdoor inside the box: it digs around it. Then stake a quarry
+  far underground with Clear above on: it's refused (3b).
+- **Run C, at night (7, 7b, 7c):** crouch-tap the sleeping worker and its bed (7), Wake up and wait a
+  minute (7b), wake it again and give it a small dig (7c).
+
 **Doors**
 - [x] 1. A worker walking to a bed inside a house opens the wooden door, walks through and shuts it
       behind it. Same for a fence gate. (Brian, Nov 14)
