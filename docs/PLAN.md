@@ -18,7 +18,8 @@ typed command that a person, a script or later an LLM can call the same way.
   mock-tested only.
 - **Next (v0.4 onward):** living workers with a home, a daily routine, energy, and autonomous goals;
   two digging roles with a hard split (Nov 15): the **Digger** (shovel) shapes land (quarry, later
-  flatten and fill) and the **Miner** (pickaxe) goes after ore (branch mine, then prospecting);
+  flatten and fill) and the **Miner** (pickaxe) goes after ore (prospecting, which digs its own
+  branch mines);
   plus a Hauler that consolidates finds to a depot.
 - **Target platform:** Bedrock Dedicated Server (BDS) that Brian hosts for friends. Stable APIs only,
   so no experimental toggles.
@@ -130,8 +131,9 @@ branches sit every 3rd block along the trunk. Every block in those walls touches
 - **Skip and dig around:** if no tool can harvest a block, it's left, logged (type and position) and
   dug around (a U in a branch). With no pickaxe at all, the worker goes to the chest and waits.
 - **Role:** from the highest-tier tool, changeable in the menu. Dig jobs need the Miner role.
-  From v0.5 (Nov 15) each role takes only its own orders: Digger = quarry; Miner = branch mine and
-  prospect. See "v0.5 Two digging roles".
+  From v0.5 (Nov 15) each role takes only its own orders: Digger = quarry; Miner = prospect (v0.6;
+  the branch mine is no longer an order of its own). Role at build = the first tool's kind. See
+  "v0.5 Two digging roles".
 
 ### Rules every job follows
 
@@ -311,33 +313,35 @@ what it carries, set and clear home, and the daily routine.
   Clear above, the walk-up stair and stair torches, exactly as built in 0.4.x. Its kit is led by
   shovels but holds pickaxes too, so a quarry through rock still works (`chooseTool` already picks
   the right kind per block). Later earthworks jobs are listed under "Later".
-- **Miner (pickaxe): goes after ore.** Takes `branch_mine` (the fixed tunnel: stairs, trunk 1-4 wide,
-  branches with 2 solid blocks between, ore veins in the walls dug and filled, torches) and, in
-  v0.6, `prospect`. Every Prospector decision below belongs to the Miner; there is no separate
-  Prospector worker.
+- **Miner (pickaxe): goes after ore.** No dig jobs until v0.6 `prospect`. **Branch mine is no
+  longer an order** (Brian, Nov 15: "remove the branch mine option as that will become a default for
+  the new miner"): `branch_mine` stays in the catalog as a hidden, Miner-only job (`hidden: true`;
+  only internal orders run it) so prospecting builds on it (stairs, trunk 1-4 wide, branches with 2
+  solid blocks between, ore veins in the walls dug and filled, torches). Every Prospector decision
+  below belongs to the Miner; there is no separate Prospector worker.
 
-1. **Orders by role:** `orders.js` checks the job against the worker's role (one table, e.g.
-   `JOB_ROLES` in `catalog.js`, so the LLM's tool list can say which role does what). Today's check
-   ("Set its role to Miner to dig") becomes per job: "Digby is a Miner. Quarries are a Digger's job:
-   build one with a shovel, or change its role in its menu."
-2. **Role at build:** the kind of the first tool in the barrel (slot order) sets the role, not the
-   highest tier, so a shovel plus a diamond pickaxe makes a Digger that can still dig stone.
-   Changeable in the menu, only while idle (no job, nothing paused).
-3. **Kit by role:** Digger takes shovels and pickaxes; Miner takes pickaxes and shovels (as today).
-   Morning restock (`life.js`) fetches both kinds for both.
-4. **Menus:** the worker menu lists only its role's dig jobs (Digger: Quarry; Miner: Branch mine).
-   The Survey Stake plan picker shows both types; confirming with a linked worker of the wrong role
-   is refused with the message above. Status and the guide name the role and its jobs.
-5. **Slash commands:** `/crew:minebox` is Digger only; `/crew:mine` checks the staked plan's type
-   against the worker. `/crew:jobs` groups the jobs by role.
-6. **Existing workers:** a Miner with a quarry running or paused finishes it (or Continues it); new
-   quarry orders go to Diggers. Old workers keep their saved role.
-7. **Skins:** Digger and Miner already have their own skins (decision 12); check they read apart at
-   a glance in game.
-8. Guide pages, mock tests (each role refuses the other's job; existing paused quarry on a Miner
-   still continues), docs.
-- **Gate:** build one of each; the Digger quarries, the Miner branch-mines, and each refuses the
-  other's job with a clear message, from the menu, the stake and slash commands.
+**Built Nov 15 (mock-tested, `roles_test`; not on the server yet):**
+1. [x] **Orders by role:** `catalog.js` jobs carry `roles` (quarry: Digger; branch_mine: Miner) and
+   `orders.js` refuses the rest (`roleRefusal`: "Digby is a Miner. Quarries are a Digger's job:
+   build a Digger (put a shovel in the barrel first), or change Digby's role in its menu.").
+   `resume` is open to every role, so a worker finishes a dig it had already started.
+2. [x] **Role at build:** the kind of the first tool in the barrel (`defaultRole`, slot order), so a
+   shovel plus a diamond pickaxe makes a Digger. Changeable in the menu while it isn't working.
+3. [x] **Kit by role:** `roleKinds`: Digger and Miner both keep and restock pickaxes and shovels.
+4. [x] **Menus:** the worker menu shows Quarry only for a Digger (the Miner's status line says
+   prospecting is coming). The Survey Stake plans quarries only (old saved branch plans are
+   dropped); confirming with a linked non-Digger says why instead of offering to start.
+5. [x] **Slash commands:** `/crew:minebox` and `/crew:mine` go through the same role check;
+   `/crew:jobs` and the LLM tool list leave out hidden jobs and show each job's role.
+6. [x] **Existing workers become Diggers** (Brian, Nov 15: the server's workers have all been
+   quarrying): once, on load (`migrateRole`, flag `crew:roleSplit`), with one message to the
+   owner. Anything running or paused (even a branch mine) carries on.
+7. [ ] **Skins:** Digger and Miner already have their own skins (decision 12); check in game they
+   read apart at a glance.
+8. [x] Guide pages, mock tests (each role refuses the other's job; branch mine hidden; migration
+   keeps a paused branch mine going), docs.
+- **Gate:** build one of each; the Digger quarries, the Miner refuses a quarry with a clear message,
+  from the menu, the stake and slash commands; the server's existing workers come up as Diggers.
 
 ### v0.6 Miner: prospecting (autonomous mining)
 The Miner's own release (planned Nov 13 as "Prospector"); all of it is Miner only.

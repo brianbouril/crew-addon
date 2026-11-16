@@ -2,7 +2,7 @@
 // Two obsidian blocks fill one branch cell top and bottom: the worker digs a detour around them.
 import { world, tick, ItemStack } from "@minecraft/server";
 import { startEngine } from "./scripts/runner.js";
-import { spawnWorker } from "./scripts/workers.js";
+import { findWorker, setRole, spawnWorker } from "./scripts/workers.js";
 import { dispatch } from "./scripts/orders.js";
 
 const logs = []; const out = console.log; console.log = (...a) => logs.push(a.join(" ")); console.warn = (...a) => logs.push("WARN " + a.join(" "));
@@ -26,7 +26,7 @@ const by = { id: "p1", name: "Brian", isOp: false };
 // one iron pickaxe (250 uses) can't finish ~600 blocks, so give it Unbreaking III; no diamond tool, so obsidian stays a skip
 const ub = new ItemStack("minecraft:iron_pickaxe"); ub.enchants.unbreaking = 3;
 const { e } = spawnWorker(ow, { x: 40.5, y: 65, z: 48.5 }, { id: "p1", name: "Brian" }, "Pip", [ub, new ItemStack("minecraft:torch", 32)]);
-const order = dispatch(by, { worker: "Pip", job: "branch_mine", params: { start: [start.x, start.y, start.z], facing: "north", target_y: ty, trunk_length: L, trunk_width: W, branch_length: B, spacing: S, deposit: [40, 65, 46], keep: "valuables" } });
+const order = dispatch(by, { internal: true, worker: "Pip", job: "branch_mine", params: { start: [start.x, start.y, start.z], facing: "north", target_y: ty, trunk_length: L, trunk_width: W, branch_length: B, spacing: S, deposit: [40, 65, 46], keep: "valuables" } });
 let t = 0;
 while (e.getDynamicProperty("crew:job") && t < 200000) tick(++t);
 // expected open cells

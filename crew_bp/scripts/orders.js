@@ -1,7 +1,7 @@
 // One entry point for every order, whoever gives it: the worker menu, a slash command, the
 // server console, or (Phase 2) an LLM bridge. Orders are plain objects:
 //   { worker: "Digby", job: "quarry", params: { from, to, facing, deposit, keep, clear_above } }
-import { validate } from "./catalog.js";
+import { JOBS, roleRefusal, roleTakes, validate } from "./catalog.js";
 import { fmt, getJSON, setJSON } from "./util.js";
 import { getRegistry, resolvePlace } from "./store.js";
 import { canCommand, findWorker, loadedWorkers, meta, roleOf } from "./workers.js";
@@ -22,7 +22,7 @@ const newId = () => `${Date.now().toString(36)}${Math.floor(Math.random() * 1296
 
 /**
  * @param {Commander} by
- * @param {{worker?: string, job?: string, params?: Record<string, any>}} order
+ * @param {{worker?: string, job?: string, params?: Record<string, any>, internal?: boolean}} order  internal: from the add-on itself (and tests), may run hidden jobs
  * @returns {{ok: boolean, message: string}}
  */
 export function dispatch(by, order) {
@@ -38,6 +38,10 @@ export function dispatch(by, order) {
 
   const v = validate(String(order.job ?? "").trim(), order.params ?? {});
   if (!v.ok) return { ok: false, message: v.error };
+  // hidden jobs (the branch mine, kept for prospecting) only run from internal orders, never a player's
+  if (JOBS[v.job].hidden && !order.internal) return { ok: false, message: v.job === "branch_mine" ? "Branch mines aren't offered any more: the Miner's prospecting (coming next) will dig them on its own." : `Unknown job '${v.job}'.` };
+  // decision 32: each role takes only its own jobs
+  if (!roleTakes(v.job, roleOf(e))) return { ok: false, message: roleRefusal(m.name, roleOf(e), v.job) };
   const p = v.params;
   const byRef = { id: by.id, name: by.name, console: !!by.console };
   // an order that gives it something to do wakes it, and at night it stays up to do it
@@ -78,8 +82,7 @@ export function dispatch(by, order) {
     case "resume": {
       const paused = pausedJob(e);
       if (!paused) return { ok: false, message: `${m.name} has no stopped dig to continue.` };
-      if (roleOf(e) !== "Miner") return { ok: false, message: `${m.name} is a ${roleOf(e)}. Set its role to Miner in its menu to dig.` };
-      resumeJob(e);
+      resumeJob(e); // any role finishes what it already started (workers converted to Diggers keep their old digs)
       return { ok: true, message: `${m.name} is going back to the ${paused.name} (${paused.pct}% done).` };
     }
     case "drop_off": {
@@ -95,7 +98,6 @@ export function dispatch(by, order) {
     }
     case "quarry":
     case "branch_mine": {
-      if (roleOf(e) !== "Miner") return { ok: false, message: `${m.name} is a ${roleOf(e)}. Set its role to Miner in its menu to dig.` };
       const inv = e.getComponent("minecraft:inventory")?.container;
       if (!inv || !kit(inv).length) return { ok: false, message: `${m.name} has no tools. Crouch and use it to add a pickaxe.` };
       const dep = depositFor(by, p.deposit, e.dimension.id);

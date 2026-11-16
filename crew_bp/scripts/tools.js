@@ -63,12 +63,17 @@ export function kit(inv) {
   return out;
 }
 
-/** Role of the best tool (ties go to the pickaxe). @param {KitEntry[]} k */
+/**
+ * Role of a newly built worker: the kind of the first tool put in the barrel (decision 32), so a
+ * shovel plus a diamond pickaxe still makes a Digger. @param {KitEntry[]} k
+ */
 export function defaultRole(k) {
-  const order = ["pickaxe", "shovel", "axe", "hoe"];
-  const best = [...k].sort((a, b) => b.info.tier - a.info.tier || order.indexOf(a.info.kind) - order.indexOf(b.info.kind))[0];
-  return best ? ROLES[best.info.kind] : "Miner";
+  const first = [...k].sort((a, b) => a.slot - b.slot)[0];
+  return first ? ROLES[first.info.kind] : "Miner";
 }
+
+/** The tool kinds a role keeps in its kit and restocks. Diggers carry pickaxes too, for stone. @param {string} role */
+export const roleKinds = (role) => (role === "Miner" || role === "Digger" ? ["pickaxe", "shovel"] : role === "Woodcutter" ? ["axe"] : ["hoe"]);
 
 /** The worker's tool setting: "save" its best tools (default) or use the "fastest". @param {import("@minecraft/server").Entity} e @returns {"save"|"fastest"} */
 export const toolPref = (e) => (e.getDynamicProperty("crew:toolPref") === "fastest" ? "fastest" : "save");

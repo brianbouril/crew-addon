@@ -4,7 +4,7 @@ import { world, tick, ItemStack, lootCalls } from "@minecraft/server";
 import { startEngine } from "./scripts/runner.js";
 import { insideTracker, blinkCount } from "./inside.mjs";
 const inside = insideTracker();
-import { spawnWorker } from "./scripts/workers.js";
+import { findWorker, setRole, spawnWorker } from "./scripts/workers.js";
 import { dispatch } from "./scripts/orders.js";
 import { savePlace } from "./scripts/store.js";
 import { quarryGeom, stairBlock } from "./scripts/plans.js";
@@ -30,7 +30,7 @@ const by = { id: "p1", name: "Brian", isOp: false };
 const ub = new ItemStack("minecraft:iron_pickaxe"); ub.enchants.unbreaking = 3;
 const { e } = spawnWorker(ow, { x: 0.5, y: 65, z: 0.5 }, { id: "p1", name: "Brian" }, "Digby", [ub, new ItemStack("minecraft:iron_pickaxe"), new ItemStack("minecraft:stone_shovel"), new ItemStack("minecraft:torch", 16)]);
 savePlace(by, "blue base", "minecraft:overworld", { x: 0, y: 65, z: -4 }, false);
-const order = dispatch(by, { worker: "Digby", job: "quarry", params: { from: g.min, to: g.max, facing: "south", deposit: "blue base", keep, pace } });
+setRole(findWorker("Digby"), "Digger"); const order = dispatch(by, { worker: "Digby", job: "quarry", params: { from: g.min, to: g.max, facing: "south", deposit: "blue base", keep, pace } });
 let t = 0;
 // the biggest move in one tick: a step glides a block over several ticks, so anything near a
 // whole block (outside a reported shortcut) is the worker snapping back and forth

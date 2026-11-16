@@ -49,7 +49,7 @@ or decides block logic; it only picks jobs and fills parameters.
 | 31 | Workers dig only what they can see (`canSee` line of sight) and walk (never teleport) to a spot with a view; an `unstick` safety net logs `[Crew-Inside]` and steps out if one is ever inside a block | Brian, Nov 14: passed through a quarry stair |
 | 26 | Quarry "Clear above" (`clear_above`; on by default from the stake, off by default for raw orders): measured at plan and at start (`blocks.js layersAbove`: up to open sky, 3 empty layers in a row; refused past 48), cleared top down as `pre` steps before the quarry's own; the worker reaches up from the ground (never climbs onto what it clears) | Brian, Nov 14: "no floating blocks above the quarry area" |
 | 27 | Workers walk through wooden doors and fence gates (open, step through, close behind; iron only if open) and never break doors, gates or trapdoors | Brian, Nov 14 |
-| 32 | Two digging roles with a **hard split** (planned for v0.5): Digger (shovel) takes `quarry` and later earthworks; Miner (pickaxe) takes `branch_mine` and `prospect`, and inherits every Prospector decision (there's no separate Prospector worker). Each refuses the other's orders; come, stop, resume, status, drop off and home stay open to all. Role at build = first tool's kind | Brian, Nov 15: "we are still testing so I'd rather make a hard split between the roles and the orders they can take" |
+| 32 | Two digging roles with a **hard split** (built Nov 15): Digger (shovel) takes `quarry` and later earthworks; Miner (pickaxe) takes `prospect` (v0.6) and inherits every Prospector decision (there's no separate Prospector worker). `branch_mine` is no longer an order: kept hidden (`catalog.js hidden`) for prospecting to build on. Each refuses the other's orders; come, stop, resume, status, drop off and home stay open to all. Role at build = first tool's kind. Workers from before the split became Diggers once (`migrateRole`) | Brian, Nov 15: "we are still testing so I'd rather make a hard split between the roles and the orders they can take"; "convert them to diggers now and remove the branch mine option" |
 | 21 | Every Survey Stake menu has "Put the stake away" (removes it from the inventory; the plan is kept). The worker menu has "Get a Survey Stake" (and the "no plan yet" message offers one); only one per player, `/crew:stake` follows the same rule | Brian, Nov 12 |
 
 ## Current state (v0.4.0, released Nov 14 2026)
@@ -57,7 +57,7 @@ or decides block logic; it only picks jobs and fills parameters.
   Earlier: tag `v0.2.0` (the hand-off). README and `docs/PLAN.md` describe it.
 - Digging: break time = tool speed (+Efficiency) over block hardness (`blocks.js hardness`), like a
   player; the block breaks at the end of the swing. Steps ease in and out at about a villager's pace.
-- Jobs: `quarry` (alias `mine_area`), `branch_mine`, `come`, `stop`, `resume`, `status`, `drop_off`,
+- Jobs: `quarry` (alias `mine_area`; Digger only), `branch_mine` (hidden since Nov 15, Miner only, internal orders), `come`, `stop`, `resume`, `status`, `drop_off`,
   `set_home`, `clear_home`; plus the internal `rest` job the routine starts at dusk or when worn out.
 - `/reload` only reloads scripts. Changes to the model, textures or `entities/worker.json` need the
   world closed and reopened (safest: quit Minecraft fully and restart).
@@ -104,7 +104,7 @@ each tested in game before the next:
 2. **v0.4 Home and daily routine:** bed + home chest, safe-bed check, day clock, routine over jobs,
    energy (sleep and optional food restore it), sleep/eat animations.
 3. **v0.5 Two digging roles (decision 32):** hard split; Digger (shovel) quarries, Miner (pickaxe)
-   branch-mines; each refuses the other's orders.
+   waits for prospecting; branch mine no longer orderable. Built Nov 15 (mock-tested), server pending.
 4. **v0.6 Miner: prospecting** (planned as "Prospector"; it's the Miner, not a new worker):
    autonomous `prospect` job (target, start, range, quota), wooden mine entrance with a named sign
    and entrance chest, growing branch mine, caves, hazards, stop rules, makes its own tools.

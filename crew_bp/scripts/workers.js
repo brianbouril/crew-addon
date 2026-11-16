@@ -82,6 +82,7 @@ export function spawnWorker(dim, loc, owner, wantedName, items = []) {
     if (left) spill.push(left);
   }
   e.setDynamicProperty("crew:role", defaultRole(kit(inv)));
+  e.setDynamicProperty("crew:roleSplit", 1);
   updateTag(e);
   const reg = getRegistry();
   reg[name.toLowerCase()] = { name, id: e.id, ownerId: owner.id ?? "", ownerName: owner.name };
@@ -101,6 +102,23 @@ export function spawnWorker(dim, loc, owner, wantedName, items = []) {
 export function roleOf(e) {
   const r = e.getDynamicProperty("crew:role");
   return typeof r === "string" && ROLE_LIST.includes(r) ? r : "Miner";
+}
+
+/**
+ * Workers built before the Digger/Miner split (decision 32) were all digging quarries, so each
+ * becomes a Digger, once (Brian, Nov 15). Anything it was digging or had paused carries on.
+ * @param {import("@minecraft/server").Entity} e
+ */
+export function migrateRole(e) {
+  try {
+    if (e.getDynamicProperty("crew:roleSplit")) return;
+    e.setDynamicProperty("crew:roleSplit", 1);
+    setRole(e, "Digger");
+    emit(e, "role_changed", { role: "Digger", reason: "role_split" },
+      "I'm a Digger now: quarries are my job. Branch mines are coming back as part of the Miner's prospecting.");
+  } catch {
+    /* entity gone */
+  }
 }
 
 /** @param {import("@minecraft/server").Entity} e @param {string} role */

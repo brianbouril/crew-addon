@@ -1,5 +1,5 @@
 // The Survey Stake planner. Use the stake on a ground block to start a plan there, facing the
-// way you look; pick Quarry or Branch mine and the size; an outline shows while you hold the
+// way you look; plan a quarry (a Digger's job) and its size; an outline shows while you hold the
 // stake. Use the stake on the same block again to confirm, resize, turn or clear it.
 // Use it on a chest or barrel to mark where workers drop things off.
 import { ItemStack, system, world } from "@minecraft/server";
@@ -10,7 +10,8 @@ import { CLEAR_ABOVE_MAX, layersAbove } from "./blocks.js";
 import { dist, fmt, getJSON, sameV, setJSON, tell } from "./util.js";
 import { show } from "./forms.js";
 import { PAGES, openGuide } from "./guide.js";
-import { canCommand, loadedWorkers, meta } from "./workers.js";
+import { canCommand, loadedWorkers, meta, roleOf } from "./workers.js";
+import { roleRefusal } from "./catalog.js";
 import { digForm, openMenu, whoIs } from "./ui.js";
 import { dispatch } from "./orders.js";
 import { bedAt, bedSafety, chestNear, getHome } from "./life.js";
@@ -26,8 +27,15 @@ export const STAKE = "crew:survey_stake";
  *   clearAbove?: boolean, above?: number, aboveTooHigh?: boolean}} Plan
  */
 
-/** @param {import("@minecraft/server").Player} p @returns {Plan | undefined} */
-export const getPlan = (p) => getJSON(p, "crew:plan", undefined);
+/**
+ * The player's plan. Branch mine plans saved before Nov 15 are dropped: the stake plans quarries
+ * only now (the branch mine comes back inside the Miner's prospecting).
+ * @param {import("@minecraft/server").Player} p @returns {Plan | undefined}
+ */
+export const getPlan = (p) => {
+  const plan = getJSON(p, "crew:plan", undefined);
+  return plan?.mode === "quarry" ? plan : undefined;
+};
 /** @param {import("@minecraft/server").Player} p @param {Plan | undefined} plan */
 const savePlan = (p, plan) => setJSON(p, "crew:plan", plan && measureAbove(plan));
 
@@ -183,7 +191,8 @@ export async function stakeTap(p, block) {
 }
 
 /**
- * Plans a new dig starting at this block: Quarry or Branch mine, then its size.
+ * Plans a new quarry starting at this block, then its size. (The branch-mine plan code below is
+ * unused since Nov 15; the Miner's prospecting will plan its own tunnels.)
  * @param {import("@minecraft/server").Player} p @param {import("@minecraft/server").Block} block @param {Plan | undefined} plan
  */
 async function newPlan(p, block, plan) {
@@ -192,13 +201,13 @@ async function newPlan(p, block, plan) {
   /** @type {Plan} */
   const next = { ...base, dim: block.dimension.id, anchor: { ...block.location }, facing, confirmed: false };
   if (next.targetY > next.anchor.y + 1) next.targetY = next.anchor.y + 1;
-  const f = new ActionFormData().title("Plan a dig here")
-    .body(`Start: the block at ${fmt(block.location)}, heading ${facing} (the way you're facing).\n\nQuarry: this is the top corner. It digs forward and to your right, and leaves a staircase down the walls.\n\nBranch mine: stairs start here and go forward and down to the tunnel level.`)
-    .button("Quarry").button("Branch mine").button("Cancel").button("Put the stake away");
+  const f = new ActionFormData().title("Plan a quarry here")
+    .body(`Start: the block at ${fmt(block.location)}, heading ${facing} (the way you're facing).\n\nThis is the quarry's top corner. It digs forward and to your right, and leaves a staircase down the walls. A Digger digs it.`)
+    .button("Plan a quarry").button("Cancel").button("Put the stake away");
   const r = await show(p, f);
-  if (r?.selection === 3) return putAway(p);
-  if (!r || r.selection === 2 || r.selection === undefined) return;
-  next.mode = r.selection === 0 ? "quarry" : "branch";
+  if (r?.selection === 2) return putAway(p);
+  if (!r || r.selection !== 0) return;
+  next.mode = "quarry";
   if (!(await sizeForm(p, next))) return;
   savePlan(p, next);
   tell(p, `${planText(getPlan(p) ?? next)}\nCheck the white outline, then tap any block (or the air) with the stake to confirm or change it.`);
@@ -253,7 +262,7 @@ export function giveStake(p) {
   const inv = p.getComponent("minecraft:inventory")?.container;
   if (!inv) return "Couldn't reach your inventory.";
   if (inv.addItem(new ItemStack(STAKE, 1))) return "Your inventory is full.";
-  return "Survey Stake added. Use it on the ground where a dig should start (facing the way it should go) to plan a quarry or branch mine; use it on a chest to mark the drop-off.";
+  return "Survey Stake added. Use it on the ground where a dig should start (facing the way it should go) to plan a quarry; use it on a chest to mark the drop-off.";
 }
 
 /** Takes the stake out of the player's inventory (the one in hand, else the first one). The plan is kept. @param {import("@minecraft/server").Player} p */
@@ -276,27 +285,30 @@ async function planActions(p, tapped) {
   const plan = getPlan(p);
   if (!plan) return;
   const facing = facingFromYaw(p.getRotation().y);
-  const other = plan.mode === "quarry" ? "Branch mine" : "Quarry";
   const elsewhere = tapped && !sameV(plan.anchor, tapped.location) ? tapped : undefined;
   const f = new ActionFormData().title(plan.confirmed ? "Plan (confirmed)" : "Plan (not confirmed yet)").body(planText(plan))
-    .button(plan.confirmed ? "Keep it" : "Confirm").button("Change the size").button(`Point it ${facing}`).button(`Switch to ${other}`).button("Clear the plan").button("Put the stake away");
-  if (elsewhere) f.button(`Plan a new dig at ${fmt(elsewhere.location)} instead`);
+    .button(plan.confirmed ? "Keep it" : "Confirm").button("Change the size").button(`Point it ${facing}`).button("Clear the plan").button("Put the stake away");
+  if (elsewhere) f.button(`Plan a new quarry at ${fmt(elsewhere.location)} instead`);
   const r = await show(p, f);
   if (!r || r.selection === undefined) return;
   const next = { ...plan, confirmed: false };
   switch (r.selection) {
-    case 6:
+    case 5:
       if (elsewhere) return newPlan(p, elsewhere, plan);
       return;
     case 0: {
       savePlan(p, { ...plan, confirmed: true });
       const e = linkedWorker(p);
+      if (e && roleOf(e) !== "Digger") {
+        tell(p, `Plan confirmed. ${roleRefusal(meta(e).name, roleOf(e), "quarry")}`);
+        return;
+      }
       if (e) {
         const m = meta(e);
-        const go = await show(p, new ActionFormData().title("Plan confirmed").body(`Start this ${plan.mode === "quarry" ? "quarry" : "branch mine"} with ${m.name} now?`).button(`Start it with ${m.name}`).button("Not yet"));
+        const go = await show(p, new ActionFormData().title("Plan confirmed").body(`Start this quarry with ${m.name} now?`).button(`Start it with ${m.name}`).button("Not yet"));
         if (go?.selection === 0) return digForm(p, whoIs(p), e, plan.mode);
       }
-      tell(p, `Plan confirmed. ${e ? `Tap the air with the stake for ${meta(e).name}'s orders` : "Crouch and use a worker"}, then pick ${plan.mode === "quarry" ? "Quarry" : "Branch mine"}.`);
+      tell(p, `Plan confirmed. ${e ? `Tap the air with the stake for ${meta(e).name}'s orders` : "Crouch and use a Digger"}, then pick Quarry.`);
       return;
     }
     case 1:
@@ -306,14 +318,10 @@ async function planActions(p, tapped) {
       next.facing = facing;
       break;
     case 3:
-      next.mode = plan.mode === "quarry" ? "branch" : "quarry";
-      if (!(await sizeForm(p, next))) return;
-      break;
-    case 4:
       savePlan(p, undefined);
       tell(p, "Plan cleared (just the outline). A worker already digging it keeps going: Stop it from its menu, or tap the air with the stake.");
       return;
-    case 5:
+    case 4:
       putAway(p);
       return;
   }

@@ -5,7 +5,7 @@ import { world, tick, ItemStack } from "@minecraft/server";
 import { startEngine } from "./scripts/runner.js";
 import { insideTracker, blinkCount } from "./inside.mjs";
 const inside = insideTracker();
-import { spawnWorker } from "./scripts/workers.js";
+import { findWorker, setRole, spawnWorker } from "./scripts/workers.js";
 import { dispatch } from "./scripts/orders.js";
 import { quarryGeom } from "./scripts/plans.js";
 
@@ -19,7 +19,7 @@ const by = { id: "p1", name: "Brian", isOp: false };
 const { e } = spawnWorker(ow, { x: chest.x + 0.5, y: 65, z: chest.z - 2.5 }, { id: "p1", name: "Brian" }, "Flint",
   [new ItemStack("minecraft:diamond_pickaxe"), new ItemStack("minecraft:diamond_pickaxe"), new ItemStack("minecraft:iron_axe")]);
 const st = () => JSON.parse(e.getDynamicProperty("crew:state") ?? "{}");
-const order = (clear) => dispatch(by, { worker: "Flint", job: "quarry", params: { from: g.min, to: g.max, facing: "south", deposit: [chest.x, chest.y, chest.z], keep: "nothing", clear_above: clear } });
+setRole(findWorker("Flint"), "Digger"); const order = (clear) => dispatch(by, { worker: "Flint", job: "quarry", params: { from: g.min, to: g.max, facing: "south", deposit: [chest.x, chest.y, chest.z], keep: "nothing", clear_above: clear } });
 let t = 0;
 // dig 5 of the 8 layers, then stop
 order(false);

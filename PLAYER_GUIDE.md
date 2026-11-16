@@ -7,7 +7,7 @@ or pick "How workers work" in any worker's menu.
 2. [Talk to your worker](#talk-to-your-worker)
 3. [The Survey Stake (your remote)](#the-survey-stake-your-remote)
 4. [Quarry](#quarry)
-5. [Branch mine](#branch-mine)
+5. [Miners (coming next)](#miners-coming-next)
 6. [Tools and tough blocks](#tools-and-tough-blocks)
 7. [Torches](#torches)
 8. [Getting your stuff](#getting-your-stuff)
@@ -20,12 +20,18 @@ or pick "How workers work" in any worker's menu.
 ## Build a worker
 
 1. Place a **barrel** and put **1 to 5 tools** in it (pickaxes, shovels, axes or hoes).
-2. Add **torches** too if you want it to light its tunnels.
+2. Add **torches** too if you want it to light its quarry stairs.
 3. Place a **carved pumpkin** on top of the barrel.
 
 The barrel and pumpkin turn into a little worker in a hard hat. It's yours: you're its owner.
 
-Its **tools decide its job**: a pickaxe makes a Miner (the others are coming later). Better tools let it mine more and dig faster, just like yours.
+The **first tool you put in the barrel decides its job**:
+- a **shovel** makes a **Digger**: it digs quarries. Give it pickaxes too, for stone.
+- a **pickaxe** makes a **Miner**: it will prospect for ore in the next version (no dig jobs until then).
+- axes and hoes are for jobs coming later.
+Each worker only takes its own jobs. Workers from before this update are Diggers now.
+
+Better tools let it mine more and dig faster, just like yours.
 
 Its name tag shows its name, its job and its best tool.
 
@@ -36,7 +42,7 @@ Its name tag shows its name, its job and its best tool.
 - **Tap it holding torches** to give it torches.
 - **Tap it holding the Survey Stake** to link the stake to it, so you can give it orders from anywhere.
 
-The menu has the jobs (Quarry, Branch mine), Come here, Stop, Continue, Drop off, Take what it carries, Home (its bed and chest), and Tools (see how worn each tool is).
+The menu has its jobs (a Digger's: Quarry), Come here, Stop, Continue, Drop off, Take what it carries, Home (its bed and chest), and Tools (see how worn each tool is).
 
 Owners also get: Name, Role, Who can give orders, and Dismiss.
 
@@ -53,10 +59,10 @@ Get one: pick **Get a Survey Stake** in a worker's menu, type **/crew:stake**, o
 
 Plan a dig
 1. **Face the way you want to dig** and tap the ground block where it should start.
-2. Pick Quarry or Branch mine and set the size with the sliders. For a quarry, **Clear above** also takes off the hill or trees on top of it.
+2. Pick **Plan a quarry** and set the size with the sliders. **Clear above** also takes off the hill or trees on top of it.
 3. A **white outline** shows the plan while you hold the stake (flames point forward).
 4. Tap with the stake again (any block, or the air) and pick **Confirm**. The outline turns green.
-5. **Start it with** the linked worker right there, or later from its orders. Choose where it drops off and what to bring back, then Start.
+5. **Start it with** the linked Digger right there, or later from its orders. Choose where it drops off and what to bring back, then Start.
 
 Done with the stake? Every stake menu has **Put the stake away**. Your plan and link are kept.
 
@@ -64,7 +70,7 @@ A worker far from everyone may be out of reach (its area isn't loaded). Go a bit
 
 ## Quarry
 
-Digs out a whole box, top layer first, row by row. The block you staked is the top corner: it digs forward (the way you faced), to your right, and down.
+A **Digger's** job. Digs out a whole box, top layer first, row by row. The block you staked is the top corner: it digs forward (the way you faced), to your right, and down.
 
 **Depth** is how many blocks down, not a Y level, so it never needs a minus sign: from Y 64, a depth of 20 digs down to Y 45. The plan's summary says where the bottom ends up.
 
@@ -76,15 +82,13 @@ Otherwise it only digs inside the box. The one exception: if a block is in its w
 
 Up to 128 blocks on each side.
 
-## Branch mine
+## Miners (coming next)
 
-Digs **stairs down** to the level you pick (default Y -54, good for diamonds), then a long **main tunnel**, then side **branches** off both sides.
+A worker built with a **pickaxe** first is a **Miner**. In the next version you'll tell a Miner what ore to find and roughly where, and it digs its own **branch mine**: stairs down to the best depth for that ore, a main tunnel and side branches with 2 solid blocks between them.
 
-You choose: main tunnel length and width (1 to 4), branch length, the solid blocks left between branches (default 2), and the depth.
+It will mine **ore it finds in the tunnel walls** and fill the holes back in, light its tunnels, and report what it finds.
 
-When **ore shows in the tunnel walls**, it mines the ore (and the rest of that vein) and fills the holes back with stone, so the walls stay solid.
-
-It digs the far branches first and works back toward the stairs.
+Until then a Miner has no dig jobs. Branch mines can't be ordered on their own any more; one a worker had already started can still be continued.
 
 ## Tools and tough blocks
 
@@ -98,13 +102,9 @@ If none of its tools can break a block (obsidian with an iron pickaxe), it **lea
 
 ## Torches
 
-Give it torches (in the barrel when you build it, or tap it holding torches) and it places them as it digs:
+Give it torches (in the barrel when you build it, or tap it holding torches) and it places them on the **quarry staircase** as it goes down, so the stairs stay lit.
 
-- every **12 blocks** of stairs and branches
-- closer together in a wide main tunnel
-- on the quarry staircase
-
-That keeps every tunnel block **bright enough that monsters can't spawn**.
+Miners will light their tunnels too, close enough that monsters can't spawn, when prospecting arrives.
 
 It tells you when it runs out. Torches never go into the chest.
 
@@ -142,7 +142,7 @@ Tip: put a bed and a chest near a mine so its walk home is short.
 
 Either way it **remembers where it was**. Pick **Continue** in its menu and it walks back and picks the job up where it left off. Sending it to drop off or calling it over works the same way.
 
-Starting a new quarry or branch mine forgets the old one.
+Starting a new quarry forgets the old one.
 
 It also carries on by itself after the server restarts, and after a night's sleep.
 

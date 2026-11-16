@@ -3,7 +3,7 @@
 // When no pickaxe is left the worker drops off and waits; adding one gets it going again.
 import { world, tick, ItemStack } from "@minecraft/server";
 import { startEngine } from "./scripts/runner.js";
-import { spawnWorker } from "./scripts/workers.js";
+import { findWorker, setRole, spawnWorker } from "./scripts/workers.js";
 import { dispatch } from "./scripts/orders.js";
 import { statusText } from "./scripts/runner.js";
 import { Container } from "@minecraft/server";
@@ -25,7 +25,7 @@ const pick = (block) => chooseTool(kit(w.inv), block, toolPref(w)).tool?.info.la
 const toolSetting = { saveMyBest: { stone: pick("minecraft:stone"), obsidian: pick("minecraft:obsidian") } };
 setToolPref(w, "fastest");
 toolSetting.fastest = { stone: pick("minecraft:stone"), obsidian: pick("minecraft:obsidian") };
-const order = dispatch(by, { worker: "Moss", job: "quarry", params: { from: [100, 64, 100], to: [109, 61, 109], deposit: [100, 65, 96], keep: "all" } });
+setRole(findWorker("Moss"), "Digger"); const order = dispatch(by, { worker: "Moss", job: "quarry", params: { from: [100, 64, 100], to: [109, 61, 109], deposit: [100, 65, 96], keep: "all" } });
 let t = 0, waitedAt = null, statusWhileWaiting = "", gave = null;
 while (e.getDynamicProperty("crew:job") && t < 200000) {
   tick(++t);

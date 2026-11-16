@@ -38,8 +38,20 @@ a full server restart: `reload` refuses to re-register it.
 - **Run B, doors and the deep refusal (2, 3b):** put an iron door on its way home, shut, then open
   (2). Stake a quarry with a door or trapdoor inside the box: it digs around it. Then stake a quarry
   far underground with Clear above on: it's refused (3b).
+- **Run D, Diggers and Miners (11, 11b, 11c):** after the role split goes on the server. Do it
+  first then: Run A needs a Digger.
 - **Run C, at night (7, 7b, 7c):** crouch-tap the sleeping worker and its bed (7), Wake up and wait a
   minute (7b), wake it again and give it a small dig (7c).
+
+**Diggers and Miners (built Nov 15, mock-tested; not on the server yet)**
+- [ ] 11. Existing workers turn into Diggers the first time they load: the name tag says Digger, the
+      skin changes, and the owner gets one "I'm a Digger now" message. A quarry it was digging (or
+      had stopped) carries on / continues.
+- [ ] 11b. Build a new worker with a shovel first (and a pickaxe): it's a Digger and digs a quarry,
+      stone included. Build one with a pickaxe first: it's a Miner, its menu has no Quarry, and
+      `/crew:minebox` or the stake's "Start it with" refuses with "Quarries are a Digger's job".
+- [ ] 11c. Branch mine is gone: no button in the worker menu, the stake only plans quarries,
+      `/crew:jobs` doesn't list it.
 
 **Doors**
 - [x] 1. A worker walking to a bed inside a house opens the wooden door, walks through and shuts it
@@ -95,13 +107,16 @@ a full server restart: `reload` refuses to re-register it.
 
 Quick pass before any server install. Takes about 15 minutes in the local world.
 
-- [ ] Build a worker (barrel, tools, carved pumpkin): it appears with the right skin and name tag.
+- [ ] Build a worker (barrel, tools, carved pumpkin): it appears with the right skin and name tag;
+      shovel first = Digger, pickaxe first = Miner.
 - [ ] Tap with a tool: it takes it. Tap with torches: it takes them. A stranger can't give it either.
 - [ ] Crouch-tap: menu opens. A player who isn't allowed sees status only.
-- [ ] Survey Stake: link a worker, plan a quarry, confirm, start it. Plan a branch mine the same way.
-- [ ] Quarry digs block by block at player speed, leaves a working stair, places torches on it.
-- [ ] Branch mine: stairs, trunk, branches with 2 solid blocks between; ore in the walls dug and
-      filled; obsidian with an iron pickaxe skipped and logged.
+- [ ] Survey Stake: link a Digger, plan a quarry, confirm, start it.
+- [ ] Quarry digs block by block at player speed, leaves a working stair, places torches on it;
+      obsidian with an iron pickaxe skipped and logged.
+- [ ] A Miner refuses a quarry with a message naming the Digger. (From v0.6: the Miner's
+      prospecting replaces the old branch-mine check: stairs, trunk, branches with 2 solid blocks
+      between, ore in the walls dug and filled.)
 - [ ] Stop, then Continue: picks up where it left off.
 - [ ] Drop off at a chest; Take what it carries.
 - [ ] Home: set a bed and chest. At dusk it goes home, unloads, sleeps; at dawn it restocks and

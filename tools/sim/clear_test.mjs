@@ -6,7 +6,7 @@ import { world, tick, ItemStack } from "@minecraft/server";
 import { startEngine } from "./scripts/runner.js";
 import { insideTracker, blinkCount } from "./inside.mjs";
 const inside = insideTracker();
-import { spawnWorker } from "./scripts/workers.js";
+import { findWorker, setRole, spawnWorker } from "./scripts/workers.js";
 import { dispatch } from "./scripts/orders.js";
 import { quarryGeom, isStairBlock } from "./scripts/plans.js";
 
@@ -30,7 +30,7 @@ startEngine();
 const by = { id: "p1", name: "Brian", isOp: false };
 const { e } = spawnWorker(ow, { x: max.x + 3.5, y: 65, z: min.z - 5.5 }, { id: "p1", name: "Brian" }, "Clay",
   [new ItemStack("minecraft:diamond_pickaxe"), new ItemStack("minecraft:iron_shovel"), new ItemStack("minecraft:iron_axe"), new ItemStack("minecraft:torch", 16)]);
-const order = dispatch(by, { worker: "Clay", job: "quarry", params: { from: min, to: max, facing: "south", deposit: [max.x + 3, 65, min.z - 3], keep: "all", clear_above: true } });
+setRole(findWorker("Clay"), "Digger"); const order = dispatch(by, { worker: "Clay", job: "quarry", params: { from: min, to: max, facing: "south", deposit: [max.x + 3, 65, min.z - 3], keep: "all", clear_above: true } });
 const job = JSON.parse(e.getDynamicProperty("crew:job") ?? "null");
 let t = 0, maxJump = 0, last = { ...e.location }, highest = -99;
 while (e.getDynamicProperty("crew:job") && t < 200000) {
@@ -50,7 +50,7 @@ for (let x = min.x; x <= max.x; x++) for (let z = min.z; z <= max.z; z++) {
 }
 // staked underground (y 0, 64 layers of stone over it): refused, nothing starts
 const { e: e2 } = spawnWorker(ow, { x: 1100.5, y: 65, z: 1100.5 }, { id: "p1", name: "Brian" }, "Mole", [new ItemStack("minecraft:iron_pickaxe")]);
-const deep = dispatch(by, { worker: "Mole", job: "quarry", params: { from: [1100, -3, 1100], to: [1104, 0, 1104], facing: "south", deposit: [max.x + 3, 65, min.z - 3], clear_above: true } });
+setRole(findWorker("Mole"), "Digger"); const deep = dispatch(by, { worker: "Mole", job: "quarry", params: { from: [1100, -3, 1100], to: [1104, 0, 1104], facing: "south", deposit: [max.x + 3, 65, min.z - 3], clear_above: true } });
 
 console.log = out;
 console.log(JSON.stringify({ order: order.message, layersAbove: up, ticks: t, finished: !e.getDynamicProperty("crew:job"), leftAbove, leftovers: leftovers.slice(0, 8), leftInBox,

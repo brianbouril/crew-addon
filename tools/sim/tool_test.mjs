@@ -3,7 +3,7 @@
 // waiting at gets taken. Either way it goes back and finishes the dig.
 import { world, tick, ItemStack } from "@minecraft/server";
 import { startEngine } from "./scripts/runner.js";
-import { spawnWorker } from "./scripts/workers.js";
+import { setRole, spawnWorker } from "./scripts/workers.js";
 import { dispatch } from "./scripts/orders.js";
 
 const logs = []; const out = console.log; console.log = (...a) => logs.push(a.join(" ")); console.warn = (...a) => logs.push("WARN " + a.join(" "));
@@ -23,7 +23,7 @@ function run(name, x0, where) {
   const worn = new ItemStack("minecraft:wooden_pickaxe"); worn.damage = 52; // a few blocks left in it
   const { e } = spawnWorker(ow, { x: x0 + 3.5, y: 65, z: 1197.5 }, { id: "p1", name: "Brian" }, name, [worn]);
   dispatch(by, { worker: name, job: "set_home", params: { bed: [x0 + 10, 65, 1210], chest: [homeChest.x, homeChest.y, homeChest.z] } });
-  dispatch(by, { worker: name, job: "quarry", params: { from: [x0 + 2, 63, 1202], to: [x0 + 5, 64, 1205], facing: "south", deposit: [dropoff.x, dropoff.y, dropoff.z], keep: "all" } });
+  setRole(e, "Digger"); dispatch(by, { worker: name, job: "quarry", params: { from: [x0 + 2, 63, 1202], to: [x0 + 5, 64, 1205], facing: "south", deposit: [dropoff.x, dropoff.y, dropoff.z], keep: "all" } });
   const st = () => JSON.parse(e.getDynamicProperty("crew:state") ?? "{}");
   const onTop = (p) => [dropoff, homeChest].some((c) => Math.floor(p.x) === c.x && Math.floor(p.z) === c.z && Math.floor(p.y) > c.y);
   let stoodOnChest = 0, waitedAt = null, gaveAt = null, backAt = null, fetched = false;

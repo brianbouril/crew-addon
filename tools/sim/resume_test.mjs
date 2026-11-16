@@ -3,7 +3,7 @@
 // uninterrupted run, and a new dig order must replace the paused one.
 import { world, tick, ItemStack } from "@minecraft/server";
 import { startEngine } from "./scripts/runner.js";
-import { spawnWorker } from "./scripts/workers.js";
+import { findWorker, setRole, spawnWorker } from "./scripts/workers.js";
 import { dispatch } from "./scripts/orders.js";
 
 const logs = []; const out = console.log; console.log = (...a) => logs.push(a.join(" ")); console.warn = (...a) => logs.push("WARN " + a.join(" "));
@@ -15,7 +15,7 @@ const by = { id: "p1", name: "Brian", isOp: false };
 const ub = new ItemStack("minecraft:iron_pickaxe"); ub.enchants.unbreaking = 3;
 const { e } = spawnWorker(ow, { x: 500.5, y: 65, z: 508.5 }, { id: "p1", name: "Brian" }, "Dot", [ub]);
 const params = { start: [500, 64, 500], facing: "north", target_y: 58, trunk_length: 12, branch_length: 4, spacing: 2, deposit: [chest.x, chest.y, chest.z], keep: "all" };
-const started = dispatch(by, { worker: "Dot", job: "branch_mine", params });
+const started = dispatch(by, { internal: true, worker: "Dot", job: "branch_mine", params });
 const step = () => JSON.parse(e.getDynamicProperty("crew:state") ?? "{}").i ?? 0;
 let t = 0;
 while (step() < 40 && t < 50000) tick(++t);

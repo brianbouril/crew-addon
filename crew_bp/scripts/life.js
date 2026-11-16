@@ -3,7 +3,7 @@
 // at dusk, sleeping, picking the job back up at dawn) is the `rest` job in runner.js.
 import { world } from "@minecraft/server";
 import { TORCH, passable } from "./blocks.js";
-import { KIT_SLOTS, addToKit, kit, stash, toolInfo } from "./tools.js";
+import { KIT_SLOTS, addToKit, kit, roleKinds, stash, toolInfo } from "./tools.js";
 import { getJSON, setJSON } from "./util.js";
 
 /** @typedef {{x:number,y:number,z:number}} V3 */
@@ -269,7 +269,7 @@ export function restock(dim, home, inv, role) {
     }
     return n;
   };
-  const kinds = role === "Miner" ? ["pickaxe", "shovel"] : role === "Digger" ? ["shovel"] : role === "Woodcutter" ? ["axe"] : ["hoe"];
+  const kinds = roleKinds(role);
   for (let i = 0; i < chest.size; i++) {
     const it = chest.getItem(i);
     if (!it) continue;

@@ -5,9 +5,9 @@ import { world, system, BlockPermutation } from "@minecraft/server";
 import { AIR, FILL, GRAVITY, ORE, SIGNS, TORCH, VALUABLE, bestKind, blockName, canSee, keepIntact, needsOpening, passable, setOpen } from "./blocks.js";
 import { off, column, inBranchPlan, isStairBlock, startCell, stepAt } from "./plans.js";
 import { advance, atGoal, near, newSearch } from "./path.js";
-import { KIT_SLOTS, addToKit, chooseTool, freeHaulSlots, kit, kitText, stash, ticksFor, toolInfo, toolPref, wear } from "./tools.js";
+import { KIT_SLOTS, addToKit, chooseTool, freeHaulSlots, kit, kitText, roleKinds, stash, ticksFor, toolInfo, toolPref, wear } from "./tools.js";
 import { center, dist, floorV, fmt, getJSON, lerp, setJSON, onlinePlayer, sameV, up } from "./util.js";
-import { emit, holdTool, loadedWorkers, meta, roleOf, syncRole, updateTag } from "./workers.js";
+import { emit, holdTool, loadedWorkers, meta, migrateRole, roleOf, syncRole, updateTag } from "./workers.js";
 import { DRAIN_PER_BLOCK, EXHAUSTED, REST, TIRED, TIRED_SLOWDOWN, bedPose, bedSafety, bedside, eatOne, energy, energyWord, getHome, isNight, isSupply, restock, setEnergy } from "./life.js";
 
 /**
@@ -460,6 +460,7 @@ function stepRest(rt) {
 /** Resumes saved jobs on workers that just loaded (after a restart or when a player comes back). */
 function adopt() {
   for (const e of loadedWorkers()) {
+    migrateRole(e); // workers made before the Digger/Miner split become Diggers (once)
     syncRole(e); // workers made before skins existed pick theirs up here
     if (active.has(e.id)) continue;
     const job = getJSON(e, "crew:job", undefined);
@@ -1213,8 +1214,7 @@ function needTool(rt, what) {
 /** The kinds of tool that would get it working again. @param {Runtime} rt */
 function toolKinds(rt) {
   if (rt.st.needTool === "pickaxe") return ["pickaxe"];
-  const role = roleOf(rt.e);
-  return role === "Miner" ? ["pickaxe", "shovel"] : role === "Digger" ? ["shovel"] : role === "Woodcutter" ? ["axe"] : ["hoe"];
+  return roleKinds(roleOf(rt.e));
 }
 /** @param {Runtime} rt @param {Container} inv */
 function hasNeededTool(rt, inv) {

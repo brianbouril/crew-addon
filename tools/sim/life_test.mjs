@@ -5,7 +5,7 @@
 // home sleeps where it stands. A bed under the open sky is reported unsafe.
 import { world, tick, ItemStack, setTimeOfDay } from "@minecraft/server";
 import { startEngine, wakeUp } from "./scripts/runner.js";
-import { spawnWorker } from "./scripts/workers.js";
+import { findWorker, setRole, spawnWorker } from "./scripts/workers.js";
 import { dispatch } from "./scripts/orders.js";
 import { energy, setEnergy } from "./scripts/life.js";
 
@@ -35,7 +35,7 @@ const run = (until, max) => { const end = t + max; while (!until() && t < end) t
 
 // day: start a branch mine, dig for a while
 setTimeOfDay(1000);
-dispatch(by, { worker: "Bea", job: "branch_mine", params: { start: [600, 64, 610], facing: "south", target_y: 60, trunk_length: 10, branch_length: 3, spacing: 2, deposit: [chestAt.x, chestAt.y, chestAt.z], keep: "all" } });
+dispatch(by, { internal: true, worker: "Bea", job: "branch_mine", params: { start: [600, 64, 610], facing: "south", target_y: 60, trunk_length: 10, branch_length: 3, spacing: 2, deposit: [chestAt.x, chestAt.y, chestAt.z], keep: "all" } });
 run(() => (st().i ?? 0) >= 30, 20000);
 const dugBeforeNight = st().i;
 // dusk
@@ -59,7 +59,7 @@ const finished = !job();
 
 // no home: it sleeps where it stands, and less well
 const { e: e2 } = spawnWorker(ow, { x: 700.5, y: 65, z: 700.5 }, { id: "p1", name: "Brian" }, "Rook", [new ItemStack("minecraft:iron_pickaxe")]);
-dispatch(by, { worker: "Rook", job: "quarry", params: { from: [700, 63, 700], to: [703, 64, 703], facing: "south", deposit: [chestAt.x, chestAt.y, chestAt.z], keep: "all" } });
+setRole(findWorker("Rook"), "Digger"); dispatch(by, { worker: "Rook", job: "quarry", params: { from: [700, 63, 700], to: [703, 64, 703], facing: "south", deposit: [chestAt.x, chestAt.y, chestAt.z], keep: "all" } });
 run(() => JSON.parse(e2.getDynamicProperty("crew:state") ?? "{}").i >= 5, 4000);
 setEnergy(e2, 30);
 setTimeOfDay(13000);
@@ -95,7 +95,7 @@ run(() => false, 20 * 30);
 const after30s = job()?.type ?? "idle";
 run(() => job()?.type === "rest", 20 * 45);
 const afterAMinute = job()?.type ?? "idle";
-dispatch(by, { worker: "Bea", job: "quarry", params: { from: [610, 63, 590], to: [614, 64, 594], facing: "south", deposit: [chestAt.x, chestAt.y, chestAt.z], keep: "all" } });
+setRole(findWorker("Bea"), "Digger"); dispatch(by, { worker: "Bea", job: "quarry", params: { from: [610, 63, 590], to: [614, 64, 594], facing: "south", deposit: [chestAt.x, chestAt.y, chestAt.z], keep: "all" } });
 run(() => false, 20 * 20);
 const wake = { wasAsleep, woke, afterWake, after30s, afterAMinute, nightDigStaysUp: job()?.type };
 dispatch(by, { worker: "Bea", job: "stop", params: {} });

@@ -5,6 +5,14 @@ turns it into that version's section.
 
 ## Unreleased
 
+- **Diggers and Miners.** The first tool you put in the barrel sets a worker's job: a shovel makes
+  a **Digger**, which digs quarries (give it pickaxes too, for stone); a pickaxe makes a **Miner**,
+  which will prospect for ore in the next version. Each only takes its own jobs and says who to
+  ask for the rest. Workers built before this update become Diggers (they say so once), and keep
+  whatever they were digging.
+- **Branch mine is no longer a job you can order** (menu, Survey Stake, commands): it comes back
+  inside the Miner's prospecting. A branch mine already started can still be continued.
+
 - Workers walk through invisible light blocks (placed by dynamic-light add-ons) instead of treating
   them as walls, which boxed them in and made them take a shortcut. They never dig them.
 - A worker going to a chest stops where it can see the chest, so a chest against the inside of a

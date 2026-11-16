@@ -10,12 +10,15 @@ export const MAX_TRUNK_WIDTH = 4;
 
 /**
  * type: vec3 = [x,y,z] or {x,y,z}; place = a saved place name or a vec3; enum; int; player = a player name.
- * @type {Record<string, {description: string, params: Record<string, {type: string, required?: boolean, values?: string[], default?: any, min?: number, max?: number, description: string}>}>}
+ * roles: which worker roles take the job (decision 32, a hard split); none = every role.
+ * hidden: not offered to players or the LLM (kept for a later job to build on); only internal orders run it.
+ * @type {Record<string, {description: string, roles?: string[], hidden?: boolean, params: Record<string, {type: string, required?: boolean, values?: string[], default?: any, min?: number, max?: number, description: string}>}>}
  */
 export const JOBS = {
   quarry: {
+    roles: ["Digger"],
     description:
-      "Dig out every block in the box from `from` to `to`, top layer first, leaving a 1-wide staircase spiralling down the walls so players and the worker can walk in and out. Uses the best tool in its kit for each block and leaves any block no tool can harvest (logged). Deposits whenever full and at the end.",
+      "Digger only. Dig out every block in the box from `from` to `to`, top layer first, leaving a 1-wide staircase spiralling down the walls so players and the worker can walk in and out. Uses the best tool in its kit for each block and leaves any block no tool can harvest (logged). Deposits whenever full and at the end.",
     params: {
       from: { type: "vec3", required: true, description: "One corner of the box (block coordinates)." },
       to: { type: "vec3", required: true, description: "The opposite corner (block coordinates)." },
@@ -26,8 +29,10 @@ export const JOBS = {
     },
   },
   branch_mine: {
+    roles: ["Miner"],
+    hidden: true, // Brian, Nov 15: no longer offered; the Miner's prospecting (v0.6) builds on it
     description:
-      "Branch (strip) mine: dig a 3-tall staircase forward and down from `start` to `target_y`, then a `trunk_width`-wide (default 2), 2-tall trunk `trunk_length` blocks forward. Coming back, cut 1-wide, 2-tall branches left and right with `spacing` solid blocks between them, far end first. Mines around blocks no tool can harvest.",
+      "Miner only. Branch (strip) mine: dig a 3-tall staircase forward and down from `start` to `target_y`, then a `trunk_width`-wide (default 2), 2-tall trunk `trunk_length` blocks forward. Coming back, cut 1-wide, 2-tall branches left and right with `spacing` solid blocks between them, far end first. Mines around blocks no tool can harvest.",
     params: {
       start: { type: "vec3", required: true, description: "The ground block where the stairs begin." },
       facing: { type: "enum", values: FACINGS, required: true, description: "Direction the trunk runs." },
@@ -65,9 +70,23 @@ export const JOBS = {
 /** v0.1 name, still accepted. */
 const ALIASES = { mine_area: "quarry" };
 
+/** The jobs players (and the LLM) can order. */
+const offered = () => Object.entries(JOBS).filter(([, job]) => !job.hidden);
+
+/** Does this role take this job? @param {string} jobName @param {string} role */
+export const roleTakes = (jobName, role) => !JOBS[jobName]?.roles || /** @type {string[]} */ (JOBS[jobName].roles).includes(role);
+
+/** Why a worker refuses a job that isn't its role's. @param {string} name @param {string} role @param {string} jobName */
+export function roleRefusal(name, role, jobName) {
+  const who = JOBS[jobName]?.roles?.[0] ?? "other";
+  const tool = { Digger: "a shovel", Miner: "a pickaxe", Woodcutter: "an axe", Farmer: "a hoe" }[who] ?? "the right tool";
+  const what = jobName === "quarry" ? "Quarries are" : jobName === "branch_mine" ? "Branch mines are" : `'${jobName}' is`;
+  return `${name} is a ${role}. ${what} a ${who}'s job: build a ${who} (put ${tool} in the barrel first), or change ${name}'s role in its menu.`;
+}
+
 /** Tool definitions in the shape LLM APIs expect (name, description, JSON schema). */
 export function toolSchemas() {
-  return Object.entries(JOBS).map(([name, job]) => {
+  return offered().map(([name, job]) => {
     /** @type {Record<string, any>} */
     const properties = { worker: { type: "string", description: "Worker name." } };
     const required = ["worker"];
@@ -105,7 +124,7 @@ function toVec3(v) {
 export function validate(jobName, params) {
   jobName = /** @type {Record<string,string>} */ (ALIASES)[jobName] ?? jobName;
   const job = JOBS[jobName];
-  if (!job) return { ok: false, error: `Unknown job '${jobName}'. Jobs: ${Object.keys(JOBS).join(", ")}.` };
+  if (!job) return { ok: false, error: `Unknown job '${jobName}'. Jobs: ${offered().map(([n]) => n).join(", ")}.` };
   /** @type {Record<string, any>} */
   const out = {};
   for (const [p, spec] of Object.entries(job.params)) {
@@ -155,12 +174,12 @@ export function validate(jobName, params) {
 }
 
 export function catalogText() {
-  return Object.entries(JOBS)
+  return offered()
     .map(([name, job]) => {
       const ps = Object.entries(job.params)
         .map(([p, s]) => `${p}${s.required ? "" : "?"}:${s.type === "enum" ? s.values?.join("|") : s.type}`)
         .join(" ");
-      return `§e${name}§r ${ps}\n  ${job.description}`;
+      return `§e${name}§r${job.roles ? ` §7(${job.roles.join(", ")})§r` : ""} ${ps}\n  ${job.description}`;
     })
     .join("\n");
 }

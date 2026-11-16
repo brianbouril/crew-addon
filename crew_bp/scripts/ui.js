@@ -40,13 +40,21 @@ async function menu(p, title, body, buttons) {
   if (r?.selection !== undefined) await buttons[r.selection]?.[1]();
 }
 
+/** What each role does, shown after its name in the menu. @type {Record<string, string>} */
+const ROLE_JOBS = {
+  Digger: " (quarries)",
+  Miner: " (prospecting for ore is coming in the next version; it has no dig jobs until then)",
+  Woodcutter: " (no jobs yet)",
+  Farmer: " (no jobs yet)",
+};
+
 /** @param {Player} p @param {Entity} e */
 export async function openMenu(p, e) {
   if (!e.isValid) return;
   const by = whoIs(p);
   const m = meta(e);
   const can = canCommand(by, m), manage = canManage(by, m);
-  const body = `${roleOf(e)}. Owner: ${m.ownerName}.\n${statusText(e)}${carriedLine(e)}`;
+  const body = `${roleOf(e)}${ROLE_JOBS[roleOf(e)] ?? ""}. Owner: ${m.ownerName}.\n${statusText(e)}${carriedLine(e)}`;
   if (!can) return menu(p, m.name, `${body}\n\nOnly ${m.ownerName} and the players they allow can give ${m.name} orders.`, [["How workers work", () => openGuide(p)], ["Close", () => {}]]);
   /** @type {[string, () => any][]} */
   const b = [];
@@ -55,12 +63,12 @@ export async function openMenu(p, e) {
   if (resting) b.push(["Wake up", () => tell(p, wakeUp(e) ? `${m.name} is getting up.` : `${m.name} is already up.`)]);
   const paused = pausedJob(e);
   const digging = /quarry|branch_mine/.test(String(getJSON(e, "crew:job", undefined)?.type));
-  if (roleOf(e) === "Miner" && paused && !digging) {
+  if (paused && !digging) {
     b.push([`Continue the ${paused.name} (${paused.pct}% done)`, () => say(p, dispatch(by, { worker: m.name, job: "resume", params: {} }))]);
   }
-  if (roleOf(e) === "Miner") {
+  // decision 32: each role offers only its own jobs. The Miner's (prospecting) come in v0.6.
+  if (roleOf(e) === "Digger") {
     b.push(["Quarry", () => digForm(p, by, e, "quarry")]);
-    b.push(["Branch mine", () => digForm(p, by, e, "branch")]);
     if (!hasStake(p)) b.push(["Get a Survey Stake", () => tell(p, giveStake(p))]);
   }
   b.push(["Come here", () => say(p, dispatch(by, { worker: m.name, job: "come", params: {} }))]);
@@ -222,7 +230,7 @@ export async function digForm(p, by, e, mode) {
       return menu(p, `${m.name}: ${label}`, `${planText(plan)}\n\nThis plan isn't confirmed yet. Did you check its outline?`,
         [["Confirm it and go on", () => { updatePlan(p, { confirmed: true }); return digForm(p, by, e, mode); }], ["Not yet", () => {}]]);
     }
-    const why = `No ${label} planned yet. With a Survey Stake, tap the ground block where the ${label} should start while facing the way it should go, pick ${mode === "quarry" ? "Quarry" : "Branch mine"}, check the outline, then tap with the stake again and pick Confirm.`;
+    const why = `No ${label} planned yet. With a Survey Stake, tap the ground block where the ${label} should start while facing the way it should go, pick ${mode === "quarry" ? "Plan a quarry" : "Branch mine"}, check the outline, then tap with the stake again and pick Confirm.`;
     /** @type {[string, () => any][]} */
     const buttons = hasStake(p) ? [["OK", () => {}]] : [["Give me a Survey Stake", () => tell(p, giveStake(p))], ["OK", () => {}]];
     return menu(p, `${m.name}: ${label}`, why, buttons);
@@ -332,13 +340,13 @@ async function roleForm(p, e) {
   const m = meta(e);
   if (isWorking(e)) return menu(p, m.name, `Stop ${m.name} before changing its role.`, [["OK", () => {}]]);
   const f = new ModalFormData().title(`${m.name}: role`)
-    .dropdown("Role (only Miner has jobs so far; the others are coming)", ROLE_LIST, { defaultValueIndex: Math.max(0, ROLE_LIST.indexOf(roleOf(e))) })
+    .dropdown("Role: Digger digs quarries; Miner will prospect for ore (next version); Woodcutter and Farmer are coming", ROLE_LIST, { defaultValueIndex: Math.max(0, ROLE_LIST.indexOf(roleOf(e))) })
     .submitButton("Save");
   const r = await show(p, f);
   if (!r?.formValues) return;
   const role = ROLE_LIST[Number(r.formValues[0])];
   setRole(e, role);
-  tell(p, `${m.name} is now a ${role}.${role === "Miner" ? "" : " It has no jobs yet in this version."}`);
+  tell(p, `${m.name} is now a ${role}.${role === "Digger" ? " It digs quarries." : " It has no dig jobs yet in this version."}`);
 }
 
 /** @param {Player} p @param {Entity} e */
