@@ -10,4 +10,7 @@ crew-addon-source.zip
 # Exports and scratch
 *.pdf
 node_modules/
-.claude/
+# Claude Code: share the subagents and hooks; keep worktrees, local settings and hook state out
+.claude/*
+!.claude/agents/
+!.claude/settings.json

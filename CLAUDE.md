@@ -1,11 +1,17 @@
-# Crew Workers: Minecraft Bedrock add-on
+# Crew Workers: the factory rulebook
 
-Start here. This file plus `docs/PLAN.md` (full plan, job spec, architecture, LLM bridge design) and
-`README.md` (install, player guide, test steps) are the whole context; nothing outside this folder
-is needed. Owner: Brian, who hosts a Bedrock Dedicated Server (BDS) for friends.
+A Minecraft Bedrock add-on of worker mobs, built by a small "software factory" of Claude sessions
+with Brian as product owner. Owner: Brian, who hosts a Bedrock Dedicated Server (BDS) for friends.
+
+Start here. This file is the rulebook; read the rest only as your task needs it:
+- `docs/FACTORY_PLAN.md`: why the factory works this way, the roles, the test layers, the V1 schedule.
+- `specs/`: one spec per feature. **A builder session starts with one spec and nothing else.**
+- `docs/PLAN.md`: full plan, job spec, architecture, LLM bridge design, release roadmap.
+- `docs/QA.md`: the in-game test list. `CHANGELOG.md`: what players will notice.
+- `README.md`: install, player guide, test steps.
 
 ## The goal, in two steps
-1. **Deterministic workers (now):** small worker mobs that do jobs like vanilla mobs do: strip-mine a
+1. **Deterministic workers (now):** worker mobs that do jobs like vanilla mobs do: strip-mine a
    marked area, store what they dig in a chest, later haul to a named depot ("blue base") and report
    finds such as abandoned structures. Same input, same result, every time.
 2. **LLM "general contractor" (later):** players give orders in plain words in game, an LLM turns them
@@ -15,6 +21,134 @@ is needed. Owner: Brian, who hosts a Bedrock Dedicated Server (BDS) for friends.
 So: every job is a typed, validated order (`catalog.js` -> `orders.js`). Slash commands, the menu and
 a future LLM bridge all produce the same `{by, worker, job, params}` object. The LLM never pathfinds
 or decides block logic; it only picks jobs and fills parameters.
+
+## Factory rules (hard rules: no exceptions without Brian's OK)
+
+1. **`main` is always playable.** Anything merged to `main` loads in a world, passes the mock tests
+   and could be released tonight. No half-built features on `main`: unfinished work stays on its
+   branch.
+2. **Every feature lives on `feat/<name>` in its own worktree.** Start one with
+   `claude --worktree <name>` (creates `.claude/worktrees/<name>/` on a new branch; resume with
+   `claude --worktree <name> --resume`). Name the branch `feat/<name>` after the spec
+   (`specs/<name>.md`). Fixes use `fix/<name>`. Never build features directly on `main`.
+3. **Merge only when all of these hold:**
+   - the mock tests pass (`node tools/sim/run.mjs`, exit 0) on the branch, rebased on current `main`;
+   - the `reviewer` subagent has checked the branch's diff against **every** done criterion in its spec
+     and signed off (no open gaps);
+   - the scenario tests named in the spec pass on staging (once staging exists, see FACTORY_PLAN);
+   - `CHANGELOG.md` and `docs/QA.md` are updated on the same branch (rule 6).
+   Brian approves the weekly release, not each branch.
+4. **Never change pack UUIDs or the `crew:` namespace.** Old saves lose their workers. The UUIDs
+   are fixed forever:
+   - BP header `45c91f8b-1a45-49e5-b41a-0c8206b5596c`, BP data module `b8a8b639-58e4-449f-8a1d-d0a9754b47d5`,
+     BP script module `948413df-23c4-431d-86b1-02762a60f5d8`
+   - RP header `b077ee39-0d38-4590-9be0-8dd5396dbf7b`, RP resources module `a9c40f35-11fd-46ea-ab04-5a5070c993f4`
+   - Entity, item, block, command and dynamic property ids keep the `crew:` prefix and never get
+     renamed. A save-format change needs a one-time migration (like `migrateRole`) and a mock test
+     that loads the old format.
+5. **Every new Script API call gets a mock in `tools/sim/mock`** (`@minecraft/server` or
+   `@minecraft/server-ui`) in the same branch, so the mock tests exercise it. A call the mock doesn't
+   know is a test gap, not a shortcut.
+6. **Update `CHANGELOG.md` ("Unreleased") and `docs/QA.md` ("Next release") in the same branch**
+   as the change: a changelog line for anything a player would notice, and an in-game check for it.
+   If players see it, update `crew_bp/scripts/guide_pages.js` too, then `node tools/make_guide.mjs`.
+7. **Stable Script APIs only in the shipped packs:** `@minecraft/server` 2.2.0 and
+   `@minecraft/server-ui` 2.0.0, no beta modules, no experiment toggles. GameTest and any test pack
+   stay out of `crew_bp`/`crew_rp` and never go on the live server.
+8. **Specs first.** No builder starts without a spec whose status is `ready` (Brian has answered its
+   open questions). A builder never fills a gap in a spec with a guess: it asks, or writes the
+   question into the spec's Open questions and stops on that part.
+9. **Two builders at most, never in the same files.** Each spec lists the files it touches; two
+   builders never work in the same file (especially `runner.js`) the same week. Rebase on `main` daily.
+10. **The server is Brian's.** Never copy anything to the live server or reload it without Brian's
+    OK for that update, and back it up first (see "Servers" below).
+
+## Who does what
+
+| Role | What it does | How it runs |
+| --- | --- | --- |
+| Brian (product owner) | Approves specs, answers open questions, playtests the weekly build, approves releases | About 4 hours a week |
+| Lead session | Writes specs, keeps the roadmap, merges branches, builds the weekly release | Claude session on `main` |
+| Builder A / B | Builds one spec on `feat/<name>` | `claude --worktree <name>` |
+| `reviewer` subagent | Checks a branch's diff against its spec's done criteria; lists gaps and unclear code | `.claude/agents/reviewer.md` (read-only + tests) |
+| `test-writer` subagent | Writes mock tests from a spec's done criteria, before the code | `.claude/agents/test-writer.md` |
+
+## Branch flow, step by step
+1. Lead writes `specs/<name>.md` from `specs/_TEMPLATE.md` (status `draft`); Brian answers its open
+   questions; status becomes `ready`.
+2. Builder: `claude --worktree <name>`, branch `feat/<name>`, status `building`. First the
+   `test-writer` subagent turns the done criteria into mock tests (they fail at first), then the code.
+3. Builder keeps the mock tests green (the hooks below run them on every edit), adds mocks for new
+   APIs, updates CHANGELOG, QA.md and the guide. Status `in review`.
+4. `reviewer` subagent reviews the diff against the spec. Fix every gap it lists, then review again.
+5. Lead rebases on `main`, runs the tests, merges, deletes the worktree. Status `shipped` once released.
+6. Once a week the lead builds the release candidate (`v0.x.y-rc`) for staging, then Brian's
+   playtest, then the release (FACTORY_PLAN "Staging vs live").
+
+## Tests
+- **Mock tests (layer 1):** `node tools/sim/run.mjs` (Node 18+, no installs; works on Windows).
+  `sh tools/sim/run.sh` runs the same list where `sh` exists (it calls `run.mjs`). About 2 seconds.
+  Exit code 0 means every test ran without failing. Each test also prints JSON; check `missing`,
+  `extraDug`, `leftInBox`, `shortcutsTaken`.
+- **Known gap:** only `roles_test.mjs` exits non-zero on a wrong result; the older tests only fail
+  when they crash and print their numbers for a person to read. New tests must exit non-zero on a
+  wrong result (the `test-writer` subagent does this); the older ones should be converted.
+- **Hooks** (`.claude/settings.json`, script `tools/hooks/test_hook.mjs`): after every Edit/Write the
+  mock tests run and failures come back to Claude; a session can't end while they fail (Claude Code
+  lets a Stop hook block at most a few times in a row, so it can't loop forever).
+- **Adding a test:** a `*_test.mjs` in `tools/sim/` plus a line in the `steps` list in `run.mjs`.
+  Running one test alone needs a workspace like `run.mjs` builds (mock in
+  `node_modules/@minecraft`, scripts in `scripts/`).
+- **Scenario tests on staging (layer 2):** not built yet; FACTORY_PLAN "Layer 2" (a stable-API test
+  pack printing `[Crew-Test] PASS/FAIL` lines). Never installed on the live server.
+- **Type-check (optional):** in a scratch folder `npm i typescript @minecraft/server@2.2.0 @minecraft/server-ui@2.0.0`,
+  then `tsc --allowJs --checkJs --noEmit` over `crew_bp/scripts/*.js` (strict, ES2022, bundler resolution).
+
+## Build, version and release
+- **Version bump:** `python tools/bump_version.py 0.4.1` sets the version in both manifests (header,
+  modules, the BP's dependency on the RP) and `VERSION` in `crew_bp/scripts/util.js`, together.
+  `python tools/bump_version.py --check` fails if they disagree. Never edit the versions by hand.
+- **Build (the one build command):** `python tools/build.py` checks the three versions agree, runs
+  the mock tests, and writes `dist/crew-addon-<version>.mcaddon` (the same files always give the
+  same zip). It bumps nothing. `--skip-tests` for a quick local package.
+- **Release:** `node tools/release.mjs X.Y.Z` with a clean tree: bump (via `bump_version.py`),
+  turns CHANGELOG "Unreleased" into that version, regenerates the guide, builds (via `build.py`),
+  commits and tags `vX.Y.Z`. `--build-only` bumps and builds without git. Every server update needs
+  a new version, or players keep their cached old resource pack.
+- Python 3 (stdlib only) runs the build scripts; on Windows the command is `python` (or `py`).
+  `release.mjs` finds it (or set `CREW_PYTHON` to a python.exe). **Brian's PC has no Python yet**
+  (Nov 16; only the Microsoft Store stub): install it before the next release
+  (`winget install Python.Python.3.12`).
+- **Install to a local world:** double-click the .mcaddon (Windows) or copy the folders into
+  `development_behavior_packs` / `development_resource_packs` of your Minecraft data folder, then
+  activate both packs on the world. `/reload` only reloads scripts; model, texture or
+  `entities/worker.json` changes need Minecraft fully restarted.
+
+## Servers
+- **Live server (Brian's rule, Nov 14):** never copy changes to it or reload it without Brian's OK for
+  that update. Back up first. It's `C:\MinecraftServer` (since Nov 15), running headless from the
+  "Minecraft Bedrock Server" scheduled task: stop with its `stop-server.bat`, start again with
+  `Start-ScheduledTask 'Minecraft Bedrock Server'` as admin, output in its `logs\server.log`.
+  Script-only changes can go out with `reload` (via `server-command.bat`); a change to a slash
+  command's options needs a full restart.
+- **Staging server:** planned (FACTORY_PLAN week 1): a second port, a copy of the live world, release
+  candidate plus test pack.
+- **Install to BDS:** README "Install on Bedrock Dedicated Server" (pack UUIDs and
+  `world_behavior_packs.json` / `world_resource_packs.json`, `texturepack-required=true`).
+- In game, watch the console for `[Crew] v<version> loaded`, `[Crew-Event]` lines and script errors.
+
+## Keeping others in sync
+- **Shared roadmap (Brian, Nov 14):** every roadmap change in `docs/PLAN.md` also goes into the
+  Google Doc "Crew Workers Roadmap" that friends read (edit in place, same link, player wording, no
+  dates). Friends' comments there are shown to Brian and folded into the plan only after his OK.
+- **Sync snapshot (Brian, Nov 15):** Brian's Claude Duet channel reads Google Drive folder "Crew Addon
+  Sync". After every meaningful change (commit, server push, release, QA results, roadmap change)
+  refresh both: upload `crew-addon-source-<commit>.zip` (`git archive --format=zip
+  --prefix=crew-addon/ <commit>`: tracked files only, no worlds or builds) and update the Google Doc
+  "Crew Addon Status" in place. Never change game code for it.
+- **Git:** private GitHub repo `origin` (see `git remote -v`), branch `main`, releases
+  are tags `vX.Y.Z`. Git for Windows is `C:\Program Files\Git\cmd\git.exe` (may not be on PATH in an
+  old shell). Commit work as it lands.
 
 ## Decisions and why
 | # | Decision | Why / source |
@@ -39,52 +173,38 @@ or decides block logic; it only picks jobs and fills parameters.
 | 18 | A diggable block at head height over where a worker needs to stand is dug out (even just outside a quarry box), instead of working around it. Never: quarry stair steps, containers with items, liquids, protected blocks, or blocks its tools can't harvest | Brian, Nov 12: "if they run into an object they could dig to unblock them it's ok to remove them" |
 | 19 | Digs like a player: one block at a time, each taking its tool's break time, facing the block, with the dig sound; the tool in use shows in its hand (a display copy via `replaceitem`, drop chance 0, so no duplicates) | Brian, Nov 12 |
 | 20 | Branch mine `trunk_width` 1-4 (default 2); extra lanes go to the right of the stairs. Trunk torch spacing tightens with width (12/10/8/6) | Brian, Nov 12 |
+| 21 | Every Survey Stake menu has "Put the stake away" (removes it from the inventory; the plan is kept). The worker menu has "Get a Survey Stake" (and the "no plan yet" message offers one); only one per player, `/crew:stake` follows the same rule | Brian, Nov 12 |
 | 22 | Stopping (or Drop off / Come here) keeps an unfinished quarry or branch mine as paused (`crew:paused`, with its step and queue); "Continue" in the menu, `/crew:continue` or the `resume` job picks it up where it left off. A new dig order replaces it | Brian, Nov 12: "restart from the start" was the only option |
 | 23 | v0.4 living workers: a home (claimed bed, one worker per bed, + home chest within 8), dusk-to-dawn sleep (dig paused and auto-resumed), energy drained by digging and restored by sleep and optional food, morning restock of torches, food and tools from the home chest; no home = sleep rough in place | Brian, Nov 13 roadmap |
 | 24 | The Survey Stake is the remote: tap a worker to link it (`crew:linked` on the player); then a bed = its home (any distance), a chest = home chest / drop-off / named place, the ground = plan a dig (offers to start it with the linked worker), the air = its orders, your plan, link another. Works while the worker's area is loaded | Brian, Nov 13: setting a far bed meant standing by it with the worker's menu open; asked for one device to manage workers |
 | 25 | Workers keep everything they dig by default (`keep` default `all`), with 36 inventory slots like a player (kit in 0-4); night is dusk 12000 to dawn 23000 | Brian, Nov 13: chest looked empty; worker went to bed at dawn |
+| 26 | Quarry "Clear above" (`clear_above`; on by default from the stake, off by default for raw orders): measured at plan and at start (`blocks.js layersAbove`: up to open sky, 3 empty layers in a row; refused past 48), cleared top down as `pre` steps before the quarry's own; the worker reaches up from the ground (never climbs onto what it clears) | Brian, Nov 14: "no floating blocks above the quarry area" |
+| 27 | Workers walk through wooden doors and fence gates (open, step through, close behind; iron only if open) and never break doors, gates or trapdoors | Brian, Nov 14 |
 | 28 | A sleeping worker's menu opens (crouch-tap it or its bed) without waking it; "Wake up" or any order wakes it; woken at night it stays up while busy and returns to bed after 60 s idle (`crew:stayUp`) | Brian, Nov 14 |
 | 29 | Tools menu setting: "Save my best tools" (default) or "Use the fastest tool" (`crew:toolPref`, `chooseTool` prefer) | Brian, Nov 14 |
 | 30 | No Fast pace: player speed only. The mock tests' 5x speed-up is `globalThis.crewTestFast`, set by the mock, not an order param | Brian, Nov 14 |
 | 31 | Workers dig only what they can see (`canSee` line of sight) and walk (never teleport) to a spot with a view; an `unstick` safety net logs `[Crew-Inside]` and steps out if one is ever inside a block | Brian, Nov 14: passed through a quarry stair |
-| 26 | Quarry "Clear above" (`clear_above`; on by default from the stake, off by default for raw orders): measured at plan and at start (`blocks.js layersAbove`: up to open sky, 3 empty layers in a row; refused past 48), cleared top down as `pre` steps before the quarry's own; the worker reaches up from the ground (never climbs onto what it clears) | Brian, Nov 14: "no floating blocks above the quarry area" |
-| 27 | Workers walk through wooden doors and fence gates (open, step through, close behind; iron only if open) and never break doors, gates or trapdoors | Brian, Nov 14 |
 | 32 | Two digging roles with a **hard split** (built Nov 15): Digger (shovel) takes `quarry` and later earthworks; Miner (pickaxe) takes `prospect` (v0.6) and inherits every Prospector decision (there's no separate Prospector worker). `branch_mine` is no longer an order: kept hidden (`catalog.js hidden`) for prospecting to build on. Each refuses the other's orders; come, stop, resume, status, drop off and home stay open to all. Role at build = first tool's kind. Workers from before the split became Diggers once (`migrateRole`) | Brian, Nov 15: "we are still testing so I'd rather make a hard split between the roles and the orders they can take"; "convert them to diggers now and remove the branch mine option" |
-| 21 | Every Survey Stake menu has "Put the stake away" (removes it from the inventory; the plan is kept). The worker menu has "Get a Survey Stake" (and the "no plan yet" message offers one); only one per player, `/crew:stake` follows the same rule | Brian, Nov 12 |
+| 33 | The repo is run as a software factory: specs, one worktree per feature, reviewer subagent, test hooks, one build command (`docs/FACTORY_PLAN.md`) | Brian, Nov 16 |
 
 ## Current state (v0.4.0, released Nov 14 2026)
 - Last release: 0.4.0 (tag `v0.4.0`, `dist/crew-addon-0.4.0.mcaddon`); v0.3 and v0.4 shipped together.
   Earlier: tag `v0.2.0` (the hand-off). README and `docs/PLAN.md` describe it.
+- Unreleased on `main` (for 0.4.1): see CHANGELOG "Unreleased". The live server runs everything up to
+  the light-block and chest fix (commit 3723a50); the Digger/Miner split (8fb73ef) is only in the
+  local "Addon Test" world, waiting for Brian's OK and QA Run D.
 - Digging: break time = tool speed (+Efficiency) over block hardness (`blocks.js hardness`), like a
   player; the block breaks at the end of the swing. Steps ease in and out at about a villager's pace.
 - Jobs: `quarry` (alias `mine_area`; Digger only), `branch_mine` (hidden since Nov 15, Miner only, internal orders), `come`, `stop`, `resume`, `status`, `drop_off`,
   `set_home`, `clear_home`; plus the internal `rest` job the routine starts at dusk or when worn out.
-- `/reload` only reloads scripts. Changes to the model, textures or `entities/worker.json` need the
-  world closed and reopened (safest: quit Minecraft fully and restart).
 - Kit in worker slots 0-4, carrying in 5-35 (36 slots, like a player). Deterministic Unbreaking (wear every N+1 uses); warns at 10%.
 - Skipped blocks go to the `crew:skipped` dynamic property and the status text; branch U-detour.
 - Crouch menu (`ui.js openMenu`), tap-to-give (`ui.js giveHeldTool`, wired in `main.js`), stake planner
   (`marker.js`), A* walking (`path.js`), moving ticking area per working worker.
-- **Tested:** mock-world Node sim (`tools/sim/run.sh`): quarry 12x10x10, branch 20/8/2 with an obsidian
-  detour and a diamond find, tool wear and hand-over (stranger refused), permissions and resume,
-  `main.js` loads. tsc type-check clean against the 2.2.0 / server-ui 2.0.0 typings.
-- **Tested in game (local "Addon Test" world, Nov 12 2026):** packs load, building a worker, stake plan +
-  confirm, crouch menu, quarry and branch mine both dig, obsidian is skipped, a job resumes after leaving
-  and reopening the world. Fixed then: crouch-tapping a worker while holding the stake opened the stake's
-  plan menu (`main.js` now routes it to the worker).
-- **Added Nov 12 after that test, mock-tested only:** decisions 12, 14-21 (villager model and skins,
-  standing/no-clipping movement, ore veins + backfill, torches, take/drop off, `drop_off` job).
-- **v0.4 home and routine (Nov 13)** (`tools/sim/life_test.mjs`): see decision 23 and the Roadmap's v0.4
-  notes. First in-game run (Nov 13): going home, unloading, sleeping and resuming all worked per the
-  log; fixed after it: bed at dawn, setting far beds (stake remote, decision 24), keep-all inventory
-  (decision 25).
-- **Tested in game Nov 14 (local world), all good:** stake remote, keep-everything and drop-off
-  messages, night/dawn routine, sleep pose in bed and rough sleep, tool in hand, block-by-block
-  digging at player speed, food. Fixed during it: idle homeless workers didn't sleep, stake plan menu
-  looping back to the type picker, bump-and-bounce on each step, snapping during swings.
-- **Not yet tested:** anything on BDS (first server install of 0.4.0 is next).
-- **Next fixes:** PLAN "Next fixes (0.4.x patch)": doors (open, walk through, close; never break).
-  Later idea: more natural walking, straight lines instead of right angles (PLAN v0.9).
+- **Tested in game** (local "Addon Test" world, Nov 12-14; live server from Nov 14): see `docs/QA.md`
+  for what's ticked and what's open.
+- **Next:** FACTORY_PLAN week 1 (staging server, test spike, QA Run D), then the settlement layer and
+  Hauler specs. Open fix: close doors that were already open (PLAN "Next fixes").
 
 ## Known limits
 - Movement is scripted gliding along an A* path, not vanilla AI; blinks once if no route.
@@ -97,72 +217,25 @@ or decides block logic; it only picks jobs and fills parameters.
   branch mines (a quarry never touches blocks outside its box).
 
 ## What's left
-The release roadmap with task lists is in `docs/PLAN.md` ("Roadmap"). In short, one release at a time,
-each tested in game before the next:
-1. **v0.3 Better digging:** in-game pass of what's built (tool in hand especially), bump to 0.3.0,
-   first server install.
-2. **v0.4 Home and daily routine:** bed + home chest, safe-bed check, day clock, routine over jobs,
-   energy (sleep and optional food restore it), sleep/eat animations.
-3. **v0.5 Two digging roles (decision 32):** hard split; Digger (shovel) quarries, Miner (pickaxe)
-   waits for prospecting; branch mine no longer orderable. Built Nov 15 (mock-tested), server pending.
-4. **v0.6 Miner: prospecting** (planned as "Prospector"; it's the Miner, not a new worker):
-   autonomous `prospect` job (target, start, range, quota), wooden mine entrance with a named sign
-   and entrance chest, growing branch mine, caves, hazards, stop rules, makes its own tools.
-5. **v0.7 Hauler:** new worker that collects from mine entrance chests and consolidates to a depot; `haul`.
-6. **v0.8 Character:** ranks, personality, talking, journal and "while you were away".
-7. **v0.9 Loose ends:** `collect_skipped`, `scout`, movement polish.
-8. **Later:** Digger earthworks (flatten, fill, trench, paths), danger, social, other roles, LLM
-   bridge, contractor mode.
-
-Decided Nov 13: living workers (home, routine, goals); no x-ray; home every night; food optional
-(restores energy like sleep); no mob danger yet; keep Quarry and Branch mine. Open questions are
-listed at the end of the roadmap.
+V1 (by Dec 31, FACTORY_PLAN "V1 scope and schedule"): settlement layer, Hauler, Woodcutter and Farmer,
+Miner prospecting, Sifter, with the cut line there. January: the Smith, Builder, LLM orders. The
+older release roadmap with task lists is in `docs/PLAN.md` ("Roadmap"); where the two disagree on
+order, FACTORY_PLAN is newer (Nov 16) and PLAN.md's roadmap still needs updating with Brian.
 
 ## Layout
 - `crew_bp/` behavior pack. `scripts/main.js` is the entry. `workers.js` spawn, kit, ownership;
-  `runner.js` job loop, daily routine and `rest` job; `life.js` home, beds, energy, food, restock; `plans.js` quarry and branch geometry; `path.js` A*; `tools.js` tiers, wear,
-  kit; `blocks.js` block tiers and best tool kind; `catalog.js` job schema; `orders.js` dispatcher;
-  `ui.js` + `forms.js` menus; `marker.js` Survey Stake; `commands.js` slash commands; `store.js`
-  persistence (places); `util.js` helpers. `entities/worker.json`, `items/`, `recipes/survey_stake.json`.
+  `runner.js` job loop, daily routine and `rest` job; `life.js` home, beds, energy, food, restock;
+  `plans.js` quarry and branch geometry; `path.js` A*; `tools.js` tiers, wear, kit; `blocks.js` block
+  tiers and best tool kind; `catalog.js` job schema; `orders.js` dispatcher; `ui.js` + `forms.js`
+  menus; `marker.js` Survey Stake; `commands.js` slash commands; `store.js` persistence (places);
+  `util.js` helpers and `VERSION`. `entities/worker.json`, `items/`, `recipes/survey_stake.json`.
+- `crew_rp/` resource pack (model, textures, lang).
 - Player guide: `crew_bp/scripts/guide_pages.js` is the one source for the in-game guide (`/crew:guide`,
   "How workers work" in menus, one-time welcome line; `guide.js`) and `PLAYER_GUIDE.md`
   (`node tools/make_guide.mjs`). **Update the pages whenever a feature a player sees changes,** then regenerate.
-- `crew_rp/` resource pack (model, textures, lang).
-- `tools/release.mjs` cuts a release (tests, version bump, guide, `dist/crew-addon-<v>.mcaddon`, git commit + tag).
-  `node tools/make_textures.mjs [previewDir]` redraws the role skins, stake and icons (optional 8x previews).
-- `tools/sim/` mock `@minecraft/server` + tests. Extend the mock when you use a new API.
-
-## How to work on it
-- **Run tests after every change:** `node tools/sim/run.mjs` (Node 18+, no installs; works on Windows).
-  `sh tools/sim/run.sh` does the same where `sh` exists. Each test prints JSON;
-  check `missing`, `extraDug`, `leftInBox`, `shortcutsTaken`.
-- **Type-check (optional):** in a scratch folder `npm i typescript @minecraft/server@2.2.0 @minecraft/server-ui@2.0.0`,
-  then `tsc --allowJs --checkJs --noEmit` over `crew_bp/scripts/*.js` (strict, ES2022, bundler resolution).
-- **Git:** the project is a git repo (Git for Windows, `C:\Program Files\Git\cmd\git.exe`; may not be on
-  PATH in an old shell). Branch `main`; releases are tags `vX.Y.Z`. Commit work as it lands; add a line
-  to `CHANGELOG.md` under "Unreleased" for anything a player would notice, and an in-game check to
-  `docs/QA.md` under "Next release" (the running test list; Brian ticks it off when he tests).
-- **Release:** `node tools/release.mjs X.Y.Z` with a clean tree: runs the tests (stops if they fail),
-  sets the version in both manifests (header, modules, BP->RP dependency) and `VERSION` in `util.js`,
-  turns "Unreleased" into that version, regenerates the guide, builds `dist/crew-addon-X.Y.Z.mcaddon`,
-  commits and tags. `--build-only` bumps and builds without git. Every server update needs a new
-  version, or players keep their cached old resource pack.
-- **Install to a local world:** double-click the .mcaddon (Windows) or copy the folders into
-  `development_behavior_packs` / `development_resource_packs` of your Minecraft data folder, then
-  activate both packs on the world.
-- **Shared roadmap (Brian, Nov 14):** every roadmap change in `docs/PLAN.md` also goes into the
-  Google Doc "Crew Workers Roadmap" that friends read (edit in place, same link, player wording, no
-  dates). Friends' comments there are shown to Brian and folded into the plan only after his OK.
-- **Sync snapshot (Brian, Nov 15):** Brian's Claude Duet channel reads Google Drive folder "Crew Addon
-  Sync". After every meaningful change (commit, server push, release, QA results, roadmap change)
-  refresh both: upload `crew-addon-source-<commit>.zip` (`git archive --format=zip
-  --prefix=crew-addon/ <commit>`: tracked files only, no worlds or builds) and update the Google Doc
-  "Crew Addon Status" in place (version and commit, changelog since v0.2, roles and jobs, server vs
-  Addon Test, open QA, roadmap next). Never change game code for it.
-- **Server rule (Brian, Nov 14):** never copy changes to the server (`C:\MinecraftServer` since Nov 15; it runs headless from the
-  "Minecraft Bedrock Server" scheduled task: stop with its `stop-server.bat`, start again with
-  `Start-ScheduledTask 'Minecraft Bedrock Server'` as admin, output in its `logs\server.log`)
-  or reload it without Brian's OK for that update. Local test world dev packs are fine. Back up first.
-- **Install to BDS:** see README "Install on Bedrock Dedicated Server" (pack UUIDs and
-  `world_behavior_packs.json` / `world_resource_packs.json`, `texturepack-required=true`).
-- In game, watch the server console for `[Crew] v<version> loaded`, `[Crew-Event]` lines and script errors.
+- `specs/` feature specs (`_TEMPLATE.md` to start one).
+- `.claude/agents/` the `reviewer` and `test-writer` subagents; `.claude/settings.json` the test hooks
+  (`tools/hooks/test_hook.mjs`). Other `.claude/` contents (worktrees, local settings) aren't tracked.
+- `tools/sim/` mock `@minecraft/server` + tests (`run.mjs`). `tools/build.py` build,
+  `tools/bump_version.py` version, `tools/release.mjs` release, `tools/make_guide.mjs` guide,
+  `node tools/make_textures.mjs [previewDir]` redraws the role skins, stake and icons.

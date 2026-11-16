@@ -38,12 +38,23 @@ const steps = [
   ["reaching a chest (inside a house; light blocks)", ["chest_test.mjs"]],
   ["Digger and Miner roles", ["roles_test.mjs"]],
   ["main.js loads", ["-e", 'import("./scripts/main.js").then(() => console.log("ok"))']],
+  // A test written before its feature (test-writer subagent) goes in with { todo: true }: it runs,
+  // but its failure doesn't fail the run. The builder removes the flag once it passes; a branch
+  // with a todo step left doesn't merge (reviewer checks).
+  // e.g. ["hauler", ["hauler_test.mjs"], { todo: true }],
 ];
 let failed = 0;
-for (const [name, args] of steps) {
+const todo = [];
+for (const [name, args, opts] of steps) {
   console.log(`== ${name}`);
-  try { execFileSync(process.execPath, args, { cwd: W, stdio: "inherit" }); }
-  catch { failed++; console.log(`!! ${name} failed`); }
+  try {
+    execFileSync(process.execPath, args, { cwd: W, stdio: "inherit" });
+    if (opts?.todo) console.log(`-- todo step "${name}" passes now: remove { todo: true } in tools/sim/run.mjs`);
+  } catch {
+    if (opts?.todo) { todo.push(name); console.log(`-- todo: ${name} (failing, expected until it's built)`); }
+    else { failed++; console.log(`!! ${name} failed`); }
+  }
 }
+if (todo.length) console.log(`\n${todo.length} todo step(s) still failing: ${todo.join(", ")}`);
 rmSync(W, { recursive: true, force: true });
 process.exit(failed ? 1 : 0);

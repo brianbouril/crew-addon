@@ -8,12 +8,15 @@ so an LLM can drive the same jobs later (see the plan doc).
 
 - `PLAYER_GUIDE.md`: the guide for players (also in game: `/crew:guide`). Share this with friends.
 - `CHANGELOG.md`: what's in each version.
-- `CLAUDE.md`: start here if you're picking up development (goal, decisions, state, what's left).
+- `CLAUDE.md`: start here if you're picking up development (factory rules, decisions, state, what's left).
 - `docs/PLAN.md`: full plan, roadmap, job spec, architecture and LLM bridge design.
+- `docs/FACTORY_PLAN.md`: how development runs (specs, worktrees, review, test layers, V1 schedule);
+  `specs/`: one spec per feature.
 - `dist/crew-addon-X.Y.Z.mcaddon`: the installable add-on (behavior pack + resource pack), made by
-  `node tools/release.mjs X.Y.Z`.
+  `python tools/build.py` (the one build command; it bumps nothing).
 - `crew_bp/`, `crew_rp/`: source. Scripts are plain JavaScript in `crew_bp/scripts/`.
-- `tools/release.mjs`: tests, sets the version, builds the .mcaddon, commits and tags a release.
+- `tools/bump_version.py X.Y.Z`: sets the version in both manifests and `util.js` together.
+  `tools/release.mjs`: tests, bumps, builds, commits and tags a release (needs Python 3 and Node).
   `tools/make_textures.mjs`: redraws the textures. `tools/make_guide.mjs`: rebuilds `PLAYER_GUIDE.md`.
 - `tools/sim/run.mjs`: runs the job logic against a mock world in Node (no Minecraft needed).
 
