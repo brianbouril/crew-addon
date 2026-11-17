@@ -175,10 +175,12 @@ export function packBell(who) {
   const bell = s.bell;
   s.bell = null;
   save(s);
-  let took = false;
+  let took = false, gone = false;
   try {
     const dim = world.getDimension(bell.dim);
-    if (dim.getBlock(bell)?.typeId === BELL) {
+    const b = dim.getBlock(bell);
+    gone = !!b && b.typeId !== BELL;
+    if (b?.typeId === BELL) {
       dim.setBlockType(bell, "minecraft:air");
       took = true;
     }
@@ -186,6 +188,7 @@ export function packBell(who) {
     /* not loaded: the bell stays where it is, unprotected */
   }
   const kept = `${s.name} and its workers are kept: place a bell anywhere and crouch-tap it to hang it again.`;
+  if (gone) return { ok: true, message: `The bell was already gone. ${kept}` };
   if (!took) return { ok: true, message: `The bell is too far away to take down from here, so it stays where it is as an ordinary bell you can break. ${kept}` };
   const p = onlinePlayer(who);
   const left = p?.getComponent("minecraft:inventory")?.container?.addItem(new ItemStack(BELL, 1));

@@ -54,6 +54,8 @@ a full server restart: `reload` refuses to re-register it.
       else: refused with "Move the bell from the settlement menu". Blow up TNT next to it: the bell
       and its block stay. Move the bell: it's in your inventory, the menu says the bell isn't up;
       place it elsewhere and crouch-tap: it's back with the same name and workers.
+      Repeat with a bell hung on a wall: the wall block is protected, the blocks either side of
+      the bell along the wall can still be broken. Same with a bell hanging under a block.
 - [ ] 12d. Workers list on a phone-size screen: each worker shows name and role, then what it's
       doing and how far/which way. Take a Digger's last tool: it shows red "Out of tools". Walk far
       away from a working Digger (still loaded by its ticking area): "Working far away". A worker in
