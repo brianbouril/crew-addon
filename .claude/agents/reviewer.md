@@ -42,7 +42,10 @@ find it from the branch name; if there is none, stop and report "no spec: can't 
    - `CHANGELOG.md` "Unreleased" and `docs/QA.md` "Next release" updated for player-visible changes;
      `guide_pages.js` and `PLAYER_GUIDE.md` updated if players see it;
    - the diff stays inside the spec's Touches list (anything outside it is a finding);
-   - nothing the spec puts in Out of scope was built; no guess filled an Open question.
+   - nothing the spec puts in Out of scope was built; no guess filled an Open question;
+   - no personal information in the diff (rule 11): IP addresses other than 127.0.0.1, locations or
+     travel plans, emails, phone numbers, xuids or gamertags, real names other than "Brian",
+     `C:\Users\<name>` paths, passwords, keys or tokens, server config, worlds or logs.
 6. Check the **decisions table**: does the change contradict any numbered decision (e.g. 5 never break
    unharvestable blocks, 14 no hovering, 17 kit tools stay, 27 never break doors)?
 7. Read for **clarity**: code a later session would struggle to fix: unclear names, long functions

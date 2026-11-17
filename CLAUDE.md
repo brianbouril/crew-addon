@@ -62,6 +62,13 @@ or decides block logic; it only picks jobs and fills parameters.
    builders never work in the same file (especially `runner.js`) the same week. Rebase on `main` daily.
 10. **The server is Brian's.** Never copy anything to the live server or reload it without Brian's
     OK for that update, and back it up first (see "Servers" below).
+11. **No personal information in the repo** (Brian, Nov 16). Nothing committed may contain: IP
+    addresses other than `127.0.0.1`, locations or travel plans (where or when anyone is away),
+    email addresses, phone numbers, Xbox ids (xuids) or gamertags, real names other than "Brian",
+    friends' names, Windows user-folder paths (`C:\Users\<name>`), passwords, keys or tokens.
+    Server files that hold these (`server.properties`, `allowlist.json`, `permissions.json`,
+    worlds, logs) stay out of the repo. Write "Brian", "a friend", "the live server" instead. If
+    something personal was committed, tell Brian rather than quietly rewriting history.
 
 ## Who does what
 
@@ -131,8 +138,16 @@ or decides block logic; it only picks jobs and fills parameters.
   `Start-ScheduledTask 'Minecraft Bedrock Server'` as admin, output in its `logs\server.log`.
   Script-only changes can go out with `reload` (via `server-command.bat`); a change to a slash
   command's options needs a full restart.
-- **Staging server:** planned (FACTORY_PLAN week 1): a second port, a copy of the live world, release
-  candidate plus test pack.
+- **Staging server (set up Nov 16):** `C:\MinecraftServer-staging`, port 19134 (live is 19132), a
+  copy of the live world from a daily backup, the release candidate packs from `main`. Allow-list
+  (Brian only), cheats on, LAN visibility off, `server-udp-ports` empty (live's public UDP
+  mapping must stay live's). Runs as Brian's user, not at boot: `start-server.bat` (hidden:
+  `Start-Process cmd.exe -ArgumentList '/c','"C:\MinecraftServer-staging\start-server.bat"' -WindowStyle Hidden`),
+  `stop-server.bat` and `server-command.bat` in that folder only ever touch staging; log in its
+  `logs\server.log`. **Claude may install new builds on staging and restart it without asking**
+  (Brian, Nov 16). Copying anything from staging to the live server still needs his OK. Details
+  in its `STAGING-README.txt`. Join: Add Server, 127.0.0.1, port 19134. The test pack
+  (FACTORY_PLAN layer 2) goes here only.
 - **Install to BDS:** README "Install on Bedrock Dedicated Server" (pack UUIDs and
   `world_behavior_packs.json` / `world_resource_packs.json`, `texturepack-required=true`).
 - In game, watch the console for `[Crew] v<version> loaded`, `[Crew-Event]` lines and script errors.

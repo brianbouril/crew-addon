@@ -38,8 +38,9 @@ a full server restart: `reload` refuses to re-register it.
 - **Run B, doors and the deep refusal (2, 3b):** put an iron door on its way home, shut, then open
   (2). Stake a quarry with a door or trapdoor inside the box: it digs around it. Then stake a quarry
   far underground with Clear above on: it's refused (3b).
-- **Run D, Diggers and Miners (11, 11b, 11c):** after the role split goes on the server. Do it
-  first then: Run A needs a Digger.
+- **Run D, Diggers and Miners (11, 11b, 11c):** on the **staging server** (Nov 16: it runs the role
+  split on a copy of the live world from the 5 AM backup; join 127.0.0.1 port 19134). Do it first:
+  Run A needs a Digger. The live server gets the split only after Run D is clean and Brian OKs it.
 - **Run C, at night (7, 7b, 7c):** crouch-tap the sleeping worker and its bed (7), Wake up and wait a
   minute (7b), wake it again and give it a small dig (7c).
 
