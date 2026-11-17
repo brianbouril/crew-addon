@@ -14,7 +14,7 @@ import { TORCH_EVERY } from "./plans.js";
 import { fmt, getJSON, setJSON, tell } from "./util.js";
 import { bedNear, bedSafety, energy, energyWord, getHome, isSupply, sameBed } from "./life.js";
 import { canCommand, canManage, dismissWorker, loadedWorkers, meta, renameWorker, roleOf, setRole, updateTag } from "./workers.js";
-import { addMember, bellRefusal, bellTap, foundSettlement, getCap, getSeen, moveBell, packBell, queueOrder, removeMember, renameSettlement, rosterLine, rosterOf, setCap, settlementOf } from "./settlement.js";
+import { addMember, bellRefusal, bellTap, foundSettlement, getCap, getSeen, makeFounder, moveBell, packBell, queueOrder, removeMember, renameSettlement, rosterLine, rosterOf, setCap, settlementOf } from "./settlement.js";
 import { show } from "./forms.js";
 import { openGuide } from "./guide.js";
 import { DEFAULTS, MAX_SIDE, MAX_TRUNK_WIDTH } from "./catalog.js";
@@ -432,17 +432,15 @@ async function settlementMenu(p, id) {
   const s = settlementOf({ id: p.id, name: p.name });
   if (!s || s.id !== id) return tell(p, "You're no longer part of that settlement.");
   const by = whoIs(p);
-  const owner = by.id === s.ownerId;
   const roster = rosterOf(s);
   const members = s.members.length ? s.members.map((m) => m.name).join(", ") : "none yet";
-  const body = `Owner: ${s.ownerName}. Members: ${members}.\nWorkers: ${roster.length}. Each player may have up to ${getCap()}.${s.bell ? "" : "\n§eThe bell isn't up: place a bell and crouch-tap it.§r"}`;
+  const body = `Founder: ${s.ownerName}. Members: ${members}.\nWorkers: ${roster.length}. Each player may have up to ${getCap()}.${s.bell ? "" : "\n§eThe bell isn't up: place a bell and crouch-tap it.§r"}`;
   /** @type {[string, () => any][]} */
   const b = [[`Workers (${roster.length})`, () => rosterMenu(p, s.id)]];
-  b.push([owner ? "Members" : "Leave the settlement", () => (owner ? membersMenu(p, s.id) : leaveForm(p, s.id))]);
-  if (owner) {
-    b.push(["Name", () => settlementNameForm(p, s.id)]);
-    if (s.bell) b.push(["Move the bell", () => moveBellForm(p, s.id)]);
-  }
+  b.push(["Members", () => membersMenu(p, s.id)]);
+  b.push(["Name", () => settlementNameForm(p, s.id)]);
+  if (s.bell) b.push(["Move the bell", () => moveBellForm(p, s.id)]);
+  b.push(["Leave the settlement", () => leaveForm(p, s.id)]);
   if (by.isOp) b.push([`Worker limit: ${getCap()} each`, () => capForm(p, s.id)]);
   b.push(["How workers work", () => openGuide(p)]);
   b.push(["Close", () => {}]);
@@ -507,16 +505,18 @@ async function membersMenu(p, id) {
     const pl = others[Number(r.formValues[0])];
     say(p, addMember(by, s, { id: pl.id, name: pl.name }));
   }]];
-  for (const m of s.members) b.push([`Remove ${m.name}`, () => say(p, removeMember(by, s, m.id))]);
+  for (const m of s.members) if (m.id !== p.id) b.push([`Remove ${m.name}`, () => say(p, removeMember(by, s, m.id))]);
+  if (p.id === s.ownerId) for (const m of s.members) b.push([`Make ${m.name} the founder`, () => say(p, makeFounder(by, s, m.id))]);
   b.push(["Back", () => settlementMenu(p, id)]);
-  await menu(p, `${s.name}: members`, `Members: ${s.members.length ? s.members.map((m) => m.name).join(", ") : "none yet"}.\nA member's workers belong to the settlement, and every member can give orders to every worker in it.`, b);
+  await menu(p, `${s.name}: members`, `Founder: ${s.ownerName}. Members: ${s.members.length ? s.members.map((m) => m.name).join(", ") : "none yet"}.\nEveryone in the settlement runs it together: their workers belong to it, and they can give orders to every worker, add and remove members, rename it and move its bell. Only the founder can hand the founder role to someone else, and the founder can't be removed.`, b);
 }
 
 /** @param {Player} p @param {string} id */
 async function leaveForm(p, id) {
   const s = settlementOf({ id: p.id, name: p.name });
   if (!s || s.id !== id) return;
-  await menu(p, `Leave ${s.name}?`, "Your workers leave with you. You can found your own settlement afterwards.", [
+  const body = p.id === s.ownerId && s.members.length ? "You're the founder: make someone else the founder first (Members)." : p.id === s.ownerId ? "Nobody else is in it, so the settlement ends and its bell becomes an ordinary bell. Your workers are kept." : "Your workers leave with you. You can found your own settlement afterwards.";
+  await menu(p, `Leave ${s.name}?`, body, [
     ["Leave", () => say(p, removeMember(whoIs(p), s, p.id))],
     ["Cancel", () => settlementMenu(p, id)],
   ]);

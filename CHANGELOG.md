@@ -9,8 +9,10 @@ turns it into that version's section.
   worker you build belongs to it, including the ones you already have. Crouch-tap the bell for the
   settlement menu: **Workers** lists all of them with what each is doing and where, who's **Out of
   tools** or has **Tools low**, and which far-away workers are still working or paused. Tap one for
-  its menu; orders to a far-away worker wait until its area loads. Add friends as **members**: their
-  workers join, and everyone in the settlement can give orders to every worker in it. The bell
+  its menu; orders to a far-away worker wait until its area loads. Add friends as **members**: everyone
+  in a settlement runs it together (their workers join, and they can give orders to every worker,
+  add and remove members, rename it and move its bell). The **founder** can't be removed and can
+  hand that role to another member. The bell
   can't be broken (explosions skip it too): **Move the bell** in the menu puts it in your inventory.
   A plain tap still rings it, and village bells can't be claimed.
 - **Worker limit.** Each player can have up to 6 workers, so the server keeps running smoothly.

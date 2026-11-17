@@ -80,6 +80,15 @@ what we've gathered in one place, and give orders to everyone at once."
   (also the Dec 6 default); the week 3 load test sets the real value. The challenge comes instead
   from each worker type's build cost ("stronger workers cost more to build"), decided in each
   worker's own spec, not here.
+- 2026-11-17: **everyone in a settlement is equal** (Brian): every member can add and remove members,
+  rename the settlement and move its bell, like the player who founded it. **Except the founder role:**
+  only the founder can hand it to another member ("Make X the founder"), and nobody can remove the
+  founder. The founder leaves only after handing the role on, unless nobody else is in it; the last
+  person leaving ends the settlement (its bell becomes an ordinary bell; workers are kept).
+  Settlements get their own id at founding, since the founder can change.
+- 2026-11-17 (open, asked): workers a member **builds while in the settlement stay with it** if they
+  leave (Brian). Still to settle: do workers they had before joining leave with them, and who orders
+  and counts the workers left behind?
 - 2026-11-17: **settlements have names**, typed when founding (the box starts as "<player>'s
   Settlement"), shown as the settlement menu's title and in messages; the owner can rename it from
   the menu. No automatic sign.

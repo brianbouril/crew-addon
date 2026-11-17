@@ -10,6 +10,8 @@
 //   crew:queue        {[workerId]: Queued[]}   orders waiting for an unloaded worker
 //   crew:cap          number                   workers per player (operator setting)
 // Membership isn't stored on workers: a worker belongs to its owner's settlement.
+// Everyone in a settlement has the same rights (Brian, Nov 17), except that only the founder
+// (ownerId/ownerName) can hand that role to someone else, and nobody can remove the founder.
 import { ItemStack, world } from "@minecraft/server";
 import { getJSON, setJSON, onlinePlayer, tell } from "./util.js";
 import { getRegistry } from "./store.js";
@@ -31,7 +33,7 @@ const FAR = 96;
 /** How many player-placed bells are remembered (oldest forgotten first). */
 const MAX_BELLS = 1000;
 
-/** @returns {Record<string, Settlement>} */
+/** @returns {Record<string, Settlement>} keyed by settlement id (fixed at founding; the founder can change) */
 export const getSettlements = () => getJSON(world, "crew:settlements", {});
 /** @param {Record<string, Settlement>} all */
 const saveSettlements = (all) => setJSON(world, "crew:settlements", all);
@@ -106,7 +108,6 @@ export function bellTap(player, block) {
   if (placer !== player.id) return { kind: "not_yours" };
   const mine = settlementOf(player);
   if (!mine) return { kind: "found" };
-  if (mine.ownerId !== player.id) return { kind: "member", s: mine };
   return { kind: mine.bell ? "move" : "rehang", s: mine };
 }
 
@@ -129,11 +130,13 @@ function spotOf(block) {
 export function foundSettlement(player, block, name) {
   const t = bellTap(player, block);
   if (t.kind !== "found") return { ok: false, message: refusal(t) };
-  const id = /** @type {string} */ (player.id);
+  const pid = /** @type {string} */ (player.id);
+  // its own id, not the founder's: the founder role can move to someone else
+  const id = `${pid}-${Date.now().toString(36)}`;
   /** @type {Settlement} */
-  const s = { id, name: cleanName(name) || `${player.name}'s Settlement`, ownerId: id, ownerName: player.name, members: [], bell: spotOf(block) };
+  const s = { id, name: cleanName(name) || `${player.name}'s Settlement`, ownerId: pid, ownerName: player.name, members: [], bell: spotOf(block) };
   save(s);
-  const n = workerCount(id);
+  const n = workerCount(pid);
   return { ok: true, message: `You founded ${s.name}.${n ? ` ${joinedMessage(n, s.name)}` : ""} Crouch-tap the bell for its menu.` };
 }
 
@@ -142,7 +145,6 @@ function refusal(t) {
   switch (t.kind) {
     case "village": return "This bell belongs to the village.";
     case "not_yours": return "Only the player who placed this bell can found a settlement with it.";
-    case "member": return `You're a member of ${t.s?.name}. Leave it from its bell menu before founding your own.`;
     case "other": return `This is the bell of ${t.s?.name} (${t.s?.ownerName}).`;
     case "menu": case "move": case "rehang": return "You already have a settlement.";
     default: return "You can't found a settlement here.";
@@ -153,7 +155,7 @@ export { refusal as bellRefusal };
 /** @param {string} name */
 const cleanName = (name) => String(name ?? "").replace(/§./g, "").trim().slice(0, 32);
 
-/** Moves the owner's settlement to this bell (or hangs it again after Move the bell). @param {PersonRef} player @param {BlockLike} block */
+/** Moves the player's settlement to this bell (or hangs it again after Move the bell). @param {PersonRef} player @param {BlockLike} block */
 export function moveBell(player, block) {
   const t = bellTap(player, block);
   if (t.kind !== "move" && t.kind !== "rehang") return { ok: false, message: refusal(t) };
@@ -164,13 +166,13 @@ export function moveBell(player, block) {
 }
 
 /**
- * Move the bell: the owner takes it down. It goes to their inventory and the settlement is kept,
+ * Move the bell: anyone in the settlement takes it down. It goes to their inventory and the settlement is kept,
  * without a bell, until they place it and crouch-tap it again.
  * @param {PersonRef} who
  */
 export function packBell(who) {
   const s = settlementOf(who);
-  if (!s || s.ownerId !== who.id) return { ok: false, message: "Only the settlement's owner can move its bell." };
+  if (!s) return { ok: false, message: "You're not in a settlement." };
   if (!s.bell) return { ok: false, message: `${s.name}'s bell isn't up anywhere. Place a bell and crouch-tap it.` };
   const bell = s.bell;
   s.bell = null;
@@ -242,26 +244,39 @@ export function checkBells() {
 }
 
 // ---------- members and name ----------
-/** @param {Commander} by @param {Settlement} s */
-const isOwner = (by, s) => !!(by.console || by.isOp || by.id === s.ownerId);
+/** Anyone in the settlement (or an operator) may manage it. @param {Commander} by @param {Settlement} s */
+const inIt = (by, s) => !!(by.console || by.isOp || peopleOf(s).some((p) => p.id === by.id));
 
 /** @param {Commander} by @param {Settlement} s @param {{id: string, name: string}} who */
 export function addMember(by, s, who) {
-  if (!isOwner(by, s)) return { ok: false, message: `Only ${s.ownerName} can add members.` };
+  if (!inIt(by, s)) return { ok: false, message: `Only people in ${s.name} can add members.` };
   const other = settlementOf(who);
   if (other) return { ok: false, message: other.id === s.id ? `${who.name} is already in ${s.name}.` : `${who.name} already belongs to ${other.name}.` };
   const cur = getSettlements()[s.id];
   cur.members.push({ id: who.id, name: who.name });
   save(cur);
   const n = workerCount(who.id);
-  tell(onlinePlayer(who), `${s.ownerName} added you to ${s.name}. You can give orders to all its workers.${n ? ` ${joinedMessage(n, s.name)}` : ""}`);
+  tell(onlinePlayer(who), `${by.name} added you to ${s.name}. You can give orders to all its workers and run the settlement like everyone in it.${n ? ` ${joinedMessage(n, s.name)}` : ""}`);
   return { ok: true, message: `${who.name} is now a member of ${s.name}.${n ? ` Their ${n} worker${n === 1 ? "" : "s"} joined.` : ""}` };
 }
 
-/** The owner removes a member, or a member leaves. @param {Commander} by @param {Settlement} s @param {string} id */
+/**
+ * Someone in the settlement removes a member, or a player leaves. Nobody can remove the founder;
+ * the founder can leave only after making someone else the founder, unless nobody else is left,
+ * in which case the settlement ends (its bell becomes an ordinary bell).
+ * @param {Commander} by @param {Settlement} s @param {string} id
+ */
 export function removeMember(by, s, id) {
-  if (!isOwner(by, s) && by.id !== id) return { ok: false, message: `Only ${s.ownerName} can remove members.` };
+  if (!inIt(by, s) && by.id !== id) return { ok: false, message: `Only people in ${s.name} can remove members.` };
   const cur = getSettlements()[s.id];
+  if (id === cur.ownerId) {
+    if (by.id !== id) return { ok: false, message: `${cur.ownerName} founded ${cur.name} and can't be removed. Only they can make someone else the founder.` };
+    if (cur.members.length) return { ok: false, message: `You're the founder: make someone else the founder first (Members), then leave.` };
+    const all = getSettlements();
+    delete all[cur.id];
+    saveSettlements(all);
+    return { ok: true, message: `You left ${cur.name}, and as nobody else was in it, it's gone. Its bell is an ordinary bell now; your workers are kept.` };
+  }
   const m = cur.members.find((x) => x.id === id);
   if (!m) return { ok: false, message: "That player isn't a member." };
   cur.members = cur.members.filter((x) => x.id !== id);
@@ -269,9 +284,23 @@ export function removeMember(by, s, id) {
   return { ok: true, message: by.id === id ? `You left ${s.name}. Your workers left with you.` : `${m.name} is no longer a member of ${s.name}. Their workers left with them.` };
 }
 
+/** The founder (or an operator) hands the founder role to a member. @param {Commander} by @param {Settlement} s @param {string} id */
+export function makeFounder(by, s, id) {
+  const cur = getSettlements()[s.id];
+  if (!(by.console || by.isOp || by.id === cur.ownerId)) return { ok: false, message: `Only the founder, ${cur.ownerName}, can make someone else the founder.` };
+  const m = cur.members.find((x) => x.id === id);
+  if (!m) return { ok: false, message: "That player isn't a member." };
+  cur.members = [...cur.members.filter((x) => x.id !== id), { id: cur.ownerId, name: cur.ownerName }];
+  cur.ownerId = m.id;
+  cur.ownerName = m.name;
+  save(cur);
+  tell(onlinePlayer(m), `You're now the founder of ${cur.name}.`);
+  return { ok: true, message: `${m.name} is now the founder of ${cur.name}. You're a member.` };
+}
+
 /** @param {Commander} by @param {Settlement} s @param {string} name */
 export function renameSettlement(by, s, name) {
-  if (!isOwner(by, s)) return { ok: false, message: `Only ${s.ownerName} can rename ${s.name}.` };
+  if (!inIt(by, s)) return { ok: false, message: `Only people in ${s.name} can rename it.` };
   const n = cleanName(name);
   if (!n) return { ok: false, message: "Give it a name." };
   const cur = getSettlements()[s.id];

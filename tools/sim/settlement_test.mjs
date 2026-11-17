@@ -5,7 +5,7 @@
 import { world, tick, fire, setPlayers, ItemStack, Container, BlockPermutation } from "@minecraft/server";
 import "./scripts/main.js";
 import {
-  bellTap, foundSettlement, moveBell, packBell, checkBells, settlementOf, addMember, removeMember, renameSettlement, isProtected,
+  bellTap, foundSettlement, moveBell, packBell, checkBells, settlementOf, addMember, removeMember, renameSettlement, isProtected, makeFounder,
   rosterOf, rosterLine, getCap, setCap, capCheck, queueOrder, takeQueued, getSettlements, joinedMessage,
 } from "./scripts/settlement.js";
 import { spawnWorker, canCommand, meta, WORKER_TYPE } from "./scripts/workers.js";
@@ -117,9 +117,18 @@ const calTown = foundSettlement(cal, placeBell(cal, { x: 2040, y: 65, z: 2005 })
 check("Cal founds his own", calTown.ok, calTown);
 check("a typed name is used (colour codes and spaces dropped)", settlementOf({ id: "p3", name: "Cal" })?.name === "Calton", settlementOf({ id: "p3", name: "Cal" })?.name);
 check("a player in another settlement can't be added", !addMember(asBy(brian), s, { id: "p3", name: "Cal" }).ok);
-check("a member can't add members", !addMember(asBy(ann), getSettlements()[s.id], { id: "p5", name: "Eve" }).ok);
-check("member can't rename", !renameSettlement(asBy(ann), getSettlements()[s.id], "Annville").ok);
-check("owner renames", renameSettlement(asBy(brian), getSettlements()[s.id], "Bluebell").ok && settlementOf({ id: "p1", name: "Brian" }).name === "Bluebell");
+// everyone is equal, except for the founder role (Brian, Nov 17)
+const B = () => settlementOf({ id: "p1", name: "Brian" });
+check("a member can add members", addMember(asBy(ann), B(), { id: "p6", name: "Dee" }).ok && B().members.some((m) => m.id === "p6"));
+check("a member can remove another member", removeMember(asBy(ann), B(), "p6").ok && !B().members.some((m) => m.id === "p6"));
+check("a member can rename", renameSettlement(asBy(ann), B(), "Annville").ok && B().name === "Annville");
+check("the founder renames too", renameSettlement(asBy(brian), B(), "Bluebell").ok && B().name === "Bluebell");
+check("a member can't remove the founder", !removeMember(asBy(ann), B(), "p1").ok && B().ownerId === "p1");
+check("a member can't make themselves founder", !makeFounder(asBy(ann), B(), "p2").ok && B().ownerId === "p1");
+check("the founder can't leave while others are in it", !removeMember(asBy(brian), B(), "p1").ok);
+check("the founder hands over the role", makeFounder(asBy(brian), B(), "p2").ok && B().ownerId === "p2" && B().members.some((m) => m.id === "p1"));
+check("now the old founder can be removed, and the new one can't", !removeMember(asBy(brian), B(), "p2").ok);
+check("and back", makeFounder(asBy(ann), B(), "p1").ok && B().ownerId === "p1");
 check("remove member", removeMember(asBy(brian), settlementOf({ id: "p1", name: "Brian" }), "p2").ok && !rosterOf(settlementOf({ id: "p1", name: "Brian" })).some((r) => r.name === "Annie"));
 check("removed member can't order", !canCommand(asBy(ann), meta(digby)));
 
@@ -246,6 +255,13 @@ check("applies without a settlement too", Object.values(getRegistry()).filter((r
   check("a dead worker no longer counts", mine() === n0 - 1 && !rosterOf(S()).some((r) => r.id === victim.id));
   build(brian, { x: 2080, y: 65, z: 2000 });
   check("so one more can be built at the limit", mine() === n0, { n0, now: mine() });
+}
+{
+  const deeTown = foundSettlement(eve, placeBell(eve, { x: 2090, y: 65, z: 2005 }), "Eveton");
+  const ev = settlementOf({ id: "p5", name: "Eve" });
+  const gone = removeMember(asBy(eve), ev, "p5");
+  check("the last one leaving ends the settlement", deeTown.ok && gone.ok && !settlementOf({ id: "p5", name: "Eve" }) && !getSettlements()[ev.id], gone);
+  check("its bell is ordinary again", !isProtected(ow.getBlock({ x: 2090, y: 65, z: 2005 })));
 }
 setCap(asBy(op), 6);
 check("joined message helper", joinedMessage(1, "Bluebell") === "1 of your workers joined Bluebell.");

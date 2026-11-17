@@ -62,7 +62,9 @@ a full server restart: `reload` refuses to re-register it.
       an unloaded area shows "Paused: nobody nearby" (or "last seen N min ago" if it was idle); give
       it Stop from its far menu, walk back: it stops.
 - [ ] 12e. Add a friend as a member: their workers appear in the list, they can open and order your
-      workers, and you theirs. Remove them: their workers leave the list and orders are refused.
+      workers, and you theirs. They can add and remove members, rename and move the bell, but
+      can't remove you (the founder). Make them the founder, then leave and rejoin; make yourself
+      founder again. Remove them: their workers leave the list and orders are refused.
 - [ ] 12f. Worker limit: as an operator, set it to your current count with `/crew:cap`. Building one
       more is refused with "You have N workers, your limit is N." and the barrel keeps its tools.
       Set it back to 6 (`/crew:cap 6`), then build: it works. A non-operator can't run `/crew:cap 6`.
