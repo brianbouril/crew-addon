@@ -10,8 +10,8 @@ import { TORCH } from "./blocks.js";
 import { startWelcome } from "./guide.js";
 import { toolInfo } from "./tools.js";
 import { VERSION, onlinePlayer, tell } from "./util.js";
-import { WORKER_TYPE, buildFromBarrel, loadedWorkers } from "./workers.js";
-import { BELL, checkBells, forgetBell, isProtected, recordBell, takeQueued } from "./settlement.js";
+import { WORKER_TYPE, buildFromBarrel, loadedWorkers, workerDied } from "./workers.js";
+import { BELL, checkBells, forgetBell, isProtected, protectedKeys, recordBell, takeQueued } from "./settlement.js";
 import { dispatch } from "./orders.js";
 
 system.beforeEvents.startup.subscribe((ev) => {
@@ -141,6 +141,8 @@ world.afterEvents.playerPlaceBlock.subscribe((ev) => {
 world.beforeEvents.playerInteractWithBlock.subscribe((ev) => {
   if (ev.block.typeId !== BELL || !ev.player.isSneaking) return;
   const held = ev.itemStack?.typeId;
+  // a held item whose id is also a block's is taken as "placing a block" (approximate: a few items,
+  // like seeds or doors, place a block with another id, and those still open the menu)
   if (held === STAKE || (held && BlockTypes.get(held))) return;
   ev.cancel = true;
   if (!ev.isFirstEvent) return;
@@ -163,8 +165,14 @@ world.beforeEvents.playerBreakBlock.subscribe((ev) => {
 // Explosions skip settlement bells and what holds them up.
 world.beforeEvents.explosion.subscribe((ev) => {
   const blocks = ev.getImpactedBlocks();
-  const keep = blocks.filter((b) => !isProtected(b));
+  const keys = protectedKeys();
+  const keep = blocks.filter((b) => !isProtected(b, keys));
   if (keep.length !== blocks.length) ev.setImpactedBlocks(keep);
+});
+
+// A worker that dies no longer counts toward the worker limit or shows in the settlement list.
+world.afterEvents.entityDie.subscribe((ev) => {
+  if (ev.deadEntity.typeId === WORKER_TYPE) workerDied(ev.deadEntity);
 });
 
 /** Every 2 seconds: notice lost bells, and give loaded workers the orders that waited for them. */

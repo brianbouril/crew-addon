@@ -4,7 +4,7 @@ import { DIMS, getJSON, setJSON, onlinePlayer, tell, fmt } from "./util.js";
 import { getRegistry, saveRegistry, freeName } from "./store.js";
 import { KIT_SLOTS, ROLE_LIST, addToKit, defaultRole, kit, stash, toolInfo } from "./tools.js";
 import { setHome } from "./life.js";
-import { capCheck, sameSettlement } from "./settlement.js";
+import { capCheck, forgetWorker, sameSettlement } from "./settlement.js";
 
 export const WORKER_TYPE = "crew:worker";
 
@@ -223,6 +223,24 @@ export function renameWorker(e, newName) {
   e.setDynamicProperty("crew:name", name);
   updateTag(e);
   return name;
+}
+
+/**
+ * A worker died (a mob, a player, /kill, the void): free its bed and forget it, so it no longer
+ * counts toward its owner's worker limit or shows in the settlement's list.
+ * @param {import("@minecraft/server").Entity} e
+ */
+export function workerDied(e) {
+  const id = e.id;
+  try {
+    setHome(e, undefined);
+  } catch {
+    /* already gone */
+  }
+  const reg = getRegistry();
+  for (const [k, r] of Object.entries(reg)) if (r.id === id) delete reg[k];
+  saveRegistry(reg);
+  forgetWorker(id);
 }
 
 /** Removes a worker and gives back its build blocks, tools and everything it carries. @param {import("@minecraft/server").Entity} e */

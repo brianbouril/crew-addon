@@ -17,7 +17,7 @@ import { getRegistry } from "./store.js";
 /**
  * @typedef {import("./store.js").Commander} Commander
  * @typedef {{id?: string, name: string}} PersonRef
- * @typedef {{dim: string, x: number, y: number, z: number, att: string}} BellSpot
+ * @typedef {{dim: string, x: number, y: number, z: number, att: string, dir?: number}} BellSpot
  * @typedef {{id: string, name: string, ownerId: string, ownerName: string, members: {id: string, name: string}[], bell: BellSpot | null}} Settlement
  * @typedef {{role: string, status: string, busy: boolean, noTools: boolean, low: boolean, ticking: boolean, dim: string, x: number, y: number, z: number, ts: number}} Seen
  * @typedef {{by: Commander, order: any}} Queued
@@ -29,7 +29,7 @@ export const CAP_DEFAULT = 6;
 /** A worker further than this from the viewer counts as far away in the roster. */
 const FAR = 96;
 /** How many player-placed bells are remembered (oldest forgotten first). */
-const MAX_BELLS = 300;
+const MAX_BELLS = 1000;
 
 /** @returns {Record<string, Settlement>} */
 export const getSettlements = () => getJSON(world, "crew:settlements", {});
@@ -112,13 +112,14 @@ export function bellTap(player, block) {
 
 /** @param {BlockLike} block @returns {BellSpot} */
 function spotOf(block) {
-  let att = "standing";
+  let att = "standing", dir = 0;
   try {
     att = String(block.permutation?.getState?.("attachment") ?? "standing");
+    dir = Number(block.permutation?.getState?.("direction") ?? 0);
   } catch {
     /* no state: treat as standing */
   }
-  return { dim: block.dimension.id, x: Math.floor(block.location.x), y: Math.floor(block.location.y), z: Math.floor(block.location.z), att };
+  return { dim: block.dimension.id, x: Math.floor(block.location.x), y: Math.floor(block.location.y), z: Math.floor(block.location.z), att, dir };
 }
 
 /**
@@ -174,32 +175,51 @@ export function packBell(who) {
   const bell = s.bell;
   s.bell = null;
   save(s);
+  let took = false;
   try {
     const dim = world.getDimension(bell.dim);
-    if (dim.getBlock(bell)?.typeId === BELL) dim.setBlockType(bell, "minecraft:air");
+    if (dim.getBlock(bell)?.typeId === BELL) {
+      dim.setBlockType(bell, "minecraft:air");
+      took = true;
+    }
   } catch {
-    /* unloaded: it's no longer protected and can be broken by hand */
+    /* not loaded: the bell stays where it is, unprotected */
   }
+  const kept = `${s.name} and its workers are kept: place a bell anywhere and crouch-tap it to hang it again.`;
+  if (!took) return { ok: true, message: `The bell is too far away to take down from here, so it stays where it is as an ordinary bell you can break. ${kept}` };
   const p = onlinePlayer(who);
   const left = p?.getComponent("minecraft:inventory")?.container?.addItem(new ItemStack(BELL, 1));
   if (left && p) p.dimension.spawnItem(left, p.location);
-  return { ok: true, message: `The bell is in your inventory. ${s.name} and its workers are kept: place the bell anywhere and crouch-tap it to hang it again.` };
+  return { ok: true, message: `The bell is in your inventory. ${kept}` };
 }
 
-/** The blocks a settlement bell protects: the bell and what holds it up. @param {BellSpot} b */
+/**
+ * The blocks a settlement bell protects: the bell and what holds it up. A standing bell sits on the
+ * block below, a hanging one on the block above; a wall bell ("side", or "multiple" between two
+ * walls) is held along the axis it faces (direction 0/2: north-south, 1/3: east-west), so both
+ * blocks on that axis are kept.
+ * @param {BellSpot} b
+ */
 function guarded(b) {
   const out = [{ x: b.x, y: b.y, z: b.z }];
   if (b.att === "hanging") out.push({ x: b.x, y: b.y + 1, z: b.z });
-  else if (b.att === "side" || b.att === "multiple") out.push({ x: b.x + 1, y: b.y, z: b.z }, { x: b.x - 1, y: b.y, z: b.z }, { x: b.x, y: b.y, z: b.z + 1 }, { x: b.x, y: b.y, z: b.z - 1 });
-  else out.push({ x: b.x, y: b.y - 1, z: b.z });
+  else if (b.att === "side" || b.att === "multiple") {
+    if ((b.dir ?? 0) % 2 === 0) out.push({ x: b.x, y: b.y, z: b.z + 1 }, { x: b.x, y: b.y, z: b.z - 1 });
+    else out.push({ x: b.x + 1, y: b.y, z: b.z }, { x: b.x - 1, y: b.y, z: b.z });
+  } else out.push({ x: b.x, y: b.y - 1, z: b.z });
   return out;
 }
 
-/** Is this block a settlement bell or the block holding one up? @param {BlockLike} block */
-export function isProtected(block) {
-  const x = Math.floor(block.location.x), y = Math.floor(block.location.y), z = Math.floor(block.location.z);
-  return Object.values(getSettlements()).some((s) => s.bell && s.bell.dim === block.dimension.id && guarded(s.bell).some((g) => g.x === x && g.y === y && g.z === z));
+/** Every protected block, as "dim|x,y,z", read once (an explosion checks many blocks). */
+export function protectedKeys() {
+  /** @type {Set<string>} */
+  const keys = new Set();
+  for (const s of Object.values(getSettlements())) if (s.bell) for (const g of guarded(s.bell)) keys.add(`${s.bell.dim}|${g.x},${g.y},${g.z}`);
+  return keys;
 }
+
+/** Is this block a settlement bell or the block holding one up? @param {BlockLike} block @param {Set<string>} [keys] */
+export const isProtected = (block, keys = protectedKeys()) => keys.has(bellKey(block));
 
 /** Once in a while: a settlement bell that's gone (a command, a piston) leaves the settlement without one. */
 export function checkBells() {
@@ -326,6 +346,16 @@ export function rosterLine(entry, ctx) {
     if (seen.ticking) return { title, line: `Working far away · ${seen.status}${tools}${where}` };
   }
   return { title, line: `${seen.status}${tools}${where}` };
+}
+
+/** A worker died: drop what the roster and the order queue kept for it. @param {string} workerId */
+export function forgetWorker(workerId) {
+  const seen = getSeen();
+  if (seen[workerId]) {
+    delete seen[workerId];
+    setJSON(world, "crew:seen", seen);
+  }
+  takeQueued(workerId);
 }
 
 // ---------- orders waiting for an unloaded worker ----------

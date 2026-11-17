@@ -481,6 +481,7 @@ async function farMenu(p, id, r) {
   /** @type {[string, () => any][]} */
   const b = [];
   if (can) {
+    // only orders that make sense without seeing where it is (no Come here, no new dig)
     for (const [label, job] of [["Stop", "stop"], ["Continue its dig", "resume"], ["Drop off", "drop_off"]]) {
       b.push([label, () => say(p, queueOrder(r.id, by, { worker: r.name, job, params: {} }))]);
     }
@@ -541,9 +542,10 @@ async function moveBellForm(p, id) {
 
 /** Operators: the per-player worker limit. @param {Player} p @param {string} id */
 async function capForm(p, id) {
+  const cap = getCap();
   const r = await show(p, new ModalFormData().title("Worker limit")
-    .slider("Workers each player may have (keeps the server running smoothly)", 1, 24, { defaultValue: Math.min(24, getCap()), valueStep: 1 })
+    .slider("Workers each player may have (keeps the server running smoothly)", 1, Math.max(24, cap), { defaultValue: cap, valueStep: 1 })
     .submitButton("Save"));
-  if (r?.formValues) say(p, setCap(whoIs(p), Number(r.formValues[0])));
+  if (r?.formValues && Number(r.formValues[0]) !== cap) say(p, setCap(whoIs(p), Number(r.formValues[0])));
   else settlementMenu(p, id);
 }

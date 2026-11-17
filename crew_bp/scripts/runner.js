@@ -8,7 +8,7 @@ import { advance, atGoal, near, newSearch } from "./path.js";
 import { KIT_SLOTS, addToKit, chooseTool, freeHaulSlots, kit, kitText, roleKinds, stash, ticksFor, toolInfo, toolPref, wear } from "./tools.js";
 import { center, dist, floorV, fmt, getJSON, lerp, setJSON, onlinePlayer, sameV, up } from "./util.js";
 import { emit, holdTool, loadedWorkers, meta, migrateRole, roleOf, syncRole, updateTag } from "./workers.js";
-import { saveSeen } from "./settlement.js";
+import { isProtected, saveSeen } from "./settlement.js";
 import { DRAIN_PER_BLOCK, EXHAUSTED, REST, TIRED, TIRED_SLOWDOWN, bedPose, bedSafety, bedside, eatOne, energy, energyWord, getHome, isNight, isSupply, restock, setEnergy } from "./life.js";
 
 /**
@@ -293,11 +293,13 @@ const STAY_UP_IDLE = 60;
  * A worker a player woke up or gave an order at night (`crew:stayUp`) stays up while it has a job,
  * and goes back to bed after STAY_UP_IDLE seconds with nothing to do.
  */
+/** Routine calls (one a second) between notes on what workers are doing, for the settlement roster. */
+const SEEN_EVERY = 5;
 let seenIn = 0;
 function routine() {
   const night = isNight();
   if (--seenIn <= 0) {
-    seenIn = 5;
+    seenIn = SEEN_EVERY;
     noteSeen();
   }
   for (const e of loadedWorkers()) {
@@ -1017,7 +1019,7 @@ function clearableHead(rt, want, k) {
   if (!passable(dim, feet) || want.y - feet.y > REACH_DOWN) return undefined;
   const h = up(feet);
   const b = dim.getBlock(h);
-  if (!b || passable(dim, h) || b.isLiquid || keepIntact(b.typeId)) return undefined;
+  if (!b || passable(dim, h) || b.isLiquid || keepIntact(b.typeId) || isProtected(b)) return undefined;
   if (rt.job.type === "quarry" && isStairBlock(rt.job.geom, h)) return undefined;
   const box = b.getComponent("minecraft:inventory")?.container;
   if (box && box.emptySlotsCount < box.size) return undefined;
@@ -1153,7 +1155,7 @@ function mineCell(rt, c, inv, k, dry) {
     return { res: "air", ...no };
   }
   const sign = /** @type {Record<string,string>} */ (SIGNS)[id];
-  if (keepIntact(id)) {
+  if (keepIntact(id) || isProtected(block)) {
     if (sign) noteFind(rt, sign, c);
     return { res: "left", ...no };
   }

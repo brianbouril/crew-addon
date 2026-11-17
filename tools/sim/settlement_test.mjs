@@ -5,13 +5,13 @@
 import { world, tick, fire, setPlayers, ItemStack, Container, BlockPermutation } from "@minecraft/server";
 import "./scripts/main.js";
 import {
-  bellTap, foundSettlement, moveBell, packBell, checkBells, settlementOf, addMember, removeMember, renameSettlement,
+  bellTap, foundSettlement, moveBell, packBell, checkBells, settlementOf, addMember, removeMember, renameSettlement, isProtected,
   rosterOf, rosterLine, getCap, setCap, capCheck, queueOrder, takeQueued, getSettlements, joinedMessage,
 } from "./scripts/settlement.js";
-import { spawnWorker, canCommand, meta } from "./scripts/workers.js";
+import { spawnWorker, canCommand, meta, WORKER_TYPE } from "./scripts/workers.js";
 import { dispatch } from "./scripts/orders.js";
 import { getRegistry, saveRegistry } from "./scripts/store.js";
-import { setJSON } from "./scripts/util.js";
+import { setJSON, getJSON } from "./scripts/util.js";
 
 const logs = []; const out = console.log; console.log = (...a) => logs.push(a.join(" ")); console.warn = (...a) => logs.push("WARN " + a.join(" "));
 const ow = world.getDimension("minecraft:overworld");
@@ -67,7 +67,25 @@ check("old workers join, loaded or not", rosterOf(s).map((r) => r.name).sort().j
 check("joined message", founded.message.includes("2 of your workers joined Brian's Settlement"), founded.message);
 check("worker unchanged by joining", meta(digby).name === "Digby" && digby.getDynamicProperty("crew:role") === "Digger");
 check("crouch-tap on the settlement bell opens the menu", bellTap(brian, bell).kind === "menu");
-check("roster survives a reload", JSON.parse(String(world.getDynamicProperty("crew:settlements"))) && !!getSettlements()[s.id]);
+check("crouch-tap on your own bell is cancelled (no ring)", crouchTap(brian, bell).cancel === true);
+check("settlements are kept in world data (survive a restart)", JSON.parse(String(world.getDynamicProperty("crew:settlements")))[s.id]?.name === "Brian's Settlement");
+
+// a worker from an old save that only loads now: it joins, and nothing about it changes
+const old = ow.spawnEntity(WORKER_TYPE, { x: 2009.5, y: 65, z: 2002.5 });
+const oldJob = { type: "come", id: "oldjob", by: { id: "p1", name: "Brian" }, target: { name: "Brian" } };
+const oldHome = { dim: "minecraft:overworld", head: { x: 2100, y: 65, z: 2100 }, foot: { x: 2100, y: 65, z: 2101 }, chest: { x: 2102, y: 65, z: 2100 } };
+old.setDynamicProperty("crew:name", "Oldie"); old.setDynamicProperty("crew:ownerId", "p1"); old.setDynamicProperty("crew:ownerName", "Brian");
+old.setDynamicProperty("crew:role", "Digger"); old.setDynamicProperty("crew:roleSplit", 1);
+setJSON(old, "crew:crew", [{ id: "p3", name: "Cal" }]); setJSON(old, "crew:job", oldJob); setJSON(old, "crew:home", oldHome);
+old.getComponent("minecraft:inventory").container.setItem(0, new ItemStack("minecraft:diamond_pickaxe"));
+const reg2 = getRegistry(); reg2["oldie"] = { name: "Oldie", id: old.id, ownerId: "p1", ownerName: "Brian" }; saveRegistry(reg2);
+const snapOld = () => JSON.stringify({ crew: getJSON(old, "crew:crew", null), home: getJSON(old, "crew:home", null), role: old.getDynamicProperty("crew:role"), name: old.getDynamicProperty("crew:name"), tool: old.getComponent("minecraft:inventory").container.getItem(0)?.typeId });
+const beforeOld = snapOld();
+run(100);
+check("a worker loaded later joins", rosterOf(settlementOf({ id: "p1", name: "Brian" })).some((r) => r.name === "Oldie"));
+check("its allowed list, home, role, name and tools are unchanged", snapOld() === beforeOld, { before: beforeOld, after: snapOld() });
+check("its job carries on", getJSON(old, "crew:job", {}).id === "oldjob");
+old.setDynamicProperty("crew:job", undefined);
 
 // one settlement per player: a second bell offers a move, and moving keeps everything
 const bell2 = placeBell(brian, { x: 2020, y: 65, z: 2005 });
@@ -79,6 +97,15 @@ const addAnn = addMember(asBy(brian), s, { id: "p2", name: "Ann" });
 check("owner adds a member", addAnn.ok, addAnn);
 const { e: annW } = spawnWorker(ow, { x: 2004.5, y: 65, z: 2002.5 }, { id: "p2", name: "Ann" }, "Annie", [new ItemStack("minecraft:iron_pickaxe")]);
 check("member's worker joins", rosterOf(settlementOf({ id: "p1", name: "Brian" })).some((r) => r.name === "Annie"));
+{
+  const before = settlementOf({ id: "p1", name: "Brian" });
+  const mv = moveBell(brian, bell2);
+  const after = settlementOf({ id: "p1", name: "Brian" });
+  check("moving the bell", mv.ok && after.bell?.x === 2020, mv);
+  check("moving keeps name, members and roster", after.name === before.name && JSON.stringify(after.members) === JSON.stringify(before.members) && rosterOf(after).length === rosterOf(before).length, { before, after });
+  check("the old bell is an ordinary bell again", !isProtected(bell) && isProtected(bell2));
+  check("and back", moveBell(brian, bell).ok && isProtected(bell) && !isProtected(bell2));
+}
 check("member can't found their own", !foundSettlement(ann, placeBell(ann, { x: 2030, y: 65, z: 2005 }), "Mine").ok);
 check("member can order the owner's worker", canCommand(asBy(ann), meta(digby)));
 check("owner can order the member's worker", canCommand(asBy(brian), meta(annW)));
@@ -86,8 +113,9 @@ check("outsider can't", !canCommand(asBy(cal), meta(digby)));
 setJSON(digby, "crew:crew", [{ id: "p3", name: "Cal" }]);
 check("outsider on the allowed list still can", canCommand(asBy(cal), meta(digby)));
 setJSON(digby, "crew:crew", []);
-const calTown = foundSettlement(cal, placeBell(cal, { x: 2040, y: 65, z: 2005 }), "Calton");
+const calTown = foundSettlement(cal, placeBell(cal, { x: 2040, y: 65, z: 2005 }), "§aCalton ");
 check("Cal founds his own", calTown.ok, calTown);
+check("a typed name is used (colour codes and spaces dropped)", settlementOf({ id: "p3", name: "Cal" })?.name === "Calton", settlementOf({ id: "p3", name: "Cal" })?.name);
 check("a player in another settlement can't be added", !addMember(asBy(brian), s, { id: "p3", name: "Cal" }).ok);
 check("a member can't add members", !addMember(asBy(ann), getSettlements()[s.id], { id: "p5", name: "Eve" }).ok);
 check("member can't rename", !renameSettlement(asBy(ann), getSettlements()[s.id], "Annville").ok);
@@ -112,12 +140,25 @@ check("a member can't pack the bell", !packBell(asBy(ann)).ok);
 const packed = packBell(brian);
 check("owner packs the bell", packed.ok && ow.getBlock(bell.location).typeId === "minecraft:air", packed);
 check("bell goes to the owner's inventory", brian.inv.items.some((i) => i?.typeId === "minecraft:bell"));
-check("settlement kept without a bell", !!settlementOf({ id: "p1", name: "Brian" }) && settlementOf({ id: "p1", name: "Brian" }).bell === null && rosterOf(settlementOf({ id: "p1", name: "Brian" })).length === 2);
+check("settlement kept without a bell", !!settlementOf({ id: "p1", name: "Brian" }) && settlementOf({ id: "p1", name: "Brian" }).bell === null && rosterOf(settlementOf({ id: "p1", name: "Brian" })).length === 3);
 const bell3 = placeBell(brian, { x: 2000, y: 65, z: 2010 });
 check("hanging it again", bellTap(brian, bell3).kind === "rehang" && moveBell(brian, bell3).ok);
 const s3 = settlementOf({ id: "p1", name: "Brian" });
-check("moved bell keeps name and roster", s3.name === "Bluebell" && s3.bell?.z === 2010 && rosterOf(s3).length === 2, s3);
-check("the old bell spot is ordinary again", brk(cal, bell2).cancel === false);
+check("moved bell keeps name and roster", s3.name === "Bluebell" && s3.bell?.z === 2010 && rosterOf(s3).length === 3, s3);
+{
+  const spot = { x: 2000, y: 70, z: 2010 };
+  ow.getBlock(spot).setPermutation(BlockPermutation.resolve("minecraft:bell", { attachment: "hanging", direction: 0 }));
+  fire("world.afterEvents.playerPlaceBlock", { player: brian, block: ow.getBlock(spot), dimension: ow });
+  moveBell(brian, ow.getBlock(spot));
+  check("hanging bell: the block above is protected, the one below isn't", isProtected(ow.getBlock({ x: 2000, y: 71, z: 2010 })) && !isProtected(ow.getBlock({ x: 2000, y: 69, z: 2010 })));
+  const wall = { x: 2000, y: 70, z: 2014 };
+  ow.getBlock(wall).setPermutation(BlockPermutation.resolve("minecraft:bell", { attachment: "side", direction: 1 }));
+  fire("world.afterEvents.playerPlaceBlock", { player: brian, block: ow.getBlock(wall), dimension: ow });
+  moveBell(brian, ow.getBlock(wall));
+  check("wall bell facing east-west: its wall is protected, the blocks beside it aren't",
+    isProtected(ow.getBlock({ x: 2001, y: 70, z: 2014 })) && isProtected(ow.getBlock({ x: 1999, y: 70, z: 2014 })) && !isProtected(ow.getBlock({ x: 2000, y: 70, z: 2015 })) && !isProtected(ow.getBlock({ x: 2000, y: 69, z: 2014 })));
+  moveBell(brian, bell3);
+}
 ow.setBlockType(bell3.location, "minecraft:air"); // e.g. /fill
 checkBells();
 check("a bell that vanished leaves the settlement without a bell", settlementOf({ id: "p1", name: "Brian" }).bell === null);
@@ -161,7 +202,7 @@ check("last seen", lineFor("Idler", { now: Date.now() + 5 * 60000 }).line.includ
 // ---- orders that wait for an unloaded worker ----
 const queued = queueOrder("unloaded-1", asBy(brian), { worker: "Faraway", job: "stop", params: {} });
 check("order to an unloaded worker is queued", queued.ok && takeQueued("unloaded-1").length === 1, queued);
-const { e: later } = spawnWorker(ow, { x: 2008.5, y: 65, z: 2002.5 }, { id: "p1", name: "Brian" }, "Later", [new ItemStack("minecraft:iron_shovel")]);
+const { e: later } = spawnWorker(ow, { x: 2300.5, y: 65, z: 2002.5 }, { id: "p1", name: "Brian" }, "Later", [new ItemStack("minecraft:iron_shovel")]);
 queueOrder(later.id, asBy(brian), { worker: "Later", job: "come", params: {} });
 run(100);
 check("a queued order runs once the worker is loaded", String(later.getDynamicProperty("crew:job") ?? "").includes('"come"') && takeQueued(later.id).length === 0);
@@ -195,6 +236,17 @@ check("the cap is per player", Object.values(getRegistry()).filter((r) => r.owne
 const eve = mkPlayer("p5", "Eve"); setPlayers([brian, ann, cal, op, eve]);
 build(eve, { x: 2070, y: 65, z: 2000 }); build(eve, { x: 2072, y: 65, z: 2000 }); build(eve, { x: 2074, y: 65, z: 2000 }); build(eve, { x: 2076, y: 65, z: 2000 });
 check("applies without a settlement too", Object.values(getRegistry()).filter((r) => r.ownerId === "p5").length === 3);
+{
+  // a dead worker frees its place under the limit and leaves the list
+  setCap(asBy(op), mine());
+  const victim = ow.getEntities({ type: WORKER_TYPE }).find((e) => e.getDynamicProperty("crew:ownerId") === "p1");
+  const n0 = mine();
+  victim.remove();
+  fire("world.afterEvents.entityDie", { deadEntity: victim });
+  check("a dead worker no longer counts", mine() === n0 - 1 && !rosterOf(S()).some((r) => r.id === victim.id));
+  build(brian, { x: 2080, y: 65, z: 2000 });
+  check("so one more can be built at the limit", mine() === n0, { n0, now: mine() });
+}
 setCap(asBy(op), 6);
 check("joined message helper", joinedMessage(1, "Bluebell") === "1 of your workers joined Bluebell.");
 
