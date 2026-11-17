@@ -1,16 +1,18 @@
 // Crew Workers entry point.
-import { system, world } from "@minecraft/server";
+import { BlockTypes, system, world } from "@minecraft/server";
 import { registerCommands } from "./commands.js";
 import { isResting, startEngine } from "./runner.js";
 import { bedAt, getHome, sameBed } from "./life.js";
 import { toolSchemas } from "./catalog.js";
 import { STAKE, linkWorker, stakeTap, stakeUse, startOutlines } from "./marker.js";
-import { giveHeldTool, giveHeldTorches, openMenu } from "./ui.js";
+import { bellMenu, giveHeldTool, giveHeldTorches, openMenu } from "./ui.js";
 import { TORCH } from "./blocks.js";
 import { startWelcome } from "./guide.js";
-import { KIT_SLOTS, toolInfo } from "./tools.js";
-import { VERSION, tell } from "./util.js";
-import { WORKER_TYPE, loadedWorkers, spawnWorker } from "./workers.js";
+import { toolInfo } from "./tools.js";
+import { VERSION, onlinePlayer, tell } from "./util.js";
+import { WORKER_TYPE, buildFromBarrel, loadedWorkers } from "./workers.js";
+import { BELL, checkBells, forgetBell, isProtected, recordBell, takeQueued } from "./settlement.js";
+import { dispatch } from "./orders.js";
 
 system.beforeEvents.startup.subscribe((ev) => {
   registerCommands(ev.customCommandRegistry);
@@ -21,6 +23,7 @@ startWelcome();
 world.afterEvents.worldLoad.subscribe(() => {
   startEngine();
   startOutlines();
+  system.runInterval(settlementChores, 40);
   console.log(`[Crew] v${VERSION} loaded`);
   console.log(`[Crew-Schema] ${JSON.stringify(toolSchemas())}`);
 });
@@ -125,34 +128,56 @@ world.beforeEvents.playerInteractWithEntity.subscribe((ev) => {
   }
 });
 
-// Building a worker: a barrel holding at least one tool, then a carved pumpkin placed on top.
+// Placing blocks: a pumpkin on a barrel of tools builds a worker; a bell is remembered as placed by
+// that player (only bells you placed yourself can found a settlement).
 world.afterEvents.playerPlaceBlock.subscribe((ev) => {
-  const head = ev.block;
-  if (head.typeId !== "minecraft:carved_pumpkin" && head.typeId !== "minecraft:lit_pumpkin") return;
-  const body = head.below();
-  if (!body || body.typeId !== "minecraft:barrel") return;
-  const barrel = body.getComponent("minecraft:inventory")?.container;
-  if (!barrel) return;
-  /** @type {import("@minecraft/server").ItemStack[]} */
-  const items = [];
-  for (let i = 0; i < barrel.size; i++) {
-    const it = barrel.getItem(i);
-    if (it) items.push(it);
-  }
-  const tools = items.filter((it) => toolInfo(it));
-  if (!tools.length) {
-    tell(ev.player, "To build a worker, put at least one tool (pickaxe, shovel, axe or hoe) in the barrel, then place the pumpkin again.");
-    return;
-  }
-  barrel.clearAll();
-  const dim = head.dimension;
-  const at = body.bottomCenter();
-  dim.setBlockType(head.location, "minecraft:air");
-  dim.setBlockType(body.location, "minecraft:air");
-  // tools first, so the kit gets them before anything else
-  const ordered = [...tools, ...items.filter((it) => !toolInfo(it))];
-  const { e, spill } = spawnWorker(dim, at, { id: ev.player.id, name: ev.player.name }, undefined, ordered);
-  for (const it of spill) dim.spawnItem(it, at);
-  const extra = tools.length > KIT_SLOTS ? ` Only ${KIT_SLOTS} tools fit in the kit; the other ${tools.length - KIT_SLOTS} are carried and will go in the deposit chest.` : "";
-  tell(ev.player, `Crouch and use ${e.getDynamicProperty("crew:name")} to give it orders. New to workers? Type /crew:guide.${extra}`);
+  if (ev.block.typeId === BELL) recordBell(ev.player, ev.block);
+  else buildFromBarrel(ev.player, ev.block);
 });
+
+// Crouch-tapping a bell: found a settlement, or open its menu. Cancelled so the bell doesn't ring
+// (and villagers don't run indoors). A plain tap rings as usual; crouching with a block in hand
+// still places it.
+world.beforeEvents.playerInteractWithBlock.subscribe((ev) => {
+  if (ev.block.typeId !== BELL || !ev.player.isSneaking) return;
+  const held = ev.itemStack?.typeId;
+  if (held === STAKE || (held && BlockTypes.get(held))) return;
+  ev.cancel = true;
+  if (!ev.isFirstEvent) return;
+  const { player, block } = ev;
+  system.run(() => quiet(bellMenu(player, block)));
+});
+
+// A settlement's bell (and the block holding it up) can't be broken: it's moved from the menu.
+world.beforeEvents.playerBreakBlock.subscribe((ev) => {
+  if (isProtected(ev.block)) {
+    ev.cancel = true;
+    const p = ev.player;
+    system.run(() => tell(p, "That's a settlement bell. Move the bell from the settlement menu (crouch-tap it)."));
+  } else if (ev.block.typeId === BELL) {
+    const b = { typeId: ev.block.typeId, dimension: ev.block.dimension, location: ev.block.location };
+    system.run(() => forgetBell(b));
+  }
+});
+
+// Explosions skip settlement bells and what holds them up.
+world.beforeEvents.explosion.subscribe((ev) => {
+  const blocks = ev.getImpactedBlocks();
+  const keep = blocks.filter((b) => !isProtected(b));
+  if (keep.length !== blocks.length) ev.setImpactedBlocks(keep);
+});
+
+/** Every 2 seconds: notice lost bells, and give loaded workers the orders that waited for them. */
+function settlementChores() {
+  try {
+    checkBells();
+    for (const e of loadedWorkers()) {
+      for (const q of takeQueued(e.id)) {
+        const r = dispatch(q.by, q.order);
+        if (!r.ok) tell(onlinePlayer(q.by), `§c${r.message}`);
+      }
+    }
+  } catch (err) {
+    console.warn(`[Crew] ${err}`);
+  }
+}

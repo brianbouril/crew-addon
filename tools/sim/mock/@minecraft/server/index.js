@@ -68,18 +68,30 @@ class Entity {
   remove() { this.isValid = false; }
 }
 const dims = { "minecraft:overworld": new Dimension("minecraft:overworld"), "minecraft:nether": new Dimension("minecraft:nether"), "minecraft:the_end": new Dimension("minecraft:the_end") };
-const sub = () => ({ subscribe() {} });
+// Event signals record their handlers, so tests can fire them with fire("world.beforeEvents.explosion", ev).
+/** @type {Record<string, Function[]>} */
+const subs = {};
+const sub = (scope) => (_, k) => ({ subscribe(fn) { (subs[`${scope}.${k}`] ??= []).push(fn); return fn; }, unsubscribe() {} });
+/** Calls every handler subscribed to an event and returns the event (so tests can read ev.cancel). */
+export function fire(path, ev = {}) { for (const fn of subs[path] ?? []) fn(ev); return ev; }
+let players = [];
+/** The players world.getAllPlayers() returns. */
+export const setPlayers = (list) => { players = list; };
+// Item ids that aren't blocks (BlockTypes.get returns undefined for them).
+const NOT_BLOCKS = /_(pickaxe|shovel|axe|hoe|sword)$|^crew:|bread|apple|cooked|ingot|diamond$|^minecraft:coal$|stick/;
+export const BlockTypes = { get: (id) => (NOT_BLOCKS.test(id) ? undefined : { id }) };
 const wprops = new Map();
 const LOOT = { "minecraft:stone": "minecraft:cobblestone", "minecraft:iron_ore": "minecraft:raw_iron", "minecraft:coal_ore": "minecraft:coal", "minecraft:diamond_ore": "minecraft:diamond", "minecraft:dirt": "minecraft:dirt", "minecraft:grass_block": "minecraft:dirt" };
 export const lootCalls = [];
 let timeOfDay = 1000; // day by default; tests move the clock with setTimeOfDay
 export const setTimeOfDay = (t) => { timeOfDay = ((t % 24000) + 24000) % 24000; };
 export const world = {
-  getDimension: (id) => dims[id], getAllPlayers: () => [], getTimeOfDay: () => timeOfDay,
+  getDimension: (id) => dims[id], getAllPlayers: () => players, getTimeOfDay: () => timeOfDay,
   getDynamicProperty: (k) => wprops.get(k), setDynamicProperty: (k, v) => (v === undefined ? wprops.delete(k) : wprops.set(k, v)),
   getLootTableManager: () => ({ generateLootFromBlock: (b, tool) => { lootCalls.push([b.typeId, tool?.typeId ?? "hand"]); return [new ItemStack(LOOT[b.typeId] ?? b.typeId, 1)]; } }),
-  afterEvents: new Proxy({}, { get: sub }), beforeEvents: new Proxy({}, { get: sub }),
+  afterEvents: new Proxy({}, { get: sub("world.afterEvents") }), beforeEvents: new Proxy({}, { get: sub("world.beforeEvents") }),
 };
 const intervals = [];
-export const system = { run: (fn) => fn(), runInterval: (fn, n = 1) => intervals.push({ fn, n }), runTimeout: (fn) => fn(), waitTicks: async () => {}, beforeEvents: new Proxy({}, { get: sub }) };
-export function tick(t) { for (const i of intervals) if (t % i.n === 0) i.fn(); }
+let currentTick = 0;
+export const system = { run: (fn) => fn(), runInterval: (fn, n = 1) => intervals.push({ fn, n }), runTimeout: (fn) => fn(), waitTicks: async () => {}, beforeEvents: new Proxy({}, { get: sub("system.beforeEvents") }), get currentTick() { return currentTick; } };
+export function tick(t) { currentTick = t; for (const i of intervals) if (t % i.n === 0) i.fn(); }

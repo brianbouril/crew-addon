@@ -5,6 +5,19 @@ turns it into that version's section.
 
 ## Unreleased
 
+- **Settlements.** Place a bell yourself and crouch-tap it to found a settlement and name it. Every
+  worker you build belongs to it, including the ones you already have. Crouch-tap the bell for the
+  settlement menu: **Workers** lists all of them with what each is doing and where, who's **Out of
+  tools** or has **Tools low**, and which far-away workers are still working or paused. Tap one for
+  its menu; orders to a far-away worker wait until its area loads. Add friends as **members**: their
+  workers join, and everyone in the settlement can give orders to every worker in it. The bell
+  can't be broken (explosions skip it too): **Move the bell** in the menu puts it in your inventory.
+  A plain tap still rings it, and village bells can't be claimed.
+- **Worker limit.** Each player can have up to 6 workers, so the server keeps running smoothly.
+  Building one more is refused and leaves the barrel and tools as they were; workers you already
+  have past the limit keep working. Operators change it in the settlement menu or with
+  `/crew:cap <number>`.
+
 - **Diggers and Miners.** The first tool you put in the barrel sets a worker's job: a shovel makes
   a **Digger**, which digs quarries (give it pickaxes too, for stone); a pickaxe makes a **Miner**,
   which will prospect for ore in the next version. Each only takes its own jobs and says who to

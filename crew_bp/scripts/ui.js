@@ -13,7 +13,8 @@ import { TORCH } from "./blocks.js";
 import { TORCH_EVERY } from "./plans.js";
 import { fmt, getJSON, setJSON, tell } from "./util.js";
 import { bedNear, bedSafety, energy, energyWord, getHome, isSupply, sameBed } from "./life.js";
-import { canCommand, canManage, dismissWorker, meta, renameWorker, roleOf, setRole, updateTag } from "./workers.js";
+import { canCommand, canManage, dismissWorker, loadedWorkers, meta, renameWorker, roleOf, setRole, updateTag } from "./workers.js";
+import { addMember, bellRefusal, bellTap, foundSettlement, getCap, getSeen, moveBell, packBell, queueOrder, removeMember, renameSettlement, rosterLine, rosterOf, setCap, settlementOf } from "./settlement.js";
 import { show } from "./forms.js";
 import { openGuide } from "./guide.js";
 import { DEFAULTS, MAX_SIDE, MAX_TRUNK_WIDTH } from "./catalog.js";
@@ -398,4 +399,151 @@ async function dismissForm(p, e) {
     }],
     ["Cancel", () => {}],
   ]);
+}
+
+// ---------- the settlement (crouch-tap its bell) ----------
+/**
+ * Crouch-tapping a bell: found a settlement at your own bell, move or re-hang yours, or open the
+ * settlement menu. Other bells just say whose they are.
+ * @param {Player} p @param {import("@minecraft/server").Block} block
+ */
+export async function bellMenu(p, block) {
+  const t = bellTap(p, block);
+  if (t.kind === "menu" && t.s) return settlementMenu(p, t.s.id);
+  if (t.kind === "rehang") return tell(p, moveBell(p, block).message);
+  if (t.kind === "move" && t.s) {
+    const from = t.s.bell;
+    return menu(p, "Move your settlement here?", `${t.s.name}'s bell is at ${from ? fmt(from) : "?"}. Ring it from this bell instead? The old bell becomes an ordinary bell; workers, members and name stay the same.`, [
+      ["Move it here", () => say(p, moveBell(p, block))],
+      ["Cancel", () => {}],
+    ]);
+  }
+  if (t.kind !== "found") return tell(p, bellRefusal(t));
+  const f = new ModalFormData().title("Found a settlement here?")
+    .textField("Every worker you build belongs to your settlement, and you can see them all from this bell. Name it:", `${p.name}'s Settlement`, { defaultValue: `${p.name}'s Settlement` })
+    .submitButton("Found it");
+  const r = await show(p, f);
+  if (!r?.formValues) return;
+  say(p, foundSettlement(p, block, String(r.formValues[0] ?? "")));
+}
+
+/** @param {Player} p @param {string} id  the settlement's id (re-read each time, so the menu is current) */
+async function settlementMenu(p, id) {
+  const s = settlementOf({ id: p.id, name: p.name });
+  if (!s || s.id !== id) return tell(p, "You're no longer part of that settlement.");
+  const by = whoIs(p);
+  const owner = by.id === s.ownerId;
+  const roster = rosterOf(s);
+  const members = s.members.length ? s.members.map((m) => m.name).join(", ") : "none yet";
+  const body = `Owner: ${s.ownerName}. Members: ${members}.\nWorkers: ${roster.length}. Each player may have up to ${getCap()}.${s.bell ? "" : "\n§eThe bell isn't up: place a bell and crouch-tap it.§r"}`;
+  /** @type {[string, () => any][]} */
+  const b = [[`Workers (${roster.length})`, () => rosterMenu(p, s.id)]];
+  b.push([owner ? "Members" : "Leave the settlement", () => (owner ? membersMenu(p, s.id) : leaveForm(p, s.id))]);
+  if (owner) {
+    b.push(["Name", () => settlementNameForm(p, s.id)]);
+    if (s.bell) b.push(["Move the bell", () => moveBellForm(p, s.id)]);
+  }
+  if (by.isOp) b.push([`Worker limit: ${getCap()} each`, () => capForm(p, s.id)]);
+  b.push(["How workers work", () => openGuide(p)]);
+  b.push(["Close", () => {}]);
+  await menu(p, s.name, body, b);
+}
+
+/** One button per worker: name and role, then what it's doing and where. @param {Player} p @param {string} id */
+async function rosterMenu(p, id) {
+  const s = settlementOf({ id: p.id, name: p.name });
+  if (!s || s.id !== id) return;
+  const loaded = loadedWorkers();
+  const loadedIds = new Set(loaded.map((e) => e.id));
+  const roster = rosterOf(s);
+  const now = Date.now();
+  /** @type {[string, () => any][]} */
+  const b = roster.map((r) => {
+    const l = rosterLine(r, { viewer: p, loadedIds, now });
+    return /** @type {[string, () => any]} */ ([`${l.title}\n§8${l.line}`, () => {
+      const e = loaded.find((x) => x.id === r.id);
+      return e ? openMenu(p, e) : farMenu(p, s.id, r);
+    }]);
+  });
+  b.push(["Back", () => settlementMenu(p, s.id)]);
+  await menu(p, `${s.name}: workers`, roster.length ? "Tap a worker for its menu." : "No workers yet. Build one: tools in a barrel, a carved pumpkin on top.", b);
+}
+
+/**
+ * A worker that isn't loaded: what it was last doing, and orders that wait until its area loads.
+ * @param {Player} p @param {string} id @param {{id: string, name: string, ownerId: string, ownerName: string}} r
+ */
+async function farMenu(p, id, r) {
+  const by = whoIs(p);
+  const seen = getSeen()[r.id];
+  const can = canCommand(by, { name: r.name, ownerId: r.ownerId, ownerName: r.ownerName, crew: [] });
+  const body = `${r.name} isn't loaded (nobody is near it).${seen ? ` Last seen at ${fmt(seen)}: ${seen.status}.` : ""}${can ? "\nOrders wait until its area is loaded again." : ""}`;
+  /** @type {[string, () => any][]} */
+  const b = [];
+  if (can) {
+    for (const [label, job] of [["Stop", "stop"], ["Continue its dig", "resume"], ["Drop off", "drop_off"]]) {
+      b.push([label, () => say(p, queueOrder(r.id, by, { worker: r.name, job, params: {} }))]);
+    }
+  }
+  b.push(["Back", () => rosterMenu(p, id)]);
+  await menu(p, r.name, body, b);
+}
+
+/** @param {Player} p @param {string} id */
+async function membersMenu(p, id) {
+  const s = settlementOf({ id: p.id, name: p.name });
+  if (!s || s.id !== id) return;
+  const by = whoIs(p);
+  /** @type {[string, () => any][]} */
+  const b = [["Add a member", async () => {
+    const others = world.getAllPlayers().filter((pl) => !settlementOf({ id: pl.id, name: pl.name }));
+    if (!others.length) return menu(p, s.name, "Everyone online already belongs to a settlement.", [["OK", () => membersMenu(p, id)]]);
+    const f = new ModalFormData().title(`Add a member to ${s.name}`)
+      .dropdown("Members' workers join the settlement, and members can give orders to all its workers.", others.map((pl) => pl.name))
+      .submitButton("Add");
+    const r = await show(p, f);
+    if (!r?.formValues) return;
+    const pl = others[Number(r.formValues[0])];
+    say(p, addMember(by, s, { id: pl.id, name: pl.name }));
+  }]];
+  for (const m of s.members) b.push([`Remove ${m.name}`, () => say(p, removeMember(by, s, m.id))]);
+  b.push(["Back", () => settlementMenu(p, id)]);
+  await menu(p, `${s.name}: members`, `Members: ${s.members.length ? s.members.map((m) => m.name).join(", ") : "none yet"}.\nA member's workers belong to the settlement, and every member can give orders to every worker in it.`, b);
+}
+
+/** @param {Player} p @param {string} id */
+async function leaveForm(p, id) {
+  const s = settlementOf({ id: p.id, name: p.name });
+  if (!s || s.id !== id) return;
+  await menu(p, `Leave ${s.name}?`, "Your workers leave with you. You can found your own settlement afterwards.", [
+    ["Leave", () => say(p, removeMember(whoIs(p), s, p.id))],
+    ["Cancel", () => settlementMenu(p, id)],
+  ]);
+}
+
+/** @param {Player} p @param {string} id */
+async function settlementNameForm(p, id) {
+  const s = settlementOf({ id: p.id, name: p.name });
+  if (!s || s.id !== id) return;
+  const r = await show(p, new ModalFormData().title("Name").textField("Settlement name", s.name, { defaultValue: s.name }).submitButton("Save"));
+  if (r?.formValues) say(p, renameSettlement(whoIs(p), s, String(r.formValues[0] ?? "")));
+}
+
+/** @param {Player} p @param {string} id */
+async function moveBellForm(p, id) {
+  const s = settlementOf({ id: p.id, name: p.name });
+  if (!s || s.id !== id) return;
+  await menu(p, "Move the bell", "The bell goes into your inventory. Your workers, members and name are kept, but the settlement menu isn't available until you place the bell and crouch-tap it.", [
+    ["Take the bell down", () => say(p, packBell(p))],
+    ["Cancel", () => settlementMenu(p, id)],
+  ]);
+}
+
+/** Operators: the per-player worker limit. @param {Player} p @param {string} id */
+async function capForm(p, id) {
+  const r = await show(p, new ModalFormData().title("Worker limit")
+    .slider("Workers each player may have (keeps the server running smoothly)", 1, 24, { defaultValue: Math.min(24, getCap()), valueStep: 1 })
+    .submitButton("Save"));
+  if (r?.formValues) say(p, setCap(whoIs(p), Number(r.formValues[0])));
+  else settlementMenu(p, id);
 }

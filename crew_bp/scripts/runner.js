@@ -8,6 +8,7 @@ import { advance, atGoal, near, newSearch } from "./path.js";
 import { KIT_SLOTS, addToKit, chooseTool, freeHaulSlots, kit, kitText, roleKinds, stash, ticksFor, toolInfo, toolPref, wear } from "./tools.js";
 import { center, dist, floorV, fmt, getJSON, lerp, setJSON, onlinePlayer, sameV, up } from "./util.js";
 import { emit, holdTool, loadedWorkers, meta, migrateRole, roleOf, syncRole, updateTag } from "./workers.js";
+import { saveSeen } from "./settlement.js";
 import { DRAIN_PER_BLOCK, EXHAUSTED, REST, TIRED, TIRED_SLOWDOWN, bedPose, bedSafety, bedside, eatOne, energy, energyWord, getHome, isNight, isSupply, restock, setEnergy } from "./life.js";
 
 /**
@@ -292,8 +293,13 @@ const STAY_UP_IDLE = 60;
  * A worker a player woke up or gave an order at night (`crew:stayUp`) stays up while it has a job,
  * and goes back to bed after STAY_UP_IDLE seconds with nothing to do.
  */
+let seenIn = 0;
 function routine() {
   const night = isNight();
+  if (--seenIn <= 0) {
+    seenIn = 5;
+    noteSeen();
+  }
   for (const e of loadedWorkers()) {
     try {
       const job = active.get(e.id)?.job ?? getJSON(e, "crew:job", undefined);
@@ -455,6 +461,46 @@ function stepRest(rt) {
     default:
       st.phase = home ? "to_bed" : "lie_down";
   }
+}
+
+/**
+ * Every 5 seconds: what each loaded worker is doing, for the settlement roster (which also shows
+ * workers that aren't loaded, from their last note).
+ */
+function noteSeen() {
+  /** @type {Record<string, import("./settlement.js").Seen>} */
+  const now = {};
+  for (const e of loadedWorkers()) {
+    try {
+      const job = active.get(e.id)?.job ?? getJSON(e, "crew:job", undefined);
+      const st = active.get(e.id)?.st ?? getJSON(e, "crew:state", {});
+      const inv = e.getComponent("minecraft:inventory")?.container;
+      const k = inv ? kit(inv) : [];
+      const l = floorV(e.location);
+      now[e.id] = {
+        role: roleOf(e), status: shortStatus(e, job, st), busy: !!job && job.type !== "rest",
+        noTools: !k.length || !!st?.needTool, low: k.some((t) => t.left / t.max <= 0.1), ticking: !!job?.tickingArea,
+        dim: e.dimension.id, x: l.x, y: l.y, z: l.z, ts: Date.now(),
+      };
+    } catch {
+      /* entity gone */
+    }
+  }
+  saveSeen(now);
+}
+
+/** A few words for the roster: "Quarry 40%", "Asleep at home", "Idle". @param {Entity} e @param {any} job @param {any} st */
+function shortStatus(e, job, st) {
+  if (!job) {
+    const paused = pausedJob(e);
+    return paused ? `Idle (${paused.name} paused at ${paused.pct}%)` : "Idle";
+  }
+  if (job.type === "rest") return st?.phase === "asleep" ? (getHome(e) ? "Asleep at home" : "Asleep") : "Going to bed";
+  if (job.type === "come") return `Walking to ${job.target.name}`;
+  if (job.type === "drop_off") return `Dropping off at ${job.deposit.label}`;
+  const total = job.geom?.total ?? 1;
+  const pct = Math.floor((100 * Math.min(st?.i ?? 0, total)) / total);
+  return `${job.type === "quarry" ? "Quarry" : "Branch mine"} ${pct}%${st?.needTool ? ", waiting for a tool" : ""}`;
 }
 
 /** Resumes saved jobs on workers that just loaded (after a restart or when a player comes back). */

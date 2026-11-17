@@ -2,8 +2,9 @@
 import { world, system, ItemStack } from "@minecraft/server";
 import { DIMS, getJSON, setJSON, onlinePlayer, tell, fmt } from "./util.js";
 import { getRegistry, saveRegistry, freeName } from "./store.js";
-import { ROLE_LIST, addToKit, defaultRole, kit, stash, toolInfo } from "./tools.js";
+import { KIT_SLOTS, ROLE_LIST, addToKit, defaultRole, kit, stash, toolInfo } from "./tools.js";
 import { setHome } from "./life.js";
+import { capCheck, sameSettlement } from "./settlement.js";
 
 export const WORKER_TYPE = "crew:worker";
 
@@ -46,10 +47,15 @@ export function findWorker(name) {
 /** @param {PersonRef} a @param {Commander} b */
 const same = (a, b) => (!!a.id && a.id === b.id) || a.name.toLowerCase() === b.name.toLowerCase();
 
-/** Owner, anyone on the crew list, operators, and the server console may give orders. @param {Commander} by @param {Meta} m */
+/**
+ * Owner, anyone on the worker's allowed list, everyone in the owner's settlement, operators, and
+ * the server console may give orders.
+ * @param {Commander} by @param {Meta} m
+ */
 export function canCommand(by, m) {
   if (by.console || by.isOp) return true;
   if (same({ id: m.ownerId, name: m.ownerName }, by)) return true;
+  if (sameSettlement(by, { id: m.ownerId, name: m.ownerName })) return true;
   return m.crew.some((c) => same(c, by));
 }
 
@@ -96,6 +102,47 @@ export function spawnWorker(dim, loc, owner, wantedName, items = []) {
   emit(e, "hired", { owner: owner.name, at: fmt(loc), role: roleOf(e), tools: kit(inv).map((t) => t.info.id) },
     `${name} is ready to work as a ${roleOf(e)}. Owner: ${owner.name}.`);
   return { e, spill };
+}
+
+/**
+ * Building a worker: a barrel holding at least one tool, then a carved pumpkin placed on top
+ * (playerPlaceBlock). Refused, leaving barrel and tools as they were, when the player is at the
+ * worker limit.
+ * @param {import("@minecraft/server").Player} player @param {import("@minecraft/server").Block} head
+ */
+export function buildFromBarrel(player, head) {
+  if (head.typeId !== "minecraft:carved_pumpkin" && head.typeId !== "minecraft:lit_pumpkin") return;
+  const body = head.below();
+  if (!body || body.typeId !== "minecraft:barrel") return;
+  const barrel = body.getComponent("minecraft:inventory")?.container;
+  if (!barrel) return;
+  /** @type {import("@minecraft/server").ItemStack[]} */
+  const items = [];
+  for (let i = 0; i < barrel.size; i++) {
+    const it = barrel.getItem(i);
+    if (it) items.push(it);
+  }
+  const tools = items.filter((it) => toolInfo(it));
+  if (!tools.length) {
+    tell(player, "To build a worker, put at least one tool (pickaxe, shovel, axe or hoe) in the barrel, then place the pumpkin again.");
+    return;
+  }
+  const cap = capCheck(player.id);
+  if (!cap.ok) {
+    tell(player, cap.message);
+    return;
+  }
+  barrel.clearAll();
+  const dim = head.dimension;
+  const at = body.bottomCenter();
+  dim.setBlockType(head.location, "minecraft:air");
+  dim.setBlockType(body.location, "minecraft:air");
+  // tools first, so the kit gets them before anything else
+  const ordered = [...tools, ...items.filter((it) => !toolInfo(it))];
+  const { e, spill } = spawnWorker(dim, at, { id: player.id, name: player.name }, undefined, ordered);
+  for (const it of spill) dim.spawnItem(it, at);
+  const extra = tools.length > KIT_SLOTS ? ` Only ${KIT_SLOTS} tools fit in the kit; the other ${tools.length - KIT_SLOTS} are carried and will go in the deposit chest.` : "";
+  tell(player, `Crouch and use ${e.getDynamicProperty("crew:name")} to give it orders. New to workers? Type /crew:guide.${extra}`);
 }
 
 /** The worker's role: set in its menu, otherwise the role of its best tool. @param {import("@minecraft/server").Entity} e */

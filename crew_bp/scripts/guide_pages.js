@@ -165,6 +165,23 @@ export const PAGES = [
     ].join("\n"),
   },
   {
+    title: "Your settlement",
+    body: [
+      H("Your settlement"),
+      "",
+      `${K("Found one:")} place a ${K("bell")} yourself, then ${K("crouch and tap it")} (empty hand, or holding anything that isn't a block). Name it, and every worker you've built (and every one you build later) belongs to it, wherever it is.`,
+      "",
+      `Crouch-tap the bell any time for the settlement menu:`,
+      `- ${K("Workers")}: all your settlement's workers, what each is doing and where. ${K("Out of tools")} (red) and ${K("Tools low")} (yellow) show who needs tools. Far-away workers show ${K("Working far away")} or ${K("Paused: nobody nearby")}. Tap one for its menu; orders to a far-away worker wait until its area loads.`,
+      `- ${K("Members")}: add friends. Their workers join too, and every member can give orders to every worker in the settlement.`,
+      `- ${K("Name")} and ${K("Move the bell")} (owner only). The bell can't be broken, by you or anyone, and explosions skip it: Move the bell puts it in your inventory, then place it and crouch-tap it again.`,
+      "",
+      "A plain tap still rings the bell. Village bells aren't yours to claim (for now).",
+      "",
+      `Each player can have up to ${K("6 workers")} (a server operator can change this to keep the server running smoothly).`,
+    ].join("\n"),
+  },
+  {
     title: "Stop and continue",
     body: [
       H("Stop and continue"),
@@ -183,7 +200,7 @@ export const PAGES = [
     body: [
       H("Sharing and good manners"),
       "",
-      `Only the ${K("owner")} and the players they allow can give a worker orders or tools. Owners add friends under ${K("Who can give orders")}. Server operators can always help out.`,
+      `Only the ${K("owner")} and the players they allow can give a worker orders or tools. Owners add friends under ${K("Who can give orders")}. Everyone in your settlement can give orders to all its workers. Server operators can always help out.`,
       "",
       `${K("Workers dig whatever is inside the plan")}, whoever built it, and with Clear above, everything over a quarry too. So stake your digs away from other people's builds, and check the outline (it shows the full height) before you confirm.`,
       "",
@@ -207,6 +224,7 @@ export const PAGES = [
       `- ${K("/crew:setplace \"name\"")}: save the chest you're looking at as a named drop-off (add ${K("true")} to share it with everyone)`,
       `- ${K("/crew:places")}: list saved places`,
       `- ${K("/crew:jobs")}: every job and its options`,
+      `- ${K("/crew:cap [number]")}: (operators) how many workers each player may have`,
     ].join("\n"),
   },
   {
