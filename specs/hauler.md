@@ -91,3 +91,6 @@ Every guess in this draft. Each needs Brian's answer before status `ready`.
     OK for the Hauler to use one ticking area while travelling, like a digging worker does?
 11. **Look:** backpack over the villager-style worker, no hard hat? Any colour or detail you want?
 12. **`haul` permissions:** same as other orders (owner and allowed players, operators)?
+13. **Build cost:** stronger workers cost more to build (roadmap, Nov 17). Where does the Hauler
+    sit: an easy early worker, or one that takes some progress (e.g. a chest plus iron ingots, a
+    minecart, leather for the backpack)?

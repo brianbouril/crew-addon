@@ -148,7 +148,7 @@ A and B are the two builder sessions. Each weekly release goes to staging, then 
 
 1. **Week 1, Nov 16 to 19:** factory setup, staging server, test spike, QA Run D on the Digger/Miner split. You approve the settlement layer and Hauler specs. Done when one scenario test runs on staging and Digger/Miner is either live or held with its bugs listed.
 2. **Nov 20 to 29, break:** no planned work, and no sessions run against a server.
-3. **Week 2, Nov 30 to Dec 6:** A builds the settlement layer (bell claim, roster, ledger, crew-wide orders, worker cap with milestone raises). B builds the Hauler. Release 1 on Dec 6: Hauler plus the settlement core.
+3. **Week 2, Nov 30 to Dec 6:** A builds the settlement layer (bell claim, roster, ledger, settlement orders, worker cap). B builds the Hauler. Release 1 on Dec 6: Hauler plus the settlement core.
 4. **Week 3, Dec 7 to 13:** A finishes the settlement layer. B builds Woodcutter and Farmer. The lead session runs a load test with 16 to 24 workers and you set the default cap from the result. Release 2 on Dec 13, then the cut-line check.
 5. **Week 4, Dec 14 to 20:** A builds the Sifter. B builds Miner prospecting on the existing branch-mine code. A friend joins one staging playtest. Release 3 on Dec 20.
 6. **Week 5, Dec 21 to 27:** holiday week, kept light. Fix what the friend playtest found. No new features.

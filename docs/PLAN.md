@@ -200,6 +200,12 @@ jobs. Decided: **no x-ray** (workers only know what they uncover); **home every 
 near a mine keep the walk short); **food is optional** and, like sleep, restores energy; **mobs
 can't hurt workers yet**; Quarry and Branch mine stay as precise jobs.
 
+**Worker count and build cost (Nov 17):** players may run as many workers as they like up to one
+per-player server limit (an operator setting, starting at 6, set by the load test); there's nothing
+to earn to get more. The challenge is in building them: **stronger workers cost more to build**
+(e.g. Digger, Woodcutter, Farmer early; Miner and Hauler with some progress; Sifter, Smith and
+Builder mid to late game). Each worker's spec sets its exact build.
+
 ### Done
 - **v0.1 Miner:** one worker, box dig, places, permissions, Survey Stake corners.
 - **v0.2 Mining patterns and tools:** quarry with stair, branch mine, tool kits, crouch menu,
@@ -435,6 +441,20 @@ The Miner's own release (planned Nov 13 as "Prospector"); all of it is Miner onl
 - **LLM bridge (Phase 2):** a program next to BDS reads `[Crew-Event]` lines and sends
   `crew:exec {json}` orders back. `/crew:ask Dig "find me diamonds and tell me if you find anything
   weird"` becomes a `prospect` call to a Miner (the bridge picks a worker whose role takes the job). Gate: 10 plain-English orders in a row map to the right job.
+- **Take over a village (Brian, Nov 16):** crouch-tap a village's own bell and pay the village an
+  offering to make it your settlement. A village you've taken over unlocks Builder homes in that
+  village's style. (V1 settlements only use bells you placed yourself.)
+- **Catch-up for far-away workers (Brian, Nov 16):** when a worker paused for lack of a ticking
+  area is loaded again, work out what it would have done while away and apply it at once
+  (deterministic). For Miners, a future hunter or scout, and players who leave the settlement for
+  a while. Size it after the week 3 load test.
+- **Hauler follows you (Brian, Nov 16):** a Hauler can be told to follow a player like a tamed wolf,
+  carrying what they hand it.
+- **Smith and the depot as central store (Brian, Nov 16):** the Hauler's depot holds the
+  settlement's raw materials; a Smith takes what it needs from the depot to make tools and weapons,
+  and keeps what it makes in its own storage chest (both count in the settlement's storage totals).
+- **Teamwork (Brian, Nov 17):** two or more workers of the same role split one staked job, e.g. two
+  Diggers level an area together in half the time.
 - **Contractor mode (Phase 3):** multi-step plans (prospect, then haul, then report), several
   workers splitting one goal, an approval step before big jobs.
 
