@@ -142,7 +142,7 @@ Tip: put a bed and a chest near a mine so its walk home is short.
 **Found one:** place a **bell** yourself, then **crouch and tap it** (empty hand, or holding anything that isn't a block). Name it, and every worker you've built (and every one you build later) belongs to it, wherever it is.
 
 Crouch-tap the bell any time for the settlement menu:
-- **Workers**: all your settlement's workers, what each is doing and where. **Out of tools** (red) and **Tools low** (yellow) show who needs tools. Far-away workers show **Working far away** or **Paused: nobody nearby**. Tap one for its menu; orders to a far-away worker wait until its area loads.
+- **Workers**: all your settlement's workers, what each is doing and where. **Out of tools** (red) and **Tools low** (yellow) show who needs tools. Far-away workers show **Working far away** or **Paused: nobody nearby**. Tap one for its menu; orders to a far-away worker wait until its area loads. A worker that was killed can be taken off the list with **Forget this worker** (if it was only far away, it comes back when its area loads).
 - **Storage**: everything in the settlement's chests, added up (most first). Tap an item to see which chests hold it. Storage chests are your workers' home chests and drop-offs, your named places, and any chest you tap with the Survey Stake and pick **Add to settlement storage**. Chests far away show what they held when they were last loaded.
 - **Give orders to everyone**: Stop, Continue, Drop off, Go home or Come to the bell, for every worker or just one kind (All Diggers). Far-away workers do it when their area loads.
 - **Members**: add friends. Everyone in a settlement runs it together: their workers become the settlement's, and they can give orders to every worker, add and remove members, rename it and move its bell. The **founder** (who rang it first) can't be removed and can hand that role to someone else; the founder leaves only after doing that.
@@ -184,7 +184,7 @@ Only the **owner** and the players they allow can give a worker orders or tools.
 - **/crew:setplace "name"**: save the chest you're looking at as a named drop-off (add **true** to share it with everyone)
 - **/crew:places**: list saved places
 - **/crew:jobs**: every job and its options
-- **/crew:cap [number]**: (operators) how many workers each player may have
+- **/crew:cap [number]**: (operators) the worker limit, per person in a settlement and on your own
 
 ## Tips
 

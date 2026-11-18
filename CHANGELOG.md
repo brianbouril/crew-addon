@@ -9,7 +9,8 @@ turns it into that version's section.
   worker you build belongs to it, including the ones you already have. Crouch-tap the bell for the
   settlement menu: **Workers** lists all of them with what each is doing and where, who's **Out of
   tools** or has **Tools low**, and which far-away workers are still working or paused. Tap one for
-  its menu; orders to a far-away worker wait until its area loads. Add friends as **members**: everyone
+  its menu; orders to a far-away worker wait until its area loads, and a worker that was killed can
+  be forgotten there so it stops counting toward the limit. Add friends as **members**: everyone
   in a settlement runs it together (their workers become the settlement's and stay if they leave;
   everyone can give orders to every worker,
   add and remove members, rename it and move its bell). The **founder** can't be removed and can

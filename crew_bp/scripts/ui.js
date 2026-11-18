@@ -14,7 +14,7 @@ import { TORCH_EVERY } from "./plans.js";
 import { fmt, getJSON, setJSON, tell } from "./util.js";
 import { bedNear, bedSafety, energy, energyWord, getHome, isSupply, sameBed } from "./life.js";
 import { canCommand, canManage, dismissWorker, loadedWorkers, meta, renameWorker, roleOf, setRole, updateTag } from "./workers.js";
-import { itemName, ledger, whereIs } from "./settlement.js";
+import { forgetMissing, itemName, ledger, whereIs } from "./settlement.js";
 import { addMember, bellRefusal, bellTap, foundSettlement, getCap, getSeen, makeFounder, moveBell, packBell, queueOrder, removeMember, renameSettlement, rosterLine, rosterOf, setCap, settlementOf } from "./settlement.js";
 import { show } from "./forms.js";
 import { openGuide } from "./guide.js";
@@ -562,6 +562,13 @@ async function farMenu(p, id, r) {
     for (const [label, job] of [["Stop", "stop"], ["Continue its dig", "resume"], ["Drop off", "drop_off"]]) {
       b.push([label, () => say(p, queueOrder(r.id, by, { worker: r.name, job, params: {} }))]);
     }
+  }
+  const s = settlementOf({ id: p.id, name: p.name });
+  if (s && s.id === id) {
+    b.push(["Forget this worker", () => menu(p, `Forget ${r.name}?`, `Only if it's gone for good (killed, or lost in the void). It comes off the list and stops counting toward the worker limit. If it's only far away, it comes back on the list next time its area loads, so nothing is lost.`, [
+      ["Forget it", () => say(p, forgetMissing(by, s, r.id))],
+      ["Cancel", () => farMenu(p, id, r)],
+    ])]);
   }
   b.push(["Back", () => rosterMenu(p, id)]);
   await menu(p, r.name, body, b);

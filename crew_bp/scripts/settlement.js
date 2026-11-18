@@ -375,11 +375,30 @@ export function transferWorkers(fromId, to) {
 /**
  * Keeps ownership right: a worker the registry gives to a settlement member (built with /crew:hire,
  * or before they joined) goes to the founder, and a loaded worker whose saved owner differs from
- * the registry is updated (workers that were unloaded during a hand-over catch up here).
+ * the registry is updated (workers that were unloaded during a hand-over catch up here). A loaded
+ * worker missing from the registry (forgotten while it was far away) is added back.
  */
 export function syncOwners() {
   const reg = getRegistry();
   let changed = false;
+  const known = new Set(Object.values(reg).map((r) => r.id));
+  for (const d of DIMS) {
+    let list = [];
+    try {
+      list = world.getDimension(d).getEntities({ type: "crew:worker" });
+    } catch {
+      continue;
+    }
+    for (const e of list) {
+      if (known.has(e.id)) continue;
+      const name = String(e.getDynamicProperty("crew:name") ?? "Worker");
+      let key = name.toLowerCase(), n = 2;
+      while (reg[key]) key = `${name} ${n++}`.toLowerCase();
+      reg[key] = { name: key === name.toLowerCase() ? name : `${name} ${n - 1}`, id: e.id, ownerId: String(e.getDynamicProperty("crew:ownerId") ?? ""), ownerName: String(e.getDynamicProperty("crew:ownerName") ?? "") };
+      if (reg[key].name !== name) e.setDynamicProperty("crew:name", reg[key].name);
+      changed = true;
+    }
+  }
   for (const s of Object.values(getSettlements())) {
     const members = new Set(s.members.map((m) => m.id));
     for (const r of Object.values(reg)) {
@@ -459,6 +478,24 @@ export function rosterLine(entry, ctx) {
   return { title, line: `${seen.status}${tools}${where}` };
 }
 
+/**
+ * Bell menu, a worker that isn't loaded: take it off the list (it died, or was lost before deaths
+ * were tracked), so it no longer counts toward the limit. If it's alive after all, it's added back
+ * the next time its area loads (syncOwners).
+ * @param {Commander} by @param {Settlement} s @param {string} workerId
+ */
+export function forgetMissing(by, s, workerId) {
+  if (!inIt(by, s)) return { ok: false, message: `Only people in ${s.name} can do that.` };
+  const reg = getRegistry();
+  const key = Object.keys(reg).find((k) => reg[k].id === workerId);
+  if (!key || !rosterOf(s).some((r) => r.id === workerId)) return { ok: false, message: "That worker isn't on the list." };
+  const name = reg[key].name;
+  delete reg[key];
+  saveRegistry(reg);
+  forgetWorker(workerId);
+  return { ok: true, message: `${name} is off the list. If it's still out there, it comes back on the list next time its area loads.` };
+}
+
 /** A worker died: drop what the roster and the order queue kept for it. @param {string} workerId */
 export function forgetWorker(workerId) {
   const seen = getSeen();
@@ -497,12 +534,20 @@ export function storageSpots(s) {
   };
   for (const st of s.storage ?? []) add(st, st.label);
   const ids = new Set(peopleOf(s).map((p) => p.id));
-  for (const pl of getPlaces()) if (ids.has(pl.ownerId)) add(pl, pl.name);
+  const places = getPlaces();
+  for (const pl of places) if (ids.has(pl.ownerId)) add(pl, pl.name);
+  // a worker's home chest or drop-off that's another player's named place isn't the settlement's
+  /** @type {Set<string>} */
+  const others = new Set(places.filter((pl) => !ids.has(pl.ownerId)).map((pl) => spotKey(pl)));
+  /** @param {ChestRef | undefined} p @param {string} label */
+  const addOwn = (p, label) => {
+    if (p?.dim && !others.has(spotKey(p))) add(p, label);
+  };
   const seen = getSeen();
   for (const r of rosterOf(s)) {
     const sn = seen[r.id];
-    add(sn?.home, `${r.name}'s home chest`);
-    add(sn?.drop, sn?.drop?.label ?? `${r.name}'s drop-off`);
+    addOwn(sn?.home, `${r.name}'s home chest`);
+    addOwn(sn?.drop, sn?.drop?.label ?? `${r.name}'s drop-off`);
   }
   return [...out.values()].sort((a, b) => spotKey(a).localeCompare(spotKey(b)));
 }

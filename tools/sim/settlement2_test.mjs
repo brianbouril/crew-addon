@@ -144,6 +144,15 @@ check("stake chests can be removed", removeStorage(asBy(brian), S(), ow.getBlock
 run(200);
 check("removed chest no longer counts", !asMap()["minecraft:oak_log"], asMap());
 check("and its saved contents are dropped", world.getDynamicProperty("crew:stock:minecraft:overworld|3015,65,3000") === undefined);
+{
+  // a worker that dropped off at someone else's named place: that chest isn't the settlement's
+  chest({ x: 3060, y: 65, z: 3000 }, [["minecraft:emerald", 9]]);
+  savePlace(asBy(cal), "cal's shop", "minecraft:overworld", { x: 3060, y: 65, z: 3000 }, true);
+  setJSON(digby, "crew:lastDeposit", { x: 3060, y: 65, z: 3000, dim: "minecraft:overworld", label: "cal's shop" });
+  run(200);
+  check("another player's named place doesn't count", !storageSpots(S()).some((sp) => sp.x === 3060) && !asMap()["minecraft:emerald"], storageSpots(S()).map((sp) => sp.x));
+  setJSON(digby, "crew:lastDeposit", undefined);
+}
 check("known chests can't be removed", !removeStorage(asBy(brian), S(), ow.getBlock({ x: 3005, y: 65, z: 3000 })).ok);
 
 // ---- settlement orders ----

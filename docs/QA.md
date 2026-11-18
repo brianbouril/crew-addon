@@ -60,7 +60,9 @@ a full server restart: `reload` refuses to re-register it.
       doing and how far/which way. Take a Digger's last tool: it shows red "Out of tools". Walk far
       away from a working Digger (still loaded by its ticking area): "Working far away". A worker in
       an unloaded area shows "Paused: nobody nearby" (or "last seen N min ago" if it was idle); give
-      it Stop from its far menu, walk back: it stops.
+      it Stop from its far menu, walk back: it stops. Forget a far-away worker: it leaves the list;
+      walk back to it: it's on the list again. Kill a worker (/kill): it leaves the list by itself.
+      A worker that dropped off at a friend's named place outside the settlement: that chest isn't in Storage.
 - [ ] 12e. Add a friend as a member: their workers appear in the list, they can open and order your
       workers, and you theirs. They can add and remove members, rename and move the bell, but
       can't remove you (the founder). Make them the founder (every worker's owner becomes them), then make yourself founder again.

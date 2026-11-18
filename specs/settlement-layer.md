@@ -94,6 +94,13 @@ what we've gathered in one place, and give orders to everyone at once."
   someone leaves and the settlement is over its limit, its workers keep working; no new builds until
   it's under. Everyone in it can also manage its workers (name, role, tools, dismiss). This replaces
   the per-player limit below and "members' workers leave with them".
+- 2026-11-18: **missing workers are managed from the bell menu** (Brian). Workers only die from
+  attacks (players, mobs, explosions), `/kill` or the void. Tapping a worker that isn't loaded in the
+  Workers list offers "Forget this worker" (anyone in the settlement): it leaves the list and stops
+  counting toward the limit. If it's alive after all, it's added back when its area loads. Deaths
+  from now on are cleaned up automatically.
+- 2026-11-18: **storage counts only the settlement's own chests** (Brian: "worker storage or central
+  storage"): a worker's home chest or drop-off that's another player's named place doesn't count.
 - 2026-11-17: **settlements have names**, typed when founding (the box starts as "<player>'s
   Settlement"), shown as the settlement menu's title and in messages; the owner can rename it from
   the menu. No automatic sign.

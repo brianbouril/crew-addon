@@ -12,6 +12,7 @@ import { spawnWorker, canCommand, canManage, meta, WORKER_TYPE } from "./scripts
 import { dispatch } from "./scripts/orders.js";
 import { getRegistry, saveRegistry } from "./scripts/store.js";
 import { setJSON, getJSON } from "./scripts/util.js";
+import { forgetMissing } from "./scripts/settlement.js";
 
 const logs = []; const out = console.log; console.log = (...a) => logs.push(a.join(" ")); console.warn = (...a) => logs.push("WARN " + a.join(" "));
 const ow = world.getDimension("minecraft:overworld");
@@ -300,6 +301,18 @@ check("applies without a settlement too", Object.values(getRegistry()).filter((r
   check("its bell is ordinary again", !isProtected(ow.getBlock({ x: 2090, y: 65, z: 2005 })));
 }
 setCap(asBy(op), 6);
+{
+  // a worker lost before deaths were tracked: forget it from the bell menu; if it was only far away, it comes back
+  const { e: lost } = spawnWorker(ow, { x: 2090.5, y: 65, z: 2002.5 }, { id: "p1", name: "Brian" }, "Lost", [new ItemStack("minecraft:stone_shovel")]);
+  lost.isValid = false; // far away (or gone)
+  const n0 = mine();
+  check("an outsider can't forget it", !forgetMissing(asBy(cal), S(), lost.id).ok);
+  const f = forgetMissing(asBy(brian), S(), lost.id);
+  check("forget a missing worker: off the list and the limit", f.ok && mine() === n0 - 1 && !rosterOf(S()).some((r) => r.id === lost.id), f);
+  lost.isValid = true; // it was alive after all
+  run(60);
+  check("it comes back on the list when it loads", mine() === n0 && rosterOf(S()).some((r) => r.id === lost.id && r.name === "Lost"));
+}
 check("joined message helper", joinedMessage(1, "Bluebell") === "1 of your workers joined Bluebell.");
 
 console.log = out;
