@@ -549,7 +549,7 @@ function readChest(sp) {
   }
   if (!block) return undefined;
   const c = block.getComponent("minecraft:inventory")?.container;
-  if (!c) return { gone: true, size: 0, items: {}, slots: "", chest: false };
+  if (!c) return { gone: true, size: 0, items: {}, slots: "", chest: false, c: undefined };
   /** @type {Record<string, number>} */
   const items = {};
   /** @type {string[]} */
@@ -559,15 +559,33 @@ function readChest(sp) {
     slots.push(it ? `${it.typeId}*${it.amount}` : "");
     if (it) items[it.typeId] = (items[it.typeId] ?? 0) + it.amount; // a shulker box counts as one item
   }
-  return { gone: false, size: c.size, items, slots: slots.join("|"), chest: /chest/.test(block.typeId) };
+  return { gone: false, size: c.size, items, slots: slots.join("|"), chest: /chest/.test(block.typeId), c };
+}
+
+/**
+ * Do these two containers share their slots (the halves of one double chest)? Changes slot 0 of
+ * one, looks at the other, and puts slot 0 back straight away, in the same tick.
+ * @param {import("@minecraft/server").Container} a @param {import("@minecraft/server").Container} b
+ */
+function sharesSlots(a, b) {
+  const was = a.getItem(0);
+  const before = b.getItem(0);
+  try {
+    a.setItem(0, was ? undefined : new ItemStack("minecraft:stick", 1));
+    const now = b.getItem(0);
+    return was ? !now : now?.typeId === "minecraft:stick" && !before;
+  } finally {
+    a.setItem(0, was);
+  }
 }
 
 /**
  * Are these two reads the two halves of one double chest? Both are chests with the same 54 slots,
- * slot for slot (a barrel, a single chest or a different double chest next to it isn't).
+ * slot for slot, and a change to one shows in the other (two separate double chests side by side
+ * holding the same things don't).
  * @param {ReturnType<typeof readChest>} a @param {ReturnType<typeof readChest>} b
  */
-const sameDouble = (a, b) => !!a && !!b && a.chest && b.chest && a.size > 27 && a.size === b.size && a.slots === b.slots;
+const sameDouble = (a, b) => !!a?.c && !!b?.c && a.chest && b.chest && a.size > 27 && a.size === b.size && a.slots === b.slots && sharesSlots(a.c, b.c);
 
 /**
  * Re-reads the settlement's loaded storage chests (or just one, by key). A chest whose area isn't

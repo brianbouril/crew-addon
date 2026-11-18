@@ -83,6 +83,20 @@ check("ledger totals = chest contents", same(asMap(), actual()), { ledger: asMap
 check("most first", ledger(S()).totals[0].id === "minecraft:cobblestone" && ledger(S()).totals[0].n === 120, ledger(S()).totals[0]);
 check("a shulker box counts as one item", asMap()["minecraft:shulker_box"] === 1);
 check("the double chest is counted once, and the barrel beside it too", asMap()["minecraft:coal"] === 15, asMap());
+{
+  // two separate double chests side by side, both full of cobblestone: both count
+  const full = (x) => { const c = chest({ x, y: 65, z: 3020 }, []); for (let i = 0; i < 54; i++) c.setItem(i, new ItemStack("minecraft:cobblestone", 64)); return c; };
+  full(3050); full(3051);
+  const before = asMap()["minecraft:cobblestone"];
+  addStorage(asBy(brian), S(), ow.getBlock({ x: 3050, y: 65, z: 3020 }));
+  addStorage(asBy(brian), S(), ow.getBlock({ x: 3051, y: 65, z: 3020 }));
+  run(200);
+  check("two identical full chests side by side both count", asMap()["minecraft:cobblestone"] === before + 2 * 54 * 64, { before, now: asMap()["minecraft:cobblestone"] });
+  check("and checking them changed nothing", ow.getBlock({ x: 3050, y: 65, z: 3020 }).getComponent("minecraft:inventory").container.items.every((i) => i?.typeId === "minecraft:cobblestone" && i.amount === 64));
+  removeStorage(asBy(brian), S(), ow.getBlock({ x: 3050, y: 65, z: 3020 }));
+  removeStorage(asBy(brian), S(), ow.getBlock({ x: 3051, y: 65, z: 3020 }));
+  run(200);
+}
 check("a stranger's chest isn't counted", asMap()["minecraft:diamond"] === 3);
 check("where is it", whereIs(S(), "minecraft:cobblestone").map((w) => w.n).join() === "100,20", whereIs(S(), "minecraft:cobblestone"));
 

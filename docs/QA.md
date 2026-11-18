@@ -75,7 +75,8 @@ a full server restart: `reload` refuses to re-register it.
 **Settlements, release 2 (built Nov 18, mock-tested; staging first)**
 - [ ] 13. Storage: put things in a worker's home chest and a named place, and tap a third chest with
       the Survey Stake, Add to settlement storage. The settlement menu's Storage adds all three up,
-      most first; tap an item for which chests hold it. A double chest counts once. Take a stack out
+      most first; tap an item for which chests hold it. A double chest counts once. Two double chests side
+      by side, both full of cobblestone and both added: both count (and nothing in them changes). Take a stack out
       and reopen Storage a few seconds later: the total dropped.
 - [ ] 13b. Walk far from one storage chest (out of loaded range): Storage says it's far away and
       shows its last count; come back and it updates. A worker's drop-off shows up straight away.
