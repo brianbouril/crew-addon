@@ -563,20 +563,37 @@ function readChest(sp) {
 }
 
 /**
- * Do these two containers share their slots (the halves of one double chest)? Changes slot 0 of
- * one, looks at the other, and puts slot 0 back straight away, in the same tick.
+ * Do these two containers share their slots (the halves of one double chest)? Their contents
+ * already match slot for slot. Puts a stick in a slot that's empty in both, looks at the other,
+ * and empties the slot again, in the same tick. With no empty slot, it takes one item off a plain
+ * stack instead (no name, lore or enchantments) and puts it back. Shulker boxes, tools, books and
+ * other items with data are never touched: if that's all there is, the two count as separate.
  * @param {import("@minecraft/server").Container} a @param {import("@minecraft/server").Container} b
  */
 function sharesSlots(a, b) {
-  const was = a.getItem(0);
-  const before = b.getItem(0);
-  try {
-    a.setItem(0, was ? undefined : new ItemStack("minecraft:stick", 1));
-    const now = b.getItem(0);
-    return was ? !now : now?.typeId === "minecraft:stick" && !before;
-  } finally {
-    a.setItem(0, was);
+  for (let i = 0; i < a.size; i++) {
+    if (a.getItem(i) || b.getItem(i)) continue;
+    try {
+      a.setItem(i, new ItemStack("minecraft:stick", 1));
+      return b.getItem(i)?.typeId === "minecraft:stick";
+    } finally {
+      a.setItem(i, undefined);
+    }
   }
+  for (let i = 0; i < a.size; i++) {
+    const it = a.getItem(i);
+    if (!it || it.maxAmount <= 1 || it.amount < 2 || it.nameTag || it.getLore?.().length || /shulker|book/.test(it.typeId)) continue;
+    const n = it.amount;
+    try {
+      it.amount = n - 1;
+      a.setItem(i, it);
+      return b.getItem(i)?.amount === n - 1;
+    } finally {
+      it.amount = n;
+      a.setItem(i, it);
+    }
+  }
+  return false;
 }
 
 /**
