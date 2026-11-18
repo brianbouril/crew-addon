@@ -10,12 +10,14 @@ turns it into that version's section.
   settlement menu: **Workers** lists all of them with what each is doing and where, who's **Out of
   tools** or has **Tools low**, and which far-away workers are still working or paused. Tap one for
   its menu; orders to a far-away worker wait until its area loads. Add friends as **members**: everyone
-  in a settlement runs it together (their workers join, and they can give orders to every worker,
+  in a settlement runs it together (their workers become the settlement's and stay if they leave;
+  everyone can give orders to every worker,
   add and remove members, rename it and move its bell). The **founder** can't be removed and can
   hand that role to another member. The bell
   can't be broken (explosions skip it too): **Move the bell** in the menu puts it in your inventory.
   A plain tap still rings it, and village bells can't be claimed.
-- **Worker limit.** Each player can have up to 6 workers, so the server keeps running smoothly.
+- **Worker limit.** A settlement can have 6 workers for each person in it, and a player on their
+  own 6, so the server keeps running smoothly.
   Building one more is refused and leaves the barrel and tools as they were; workers you already
   have past the limit keep working. Operators change it in the settlement menu or with
   `/crew:cap <number>`.

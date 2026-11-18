@@ -143,12 +143,12 @@ Tip: put a bed and a chest near a mine so its walk home is short.
 
 Crouch-tap the bell any time for the settlement menu:
 - **Workers**: all your settlement's workers, what each is doing and where. **Out of tools** (red) and **Tools low** (yellow) show who needs tools. Far-away workers show **Working far away** or **Paused: nobody nearby**. Tap one for its menu; orders to a far-away worker wait until its area loads.
-- **Members**: add friends. Everyone in a settlement runs it together: their workers join, and they can give orders to every worker, add and remove members, rename it and move its bell. The **founder** (who rang it first) can't be removed and can hand that role to someone else; the founder leaves only after doing that.
+- **Members**: add friends. Everyone in a settlement runs it together: their workers become the settlement's, and they can give orders to every worker, add and remove members, rename it and move its bell. The **founder** (who rang it first) can't be removed and can hand that role to someone else; the founder leaves only after doing that.
 - **Name** and **Move the bell**. The bell can't be broken, by you or anyone, and explosions skip it: Move the bell puts it in your inventory, then place it and crouch-tap it again.
 
 A plain tap still rings the bell. Village bells aren't yours to claim (for now).
 
-Each player can have up to **6 workers** (a server operator can change this to keep the server running smoothly).
+Workers belong to the settlement (on paper, to its founder), so someone who leaves takes none with them. A settlement can have **6 workers for each person in it**; on your own you can have 6. A server operator can change the 6 to keep the server running smoothly.
 
 ## Stop and continue
 

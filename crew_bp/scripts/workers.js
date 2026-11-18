@@ -4,7 +4,7 @@ import { DIMS, getJSON, setJSON, onlinePlayer, tell, fmt } from "./util.js";
 import { getRegistry, saveRegistry, freeName } from "./store.js";
 import { KIT_SLOTS, ROLE_LIST, addToKit, defaultRole, kit, stash, toolInfo } from "./tools.js";
 import { setHome } from "./life.js";
-import { capCheck, forgetWorker, sameSettlement } from "./settlement.js";
+import { capCheck, forgetWorker, ownerFor, sameSettlement } from "./settlement.js";
 
 export const WORKER_TYPE = "crew:worker";
 
@@ -59,9 +59,13 @@ export function canCommand(by, m) {
   return m.crew.some((c) => same(c, by));
 }
 
-/** Only the owner (or an operator / the console) can change who gives orders, rename, take tools or dismiss. @param {Commander} by @param {Meta} m */
+/**
+ * The owner, everyone in the owner's settlement (they're all equal), or an operator / the console
+ * can change who gives orders, rename, take tools or dismiss.
+ * @param {Commander} by @param {Meta} m
+ */
 export function canManage(by, m) {
-  return !!(by.console || by.isOp || same({ id: m.ownerId, name: m.ownerName }, by));
+  return !!(by.console || by.isOp || same({ id: m.ownerId, name: m.ownerName }, by) || sameSettlement(by, { id: m.ownerId, name: m.ownerName }));
 }
 
 /**
@@ -139,7 +143,8 @@ export function buildFromBarrel(player, head) {
   dim.setBlockType(body.location, "minecraft:air");
   // tools first, so the kit gets them before anything else
   const ordered = [...tools, ...items.filter((it) => !toolInfo(it))];
-  const { e, spill } = spawnWorker(dim, at, { id: player.id, name: player.name }, undefined, ordered);
+  // in a settlement, the worker is the founder's, like every worker there
+  const { e, spill } = spawnWorker(dim, at, ownerFor({ id: player.id, name: player.name }), undefined, ordered);
   for (const it of spill) dim.spawnItem(it, at);
   const extra = tools.length > KIT_SLOTS ? ` Only ${KIT_SLOTS} tools fit in the kit; the other ${tools.length - KIT_SLOTS} are carried and will go in the deposit chest.` : "";
   tell(player, `Crouch and use ${e.getDynamicProperty("crew:name")} to give it orders. New to workers? Type /crew:guide.${extra}`);

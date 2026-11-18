@@ -11,7 +11,7 @@ import { startWelcome } from "./guide.js";
 import { toolInfo } from "./tools.js";
 import { VERSION, onlinePlayer, tell } from "./util.js";
 import { WORKER_TYPE, buildFromBarrel, loadedWorkers, workerDied } from "./workers.js";
-import { BELL, checkBells, forgetBell, isProtected, protectedKeys, recordBell, takeQueued } from "./settlement.js";
+import { BELL, checkBells, forgetBell, isProtected, protectedKeys, recordBell, syncOwners, takeQueued } from "./settlement.js";
 import { dispatch } from "./orders.js";
 
 system.beforeEvents.startup.subscribe((ev) => {
@@ -175,10 +175,11 @@ world.afterEvents.entityDie.subscribe((ev) => {
   if (ev.deadEntity.typeId === WORKER_TYPE) workerDied(ev.deadEntity);
 });
 
-/** Every 2 seconds: notice lost bells, and give loaded workers the orders that waited for them. */
+/** Every 2 seconds: notice lost bells, keep workers owned by their settlement's founder, and give loaded workers the orders that waited for them. */
 function settlementChores() {
   try {
     checkBells();
+    syncOwners();
     for (const e of loadedWorkers()) {
       for (const q of takeQueued(e.id)) {
         const r = dispatch(q.by, q.order);

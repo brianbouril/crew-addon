@@ -9,12 +9,15 @@
 //   crew:seen         {[workerId]: Seen}       what each worker was last doing (for the roster)
 //   crew:queue        {[workerId]: Queued[]}   orders waiting for an unloaded worker
 //   crew:cap          number                   workers per player (operator setting)
-// Membership isn't stored on workers: a worker belongs to its owner's settlement.
-// Everyone in a settlement has the same rights (Brian, Nov 17), except that only the founder
+// Membership isn't stored on workers: a worker belongs to its owner's settlement, and every worker
+// in a settlement is owned by its founder (Brian, Nov 18): a member's workers move to the founder
+// when they join, workers a member builds are the founder's, a player who leaves takes none, and a
+// new founder takes them all. The worker limit is per settlement: 6 (the cap) for each person in it.
+// Everyone in a settlement has the same rights (Nov 17), except that only the founder
 // (ownerId/ownerName) can hand that role to someone else, and nobody can remove the founder.
 import { ItemStack, world } from "@minecraft/server";
-import { getJSON, setJSON, onlinePlayer, tell } from "./util.js";
-import { getRegistry } from "./store.js";
+import { DIMS, getJSON, setJSON, onlinePlayer, tell } from "./util.js";
+import { getRegistry, saveRegistry } from "./store.js";
 
 /**
  * @typedef {import("./store.js").Commander} Commander
@@ -255,7 +258,7 @@ export function addMember(by, s, who) {
   const cur = getSettlements()[s.id];
   cur.members.push({ id: who.id, name: who.name });
   save(cur);
-  const n = workerCount(who.id);
+  const n = transferWorkers(who.id, { id: cur.ownerId, name: cur.ownerName });
   tell(onlinePlayer(who), `${by.name} added you to ${s.name}. You can give orders to all its workers and run the settlement like everyone in it.${n ? ` ${joinedMessage(n, s.name)}` : ""}`);
   return { ok: true, message: `${who.name} is now a member of ${s.name}.${n ? ` Their ${n} worker${n === 1 ? "" : "s"} joined.` : ""}` };
 }
@@ -281,7 +284,7 @@ export function removeMember(by, s, id) {
   if (!m) return { ok: false, message: "That player isn't a member." };
   cur.members = cur.members.filter((x) => x.id !== id);
   save(cur);
-  return { ok: true, message: by.id === id ? `You left ${s.name}. Your workers left with you.` : `${m.name} is no longer a member of ${s.name}. Their workers left with them.` };
+  return { ok: true, message: by.id === id ? `You left ${s.name}. The workers stay with the settlement.` : `${m.name} is no longer a member of ${s.name}. The workers stay with the settlement.` };
 }
 
 /** The founder (or an operator) hands the founder role to a member. @param {Commander} by @param {Settlement} s @param {string} id */
@@ -291,10 +294,12 @@ export function makeFounder(by, s, id) {
   const m = cur.members.find((x) => x.id === id);
   if (!m) return { ok: false, message: "That player isn't a member." };
   cur.members = [...cur.members.filter((x) => x.id !== id), { id: cur.ownerId, name: cur.ownerName }];
+  const old = cur.ownerId;
   cur.ownerId = m.id;
   cur.ownerName = m.name;
   save(cur);
-  tell(onlinePlayer(m), `You're now the founder of ${cur.name}.`);
+  transferWorkers(old, m);
+  tell(onlinePlayer(m), `You're now the founder of ${cur.name}, and its workers are yours.`);
   return { ok: true, message: `${m.name} is now the founder of ${cur.name}. You're a member.` };
 }
 
@@ -322,10 +327,80 @@ export function setCap(by, n) {
   world.setDynamicProperty("crew:cap", v);
   return { ok: true, message: `Each player may now have up to ${v} worker${v === 1 ? "" : "s"}. Workers already over the limit keep working.` };
 }
-/** May this player build another worker? @param {string} ownerId */
-export function capCheck(ownerId) {
-  const have = workerCount(ownerId), cap = getCap();
+/**
+ * May this player build another worker? In a settlement the limit is the cap for each person in it,
+ * counted over all the settlement's workers; otherwise it's the cap, over the player's own.
+ * @param {string} playerId
+ */
+export function capCheck(playerId) {
+  const s = settlementOf({ id: playerId, name: "" });
+  if (s) {
+    const have = workerCount(s.ownerId), cap = getCap() * peopleOf(s).length;
+    return have < cap ? { ok: true, message: "" } : { ok: false, message: `${s.name} has ${have} workers, its limit is ${cap} (${getCap()} for each person in it). Dismiss one to build another (a server operator can change the limit).` };
+  }
+  const have = workerCount(playerId), cap = getCap();
   return have < cap ? { ok: true, message: "" } : { ok: false, message: `You have ${have} workers, your limit is ${cap}. Dismiss one to build another (a server operator can change the limit).` };
+}
+
+/** Who a worker this player builds belongs to: their settlement's founder, or themselves. @param {{id: string, name: string}} player */
+export function ownerFor(player) {
+  const s = settlementOf(player);
+  return s ? { id: s.ownerId, name: s.ownerName } : { id: player.id, name: player.name };
+}
+
+/**
+ * Hands every worker one player owns to another (registry now; loaded workers now, the rest when
+ * they load, via syncOwners). Returns how many.
+ * @param {string} fromId @param {{id?: string, name: string}} to
+ */
+export function transferWorkers(fromId, to) {
+  if (!to.id || fromId === to.id) return workerCount(fromId);
+  const reg = getRegistry();
+  let n = 0;
+  for (const r of Object.values(reg)) {
+    if (r.ownerId !== fromId) continue;
+    r.ownerId = to.id;
+    r.ownerName = to.name;
+    n++;
+  }
+  if (n) saveRegistry(reg);
+  syncOwners();
+  return n;
+}
+
+/**
+ * Keeps ownership right: a worker the registry gives to a settlement member (built with /crew:hire,
+ * or before they joined) goes to the founder, and a loaded worker whose saved owner differs from
+ * the registry is updated (workers that were unloaded during a hand-over catch up here).
+ */
+export function syncOwners() {
+  const reg = getRegistry();
+  let changed = false;
+  for (const s of Object.values(getSettlements())) {
+    const members = new Set(s.members.map((m) => m.id));
+    for (const r of Object.values(reg)) {
+      if (!members.has(r.ownerId)) continue;
+      r.ownerId = s.ownerId;
+      r.ownerName = s.ownerName;
+      changed = true;
+    }
+  }
+  if (changed) saveRegistry(reg);
+  const byId = new Map(Object.values(reg).map((r) => [r.id, r]));
+  for (const d of DIMS) {
+    let list = [];
+    try {
+      list = world.getDimension(d).getEntities({ type: "crew:worker" });
+    } catch {
+      continue;
+    }
+    for (const e of list) {
+      const r = byId.get(e.id);
+      if (!r || e.getDynamicProperty("crew:ownerId") === r.ownerId) continue;
+      e.setDynamicProperty("crew:ownerId", r.ownerId);
+      e.setDynamicProperty("crew:ownerName", r.ownerName);
+    }
+  }
 }
 
 // ---------- the roster ----------

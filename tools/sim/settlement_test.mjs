@@ -8,7 +8,7 @@ import {
   bellTap, foundSettlement, moveBell, packBell, checkBells, settlementOf, addMember, removeMember, renameSettlement, isProtected, makeFounder,
   rosterOf, rosterLine, getCap, setCap, capCheck, queueOrder, takeQueued, getSettlements, joinedMessage,
 } from "./scripts/settlement.js";
-import { spawnWorker, canCommand, meta, WORKER_TYPE } from "./scripts/workers.js";
+import { spawnWorker, canCommand, canManage, meta, WORKER_TYPE } from "./scripts/workers.js";
 import { dispatch } from "./scripts/orders.js";
 import { getRegistry, saveRegistry } from "./scripts/store.js";
 import { setJSON, getJSON } from "./scripts/util.js";
@@ -96,7 +96,10 @@ check("can't found twice", !foundSettlement(brian, bell2, "Two").ok);
 const addAnn = addMember(asBy(brian), s, { id: "p2", name: "Ann" });
 check("owner adds a member", addAnn.ok, addAnn);
 const { e: annW } = spawnWorker(ow, { x: 2004.5, y: 65, z: 2002.5 }, { id: "p2", name: "Ann" }, "Annie", [new ItemStack("minecraft:iron_pickaxe")]);
+run(60);
 check("member's worker joins", rosterOf(settlementOf({ id: "p1", name: "Brian" })).some((r) => r.name === "Annie"));
+check("and belongs to the founder", annW.getDynamicProperty("crew:ownerId") === "p1" && getRegistry()["annie"].ownerId === "p1");
+check("members can manage settlement workers too", canManage(asBy(ann), meta(digby)) && !canManage(asBy(cal), meta(digby)));
 {
   const before = settlementOf({ id: "p1", name: "Brian" });
   const mv = moveBell(brian, bell2);
@@ -127,10 +130,11 @@ check("a member can't remove the founder", !removeMember(asBy(ann), B(), "p1").o
 check("a member can't make themselves founder", !makeFounder(asBy(ann), B(), "p2").ok && B().ownerId === "p1");
 check("the founder can't leave while others are in it", !removeMember(asBy(brian), B(), "p1").ok);
 check("the founder hands over the role", makeFounder(asBy(brian), B(), "p2").ok && B().ownerId === "p2" && B().members.some((m) => m.id === "p1"));
+check("the new founder gets every worker", rosterOf(B()).every((r) => r.ownerId === "p2") && digby.getDynamicProperty("crew:ownerId") === "p2", rosterOf(B()));
 check("now the old founder can be removed, and the new one can't", !removeMember(asBy(brian), B(), "p2").ok);
-check("and back", makeFounder(asBy(ann), B(), "p1").ok && B().ownerId === "p1");
-check("remove member", removeMember(asBy(brian), settlementOf({ id: "p1", name: "Brian" }), "p2").ok && !rosterOf(settlementOf({ id: "p1", name: "Brian" })).some((r) => r.name === "Annie"));
-check("removed member can't order", !canCommand(asBy(ann), meta(digby)));
+check("and back", makeFounder(asBy(ann), B(), "p1").ok && B().ownerId === "p1" && rosterOf(B()).every((r) => r.ownerId === "p1"));
+check("remove member: the workers they built stay", removeMember(asBy(brian), settlementOf({ id: "p1", name: "Brian" }), "p2").ok && rosterOf(settlementOf({ id: "p1", name: "Brian" })).some((r) => r.name === "Annie"));
+check("removed member can't order", !canCommand(asBy(ann), meta(digby)) && !canCommand(asBy(ann), meta(annW)));
 
 // ---- the protected bell ----
 const below = ow.getBlock({ x: 2000, y: 64, z: 2005 });
@@ -149,11 +153,11 @@ check("a member can't pack the bell", !packBell(asBy(ann)).ok);
 const packed = packBell(brian);
 check("owner packs the bell", packed.ok && ow.getBlock(bell.location).typeId === "minecraft:air", packed);
 check("bell goes to the owner's inventory", brian.inv.items.some((i) => i?.typeId === "minecraft:bell"));
-check("settlement kept without a bell", !!settlementOf({ id: "p1", name: "Brian" }) && settlementOf({ id: "p1", name: "Brian" }).bell === null && rosterOf(settlementOf({ id: "p1", name: "Brian" })).length === 3);
+check("settlement kept without a bell", !!settlementOf({ id: "p1", name: "Brian" }) && settlementOf({ id: "p1", name: "Brian" }).bell === null && rosterOf(settlementOf({ id: "p1", name: "Brian" })).length === 4);
 const bell3 = placeBell(brian, { x: 2000, y: 65, z: 2010 });
 check("hanging it again", bellTap(brian, bell3).kind === "rehang" && moveBell(brian, bell3).ok);
 const s3 = settlementOf({ id: "p1", name: "Brian" });
-check("moved bell keeps name and roster", s3.name === "Bluebell" && s3.bell?.z === 2010 && rosterOf(s3).length === 3, s3);
+check("moved bell keeps name and roster", s3.name === "Bluebell" && s3.bell?.z === 2010 && rosterOf(s3).length === 4, s3);
 {
   const spot = { x: 2000, y: 70, z: 2010 };
   ow.getBlock(spot).setPermutation(BlockPermutation.resolve("minecraft:bell", { attachment: "hanging", direction: 0 }));
@@ -236,15 +240,28 @@ check("cap check", !capCheck("p1").ok && capCheck("p2").ok);
 brian.msgs.length = 0;
 const b4 = build(brian, { x: 2050, y: 65, z: 2000 });
 check("building over the cap is refused", mine() === before, mine());
-check("refusal message", brian.msgs.some((m) => m.includes(`You have ${before} workers, your limit is 3.`)), brian.msgs);
+check("refusal message", brian.msgs.some((m) => m.includes(`Bluebell has ${before} workers, its limit is 3 (3 for each person in it).`)), brian.msgs);
 check("barrel and tools left as they were", b4.barrel.typeId === "minecraft:barrel" && b4.barrel.getComponent("minecraft:inventory").container.items.some((i) => i?.typeId === "minecraft:stone_shovel"));
 check("workers over the cap keep working", rosterOf(S()).length === before);
 const annCount = Object.values(getRegistry()).filter((r) => r.ownerId === "p2").length;
 build(ann, { x: 2060, y: 65, z: 2000 });
-check("the cap is per player", Object.values(getRegistry()).filter((r) => r.ownerId === "p2").length === annCount + 1);
+check("a player outside a settlement has their own limit", Object.values(getRegistry()).filter((r) => r.ownerId === "p2").length === annCount + 1);
 const eve = mkPlayer("p5", "Eve"); setPlayers([brian, ann, cal, op, eve]);
 build(eve, { x: 2070, y: 65, z: 2000 }); build(eve, { x: 2072, y: 65, z: 2000 }); build(eve, { x: 2074, y: 65, z: 2000 }); build(eve, { x: 2076, y: 65, z: 2000 });
 check("applies without a settlement too", Object.values(getRegistry()).filter((r) => r.ownerId === "p5").length === 3);
+{
+  // Eve joins: her workers become the founder's, and the limit grows by one person's worth
+  const n0 = mine();
+  check("a member joining brings their workers", addMember(asBy(brian), S(), { id: "p5", name: "Eve" }).ok && mine() === n0 + 3);
+  check("the limit is per person in the settlement", capCheck("p5").message.includes("its limit is 6 (3 for each person in it)"), capCheck("p5"));
+  setCap(asBy(op), 10); // room for one more
+  build(eve, { x: 2078, y: 65, z: 2000 });
+  check("a member's build belongs to the founder", mine() === n0 + 4 && Object.values(getRegistry()).filter((r) => r.ownerId === "p5").length === 0, mine());
+  setCap(asBy(op), 3);
+  const n1 = mine();
+  removeMember(asBy(eve), S(), "p5");
+  check("leaving takes no workers", mine() === n1 && Object.values(getRegistry()).filter((r) => r.ownerId === "p5").length === 0);
+}
 {
   // a dead worker frees its place under the limit and leaves the list
   setCap(asBy(op), mine());
