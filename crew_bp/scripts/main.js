@@ -11,7 +11,7 @@ import { startWelcome } from "./guide.js";
 import { toolInfo } from "./tools.js";
 import { VERSION, onlinePlayer, tell } from "./util.js";
 import { WORKER_TYPE, buildFromBarrel, loadedWorkers, workerDied } from "./workers.js";
-import { BELL, checkBells, forgetBell, getSettlements, isProtected, protectedKeys, recordBell, refreshStorage, syncOwners, takeQueued } from "./settlement.js";
+import { BELL, checkBells, forgetBell, getSettlements, isProtected, protectedKeys, pruneStock, recordBell, refreshStorage, syncOwners, takeQueued } from "./settlement.js";
 import { dispatch } from "./orders.js";
 
 system.beforeEvents.startup.subscribe((ev) => {
@@ -189,6 +189,7 @@ function settlementChores() {
     if (--storageIn <= 0) {
       storageIn = STORAGE_EVERY;
       for (const s of Object.values(getSettlements())) refreshStorage(s);
+      pruneStock();
     }
     for (const e of loadedWorkers()) {
       for (const q of takeQueued(e.id)) {

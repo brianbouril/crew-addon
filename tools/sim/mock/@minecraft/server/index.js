@@ -90,7 +90,7 @@ let timeOfDay = 1000; // day by default; tests move the clock with setTimeOfDay
 export const setTimeOfDay = (t) => { timeOfDay = ((t % 24000) + 24000) % 24000; };
 export const world = {
   getDimension: (id) => dims[id], getAllPlayers: () => players, getTimeOfDay: () => timeOfDay,
-  getDynamicProperty: (k) => wprops.get(k), setDynamicProperty: (k, v) => (v === undefined ? wprops.delete(k) : wprops.set(k, v)),
+  getDynamicProperty: (k) => wprops.get(k), setDynamicProperty: (k, v) => (v === undefined ? wprops.delete(k) : wprops.set(k, v)), getDynamicPropertyIds: () => [...wprops.keys()],
   getLootTableManager: () => ({ generateLootFromBlock: (b, tool) => { lootCalls.push([b.typeId, tool?.typeId ?? "hand"]); return [new ItemStack(LOOT[b.typeId] ?? b.typeId, 1)]; } }),
   afterEvents: new Proxy({}, { get: sub("world.afterEvents") }), beforeEvents: new Proxy({}, { get: sub("world.beforeEvents") }),
 };

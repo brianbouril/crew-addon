@@ -435,7 +435,7 @@ async function settlementMenu(p, id) {
   const by = whoIs(p);
   const roster = rosterOf(s);
   const members = s.members.length ? s.members.map((m) => m.name).join(", ") : "none yet";
-  const body = `Founder: ${s.ownerName}. Members: ${members}.\nWorkers: ${roster.length}. Each player may have up to ${getCap()}.${s.bell ? "" : "\n§eThe bell isn't up: place a bell and crouch-tap it.§r"}`;
+  const body = `Founder: ${s.ownerName}. Members: ${members}.\nWorkers: ${roster.length} of ${getCap() * (s.members.length + 1)} (${getCap()} for each person in it).${s.bell ? "" : "\n§eThe bell isn't up: place a bell and crouch-tap it.§r"}`;
   /** @type {[string, () => any][]} */
   const b = [[`Workers (${roster.length})`, () => rosterMenu(p, s.id)]];
   b.push(["Storage", () => storageMenu(p, s.id)]);
@@ -475,10 +475,11 @@ async function storageMenu(p, id) {
     : "Nothing in storage yet. Storage chests are your workers' home chests and drop-offs, your named places, and chests you add by tapping them with the Survey Stake.")
     + (stale ? `\n§7${stale} chest${stale === 1 ? " is" : "s are"} far away: their counts are from when they were last loaded.§r` : "");
   /** @type {[string, () => any][]} */
+  const more = totals.length > 40 ? `\n§7Showing the 40 biggest of ${totals.length} kinds of item.§r` : "";
   const b = totals.slice(0, 40).map((t) => /** @type {[string, () => any]} */ ([`${itemName(t.id)}: ${count(t.n)}`, () => itemMenu(p, s.id, t.id)]));
   b.push([`Storage chests (${chests.length})`, () => chestsMenu(p, s.id)]);
   b.push(["Back", () => settlementMenu(p, s.id)]);
-  await menu(p, `${s.name}: storage`, body, b);
+  await menu(p, `${s.name}: storage`, body + more, b);
 }
 
 /** @param {Player} p @param {string} id @param {string} item */
@@ -593,7 +594,7 @@ async function membersMenu(p, id) {
 async function leaveForm(p, id) {
   const s = settlementOf({ id: p.id, name: p.name });
   if (!s || s.id !== id) return;
-  const body = p.id === s.ownerId && s.members.length ? "You're the founder: make someone else the founder first (Members)." : p.id === s.ownerId ? "Nobody else is in it, so the settlement ends and its bell becomes an ordinary bell. Your workers are kept." : "Your workers leave with you. You can found your own settlement afterwards.";
+  const body = p.id === s.ownerId && s.members.length ? "You're the founder: make someone else the founder first (Members)." : p.id === s.ownerId ? "Nobody else is in it, so the settlement ends and its bell becomes an ordinary bell. Your workers are kept." : "The workers stay with the settlement. You can found your own afterwards.";
   await menu(p, `Leave ${s.name}?`, body, [
     ["Leave", () => say(p, removeMember(whoIs(p), s, p.id))],
     ["Cancel", () => settlementMenu(p, id)],
@@ -622,7 +623,7 @@ async function moveBellForm(p, id) {
 async function capForm(p, id) {
   const cap = getCap();
   const r = await show(p, new ModalFormData().title("Worker limit")
-    .slider("Workers each player may have (keeps the server running smoothly)", 1, Math.max(24, cap), { defaultValue: cap, valueStep: 1 })
+    .slider("Workers for each person in a settlement, and for a player on their own (keeps the server running smoothly)", 1, Math.max(24, cap), { defaultValue: cap, valueStep: 1 })
     .submitButton("Save"));
   if (r?.formValues && Number(r.formValues[0]) !== cap) say(p, setCap(whoIs(p), Number(r.formValues[0])));
   else settlementMenu(p, id);

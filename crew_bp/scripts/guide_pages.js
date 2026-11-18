@@ -226,7 +226,7 @@ export const PAGES = [
       `- ${K("/crew:setplace \"name\"")}: save the chest you're looking at as a named drop-off (add ${K("true")} to share it with everyone)`,
       `- ${K("/crew:places")}: list saved places`,
       `- ${K("/crew:jobs")}: every job and its options`,
-      `- ${K("/crew:cap [number]")}: (operators) how many workers each player may have`,
+      `- ${K("/crew:cap [number]")}: (operators) the worker limit, per person in a settlement and on your own`,
     ].join("\n"),
   },
   {

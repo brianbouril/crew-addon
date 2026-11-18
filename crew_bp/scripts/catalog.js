@@ -51,6 +51,7 @@ export const JOBS = {
       to: { type: "player", description: "Player name. Defaults to whoever gave the order." },
       at: { type: "place", description: "Walk to this spot instead of a player: a saved place name or coordinates (same dimension as the worker)." },
       label: { type: "string", description: "What to call the spot in messages (e.g. \"the bell\")." },
+      dimension: { type: "string", description: "The spot's dimension (e.g. minecraft:overworld); a worker in another one refuses." },
     },
   },
   go_home: { description: "Walk home to its bed and wait there. A worker with no home stays where it is.", params: {} },

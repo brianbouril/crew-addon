@@ -4,7 +4,7 @@
 // so workers.js can use it without an import cycle.
 //
 // Saved (world dynamic properties, JSON):
-//   crew:settlements  {[ownerId]: Settlement}
+//   crew:settlements  {[settlementId]: Settlement}
 //   crew:bells        {"dim|x,y,z": placerId}  bells players placed (only those can found one)
 //   crew:seen         {[workerId]: Seen}       what each worker was last doing (for the roster)
 //   crew:queue        {[workerId]: Queued[]}   orders waiting for an unloaded worker
@@ -38,7 +38,7 @@ export const CAP_DEFAULT = 6;
 /** A worker further than this from the viewer counts as far away in the roster. */
 const FAR = 96;
 /** How many player-placed bells are remembered (oldest forgotten first). */
-const MAX_BELLS = 1000;
+const MAX_BELLS = 400; // about 60 characters each; one world property holds 32,767
 
 /** @returns {Record<string, Settlement>} keyed by settlement id (fixed at founding; the founder can change) */
 export const getSettlements = () => getJSON(world, "crew:settlements", {});
@@ -103,9 +103,9 @@ const isBellAt = (bell, block) => !!bell && bell.dim === block.dimension.id && b
  * found (their own bell, no settlement yet), move (their own bell, settlement already has one),
  * rehang (their own bell, settlement's bell was packed or lost), menu (their settlement's bell),
  * other (someone else's settlement bell), village (nobody placed it), not_yours (another player
- * placed it), member (they belong to someone else's settlement).
+ * placed it).
  * @param {PersonRef} player @param {BlockLike} block
- * @returns {{kind: "found"|"move"|"rehang"|"menu"|"other"|"village"|"not_yours"|"member", s?: Settlement}}
+ * @returns {{kind: "found"|"move"|"rehang"|"menu"|"other"|"village"|"not_yours", s?: Settlement}}
  */
 export function bellTap(player, block) {
   const at = Object.values(getSettlements()).find((s) => isBellAt(s.bell, block));
@@ -329,7 +329,7 @@ export function setCap(by, n) {
   const v = Math.floor(Number(n));
   if (!(v >= 1 && v <= 100)) return { ok: false, message: "The worker limit must be between 1 and 100." };
   world.setDynamicProperty("crew:cap", v);
-  return { ok: true, message: `Each player may now have up to ${v} worker${v === 1 ? "" : "s"}. Workers already over the limit keep working.` };
+  return { ok: true, message: `The worker limit is now ${v} for each person in a settlement, and ${v} for a player on their own. Workers already over it keep working.` };
 }
 /**
  * May this player build another worker? In a settlement the limit is the cap for each person in it,
@@ -524,7 +524,7 @@ export function addStorage(by, s, block) {
 export function removeStorage(by, s, block) {
   if (!inIt(by, s)) return { ok: false, message: `Only people in ${s.name} can change its storage.` };
   const cur = getSettlements()[s.id];
-  const k = bellKey(block);
+  const k = spotKey({ dim: block.dimension.id, ...block.location });
   const before = (cur.storage ?? []).length;
   cur.storage = (cur.storage ?? []).filter((x) => spotKey(x) !== k);
   if (cur.storage.length === before) return { ok: false, message: "Only chests added with the Survey Stake can be removed (home chests, drop-offs and named places always count)." };
@@ -533,9 +533,13 @@ export function removeStorage(by, s, block) {
 }
 
 /** Is this chest one of the settlement's storage chests? @param {Settlement} s @param {BlockLike} block */
-export const isStorage = (s, block) => storageSpots(s).some((x) => spotKey(x) === bellKey(block));
+export const isStorage = (s, block) => storageSpots(s).some((x) => spotKey(x) === spotKey({ dim: block.dimension.id, ...block.location }));
 
-/** Reads a chest's contents; undefined if its area isn't loaded. @param {Spot} sp */
+/**
+ * Reads a chest's contents; undefined if its area isn't loaded. `slots` is a fingerprint of every
+ * slot, used to recognise the two halves of one double chest.
+ * @param {Spot} sp
+ */
 function readChest(sp) {
   let block;
   try {
@@ -545,15 +549,25 @@ function readChest(sp) {
   }
   if (!block) return undefined;
   const c = block.getComponent("minecraft:inventory")?.container;
-  if (!c) return { gone: true, size: 0, items: {} };
+  if (!c) return { gone: true, size: 0, items: {}, slots: "", chest: false };
   /** @type {Record<string, number>} */
   const items = {};
+  /** @type {string[]} */
+  const slots = [];
   for (let i = 0; i < c.size; i++) {
     const it = c.getItem(i);
+    slots.push(it ? `${it.typeId}*${it.amount}` : "");
     if (it) items[it.typeId] = (items[it.typeId] ?? 0) + it.amount; // a shulker box counts as one item
   }
-  return { gone: false, size: c.size, items };
+  return { gone: false, size: c.size, items, slots: slots.join("|"), chest: /chest/.test(block.typeId) };
 }
+
+/**
+ * Are these two reads the two halves of one double chest? Both are chests with the same 54 slots,
+ * slot for slot (a barrel, a single chest or a different double chest next to it isn't).
+ * @param {ReturnType<typeof readChest>} a @param {ReturnType<typeof readChest>} b
+ */
+const sameDouble = (a, b) => !!a && !!b && a.chest && b.chest && a.size > 27 && a.size === b.size && a.slots === b.slots;
 
 /**
  * Re-reads the settlement's loaded storage chests (or just one, by key). A chest whose area isn't
@@ -567,23 +581,40 @@ export function refreshStorage(s, onlyKey) {
   /** @type {Set<string>} */
   const dup = new Set();
   const now = Date.now();
+  const byKey = new Map(spots.map((sp) => [spotKey(sp), sp]));
   for (const sp of spots) {
     const k = spotKey(sp);
     if (onlyKey && k !== onlyKey) continue;
-    if (dup.has(k) || (onlyKey && getJSON(world, stockProp(k), undefined)?.dup)) {
+    if (dup.has(k)) {
       setJSON(world, stockProp(k), { ts: now, dup: true });
       continue;
     }
     const r = readChest(sp);
     if (!r) continue; // not loaded: keep what we knew
-    setJSON(world, stockProp(k), r.gone ? { ts: now, gone: true } : { ts: now, items: r.items });
-    if (r.size > 27) {
+    // the other half of a double chest that's also storage: count it once (under the smaller key)
+    let isDup = false;
+    if (r.size > 27 && r.chest) {
       for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         const nk = spotKey({ dim: sp.dim, x: sp.x + dx, y: sp.y, z: sp.z + dz });
-        if (keys.has(nk) && nk > k) dup.add(nk);
+        const nsp = byKey.get(nk);
+        if (!nsp || !keys.has(nk) || !sameDouble(r, readChest(nsp))) continue;
+        if (nk > k) dup.add(nk);
+        else isDup = true;
       }
     }
+    setJSON(world, stockProp(k), isDup ? { ts: now, dup: true } : r.gone ? { ts: now, gone: true } : { ts: now, items: r.items });
   }
+}
+
+/**
+ * Drops saved chest contents no settlement counts any more (a chest removed from storage, a
+ * settlement that ended, a worker that moved home).
+ */
+export function pruneStock() {
+  /** @type {Set<string>} */
+  const live = new Set();
+  for (const s of Object.values(getSettlements())) for (const sp of storageSpots(s)) live.add(stockProp(spotKey(sp)));
+  for (const id of world.getDynamicPropertyIds()) if (id.startsWith("crew:stock:") && !live.has(id)) world.setDynamicProperty(id, undefined);
 }
 
 /** A worker just put something in or took something out of this chest. @param {string} dimId @param {{x:number,y:number,z:number}} loc */

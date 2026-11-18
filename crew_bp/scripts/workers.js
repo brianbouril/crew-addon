@@ -222,8 +222,10 @@ export function renameWorker(e, newName) {
   const m = meta(e);
   const name = freeName(newName);
   const reg = getRegistry();
+  // the registry's owner is the current one (the entity's copy can lag behind a hand-over)
+  const was = reg[m.name.toLowerCase()];
   delete reg[m.name.toLowerCase()];
-  reg[name.toLowerCase()] = { name, id: e.id, ownerId: m.ownerId, ownerName: m.ownerName };
+  reg[name.toLowerCase()] = { name, id: e.id, ownerId: was?.ownerId ?? m.ownerId, ownerName: was?.ownerName ?? m.ownerName };
   saveRegistry(reg);
   e.setDynamicProperty("crew:name", name);
   updateTag(e);

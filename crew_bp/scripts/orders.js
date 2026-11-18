@@ -46,6 +46,7 @@ export function dispatch(by, order) {
   const p = v.params;
   const byRef = { id: by.id, name: by.name, console: !!by.console };
   // an order that gives it something to do wakes it, and at night it stays up to do it
+  // (go_home isn't here on purpose: sent at night, the worker walks home and the routine puts it to bed)
   if (["come", "drop_off", "resume", "quarry", "branch_mine"].includes(v.job)) keepUp(e);
 
   switch (v.job) {
@@ -78,7 +79,8 @@ export function dispatch(by, order) {
       if (p.at !== undefined) {
         const spot = depositFor(by, p.at, e.dimension.id);
         if (typeof spot === "string") return { ok: false, message: spot };
-        if (spot.dim !== e.dimension.id) return { ok: false, message: `${spot.label} is in another dimension from ${m.name}.` };
+        if (p.dimension && p.dimension !== e.dimension.id) spot.dim = p.dimension;
+        if (spot.dim !== e.dimension.id) return { ok: false, message: `${p.label ?? spot.label} is in another dimension from ${m.name}.` };
         const label = p.label ?? (typeof p.at === "string" ? spot.label : `the spot at ${fmt(spot)}`);
         startJob(e, { type: "come", id: newId(), by: byRef, at: spot, label, beside: true });
         return { ok: true, message: `${m.name} is on the way to ${label}.` };
@@ -164,7 +166,7 @@ export function orderSettlement(by, s, what, role = "all") {
   if (what === "come_bell") {
     if (!s.bell) return { ok: false, message: `${s.name}'s bell isn't up. Place it and crouch-tap it first.` };
     job = "come";
-    params = { at: [s.bell.x, s.bell.y, s.bell.z], label: `${s.name}'s bell` };
+    params = { at: [s.bell.x, s.bell.y, s.bell.z], label: `${s.name}'s bell`, dimension: s.bell.dim };
   }
   const loaded = new Map(loadedWorkers().map((w) => [w.id, w]));
   const seen = getSeen();

@@ -107,10 +107,10 @@ export function registerCommands(reg) {
       answer(by, true, list.length ? list.map((p) => `${p.name} @ ${p.x} ${p.y} ${p.z}${p.shared ? " (shared)" : ""} by ${p.ownerName}`).join("\n") : "No places yet. Look at a chest and run /crew:setplace \"name\".");
     });
 
-  cmd(reg, { name: "crew:cap", description: "Operators: how many workers each player may have (no number: show it).", permissionLevel: CommandPermissionLevel.GameDirectors,
+  cmd(reg, { name: "crew:cap", description: "Operators: the worker limit, per person in a settlement and on your own (no number: show it).", permissionLevel: CommandPermissionLevel.GameDirectors,
     optionalParameters: [{ name: "workers", type: T.Integer }] },
     (by, n) => {
-      if (n === undefined) return answer(by, true, `Each player may have up to ${getCap()} workers.`);
+      if (n === undefined) return answer(by, true, `The worker limit is ${getCap()} for each person in a settlement, and ${getCap()} for a player on their own.`);
       const r = setCap(by, n);
       answer(by, r.ok, r.message);
     });

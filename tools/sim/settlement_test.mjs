@@ -110,6 +110,25 @@ check("members can manage settlement workers too", canManage(asBy(ann), meta(dig
   check("and back", moveBell(brian, bell).ok && isProtected(bell) && !isProtected(bell2));
 }
 check("member can't found their own", !foundSettlement(ann, placeBell(ann, { x: 2030, y: 65, z: 2005 }), "Mine").ok);
+{
+  // Dee has a worker that isn't loaded when she joins; it becomes the founder's when it loads
+  const { e: deeW } = spawnWorker(ow, { x: 2012.5, y: 65, z: 2002.5 }, { id: "p7", name: "Dee" }, "Deedee", [new ItemStack("minecraft:stone_shovel")]);
+  deeW.isValid = false; // unloaded
+  addMember(asBy(brian), settlementOf({ id: "p1", name: "Brian" }), { id: "p7", name: "Dee" });
+  check("an unloaded member's worker joins (registry)", getRegistry()["deedee"].ownerId === "p1" && deeW.getDynamicProperty("crew:ownerId") === "p7");
+  deeW.isValid = true; // loads
+  run(60);
+  check("and becomes the founder's when it loads", deeW.getDynamicProperty("crew:ownerId") === "p1" && deeW.getDynamicProperty("crew:ownerName") === "Brian");
+  check("a current member can move the bell", (() => {
+    const r = packBell({ id: "p7", name: "Dee" });
+    const took = ow.getBlock(bell.location).typeId === "minecraft:air";
+    ow.getBlock(bell.location).setPermutation(BlockPermutation.resolve("minecraft:bell", { attachment: "standing", direction: 0 })); // hung again
+    const back = moveBell(brian, ow.getBlock(bell.location));
+    return r.ok && took && back.ok;
+  })());
+  removeMember(asBy(brian), settlementOf({ id: "p1", name: "Brian" }), "p7");
+  deeW.remove(); fire("world.afterEvents.entityDie", { deadEntity: deeW }); // keep the counts below simple
+}
 check("member can order the owner's worker", canCommand(asBy(ann), meta(digby)));
 check("owner can order the member's worker", canCommand(asBy(brian), meta(annW)));
 check("outsider can't", !canCommand(asBy(cal), meta(digby)));
@@ -148,8 +167,8 @@ let impacted = [bell, below, ow.getBlock({ x: 2001, y: 64, z: 2005 })];
 fire("world.beforeEvents.explosion", { dimension: ow, getImpactedBlocks: () => impacted, setImpactedBlocks: (b) => { impacted = b; } });
 check("explosions skip the bell and its support", impacted.length === 1 && impacted[0].x === 2001, impacted.map((b) => b.location));
 
-// move the bell: owner only; the settlement is kept without a bell until it's hung again
-check("a member can't pack the bell", !packBell(asBy(ann)).ok);
+// move the bell: only people in the settlement; it is kept without a bell until the bell is hung again
+check("someone no longer in the settlement can't take the bell down", !packBell(asBy(ann)).ok);
 const packed = packBell(brian);
 check("owner packs the bell", packed.ok && ow.getBlock(bell.location).typeId === "minecraft:air", packed);
 check("bell goes to the owner's inventory", brian.inv.items.some((i) => i?.typeId === "minecraft:bell"));

@@ -64,11 +64,17 @@ addStorage(asBy(brian), S(), ow.getBlock({ x: 3031, y: 65, z: 3000 }));
 run(200); // workers report their home chest; storage is read
 const keys = storageSpots(S()).map((sp) => `${sp.x}`).sort().join();
 check("storage = home chest + named place + stake chests (not a stranger's)", keys === "3005,3010,3015,3030,3031", keys);
+// a barrel right beside the double chest is its own storage, not "the other half"
+ow.setBlockType({ x: 3029, y: 65, z: 3000 }, "minecraft:barrel");
+const barrel = ow.getBlock({ x: 3029, y: 65, z: 3000 }).getComponent("minecraft:inventory").container;
+barrel.addItem(new ItemStack("minecraft:coal", 5));
+addStorage(asBy(brian), S(), ow.getBlock({ x: 3029, y: 65, z: 3000 }));
+run(200);
 
 /** What the loaded storage chests actually hold, summed (the double chest once). */
 function actual() {
   const sum = {};
-  for (const c of [homeChest, placeChest, stakeChest, dbl]) for (const it of c.items) if (it) sum[it.typeId] = (sum[it.typeId] ?? 0) + it.amount;
+  for (const c of [homeChest, placeChest, stakeChest, dbl, barrel]) for (const it of c.items) if (it) sum[it.typeId] = (sum[it.typeId] ?? 0) + it.amount;
   return sum;
 }
 const asMap = () => Object.fromEntries(ledger(S()).totals.map((x) => [x.id, x.n]));
@@ -76,7 +82,7 @@ const same = (a, b) => JSON.stringify(Object.entries(a).sort()) === JSON.stringi
 check("ledger totals = chest contents", same(asMap(), actual()), { ledger: asMap(), actual: actual() });
 check("most first", ledger(S()).totals[0].id === "minecraft:cobblestone" && ledger(S()).totals[0].n === 120, ledger(S()).totals[0]);
 check("a shulker box counts as one item", asMap()["minecraft:shulker_box"] === 1);
-check("the double chest is counted once", asMap()["minecraft:coal"] === 10, asMap());
+check("the double chest is counted once, and the barrel beside it too", asMap()["minecraft:coal"] === 15, asMap());
 check("a stranger's chest isn't counted", asMap()["minecraft:diamond"] === 3);
 check("where is it", whereIs(S(), "minecraft:cobblestone").map((w) => w.n).join() === "100,20", whereIs(S(), "minecraft:cobblestone"));
 
@@ -105,6 +111,7 @@ check("and catches up once loaded", asMap()["minecraft:diamond"] === 107, asMap(
 check("stake chests can be removed", removeStorage(asBy(brian), S(), ow.getBlock({ x: 3015, y: 65, z: 3000 })).ok && !storageSpots(S()).some((sp) => sp.x === 3015));
 run(200);
 check("removed chest no longer counts", !asMap()["minecraft:oak_log"], asMap());
+check("and its saved contents are dropped", world.getDynamicProperty("crew:stock:minecraft:overworld|3015,65,3000") === undefined);
 check("known chests can't be removed", !removeStorage(asBy(brian), S(), ow.getBlock({ x: 3005, y: 65, z: 3000 })).ok);
 
 // ---- settlement orders ----
@@ -120,7 +127,9 @@ check("outsiders can't give settlement orders", !orderSettlement(asBy(cal), S(),
 const bellOrder = orderSettlement(asBy(brian), S(), "come_bell");
 check("come to the bell: everyone walks to the bell", bellOrder.ok && [digby, dig2, miner].every((w) => job(w)?.type === "come" && job(w).at?.x === 3000 && job(w).at?.z === 3010), bellOrder);
 const q = takeQueued("far-1");
-check("an unloaded worker gets the same typed order, queued", q.length === 1 && q[0].order.worker === "Faraway" && q[0].order.job === "come" && JSON.stringify(q[0].order.params.at) === "[3000,65,3010]", q);
+check("an unloaded worker gets the same typed order, queued", q.length === 1 && q[0].order.worker === "Faraway" && q[0].order.job === "come" && JSON.stringify(q[0].order.params.at) === "[3000,65,3010]" && q[0].order.params.dimension === "minecraft:overworld", q);
+const wrongDim = dispatch(asBy(brian), { worker: "Picky", job: "come", params: { ...q[0].order.params, dimension: "minecraft:nether" } });
+check("a worker in another dimension from the bell refuses", !wrongDim.ok && /another dimension/.test(wrongDim.message), wrongDim);
 run(400);
 check("they arrive and wait", [digby, dig2, miner].every((w) => !job(w)), [digby, dig2, miner].map(job));
 const home = orderSettlement(asBy(brian), S(), "go_home");
