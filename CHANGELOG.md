@@ -16,6 +16,13 @@ turns it into that version's section.
   hand that role to another member. The bell
   can't be broken (explosions skip it too): **Move the bell** in the menu puts it in your inventory.
   A plain tap still rings it, and village bells can't be claimed.
+- **Storage.** The settlement menu adds up everything in your settlement's chests (your workers'
+  home chests and drop-offs, your named places, and any chest you add by tapping it with the Survey
+  Stake), most first; tap an item to see which chests hold it. It keeps up as you and your workers
+  put things in and take them out; chests far away show what they held when last loaded.
+- **Orders to everyone.** From the bell: Stop, Continue, Drop off, Go home or Come to the bell, for
+  all your settlement's workers or one kind (All Diggers). Far-away workers do it when they load.
+  Workers also understand "go home" and "come to a place" as orders on their own.
 - **Worker limit.** A settlement can have 6 workers for each person in it, and a player on their
   own 6, so the server keeps running smoothly.
   Building one more is refused and leaves the barrel and tools as they were; workers you already

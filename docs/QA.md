@@ -72,6 +72,17 @@ a full server restart: `reload` refuses to re-register it.
 - [ ] 12g. Existing workers on the live-world copy (staging) all show up after founding, with their
       jobs, homes and tools unchanged.
 
+**Settlements, release 2 (built Nov 18, mock-tested; staging first)**
+- [ ] 13. Storage: put things in a worker's home chest and a named place, and tap a third chest with
+      the Survey Stake, Add to settlement storage. The settlement menu's Storage adds all three up,
+      most first; tap an item for which chests hold it. A double chest counts once. Take a stack out
+      and reopen Storage a few seconds later: the total dropped.
+- [ ] 13b. Walk far from one storage chest (out of loaded range): Storage says it's far away and
+      shows its last count; come back and it updates. A worker's drop-off shows up straight away.
+- [ ] 13c. Give orders to everyone: Come to the bell (everyone walks to the bell), All Diggers > Stop
+      (only Diggers stop), Go home (workers with a bed walk home, the rest stay), Drop off, and
+      Continue after a Stop (paused digs pick up). A worker far away does it when you come near.
+
 **Diggers and Miners (built Nov 15, mock-tested; not on the server yet)**
 - [ ] 11. Existing workers turn into Diggers the first time they load: the name tag says Digger, the
       skin changes, and the owner gets one "I'm a Digger now" message. A quarry it was digging (or

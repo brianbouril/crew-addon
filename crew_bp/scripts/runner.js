@@ -8,7 +8,7 @@ import { advance, atGoal, near, newSearch } from "./path.js";
 import { KIT_SLOTS, addToKit, chooseTool, freeHaulSlots, kit, kitText, roleKinds, stash, ticksFor, toolInfo, toolPref, wear } from "./tools.js";
 import { center, dist, floorV, fmt, getJSON, lerp, setJSON, onlinePlayer, sameV, up } from "./util.js";
 import { emit, holdTool, loadedWorkers, meta, migrateRole, roleOf, syncRole, updateTag } from "./workers.js";
-import { isProtected, saveSeen } from "./settlement.js";
+import { isProtected, noteChestUse, saveSeen } from "./settlement.js";
 import { DRAIN_PER_BLOCK, EXHAUSTED, REST, TIRED, TIRED_SLOWDOWN, bedPose, bedSafety, bedside, eatOne, energy, energyWord, getHome, isNight, isSupply, restock, setEnergy } from "./life.js";
 
 /**
@@ -211,7 +211,7 @@ export function statusText(e) {
     if (paused) line += ` Its ${paused.name} is paused at ${paused.pct}%: pick Continue to pick it up.`;
     if (last?.blocks?.length) line += ` Last job left ${last.total} block${last.total === 1 ? "" : "s"} its tools couldn't harvest.`;
   } else if (job.type === "come") {
-    line = `Walking to ${job.target.name}.`;
+    line = `Walking to ${job.target?.name ?? job.label}.`;
   } else if (job.type === "drop_off") {
     line = `Taking what it carries to ${job.deposit.label}.`;
   } else if (job.type === "rest") {
@@ -479,7 +479,11 @@ function noteSeen() {
       const inv = e.getComponent("minecraft:inventory")?.container;
       const k = inv ? kit(inv) : [];
       const l = floorV(e.location);
+      const home = getHome(e);
+      const drop = getJSON(e, "crew:lastDeposit", undefined);
       now[e.id] = {
+        home: home?.chest ? { dim: home.dim, ...home.chest } : undefined,
+        drop: drop?.dim ? { dim: drop.dim, x: drop.x, y: drop.y, z: drop.z, label: drop.label } : undefined,
         role: roleOf(e), status: shortStatus(e, job, st), busy: !!job && job.type !== "rest",
         noTools: !k.length || !!st?.needTool, low: k.some((t) => t.left / t.max <= 0.1), ticking: !!job?.tickingArea,
         dim: e.dimension.id, x: l.x, y: l.y, z: l.z, ts: Date.now(),
@@ -498,7 +502,7 @@ function shortStatus(e, job, st) {
     return paused ? `Idle (${paused.name} paused at ${paused.pct}%)` : "Idle";
   }
   if (job.type === "rest") return st?.phase === "asleep" ? (getHome(e) ? "Asleep at home" : "Asleep") : "Going to bed";
-  if (job.type === "come") return `Walking to ${job.target.name}`;
+  if (job.type === "come") return `Walking to ${job.target?.name ?? job.label}`;
   if (job.type === "drop_off") return `Dropping off at ${job.deposit.label}`;
   const total = job.geom?.total ?? 1;
   const pct = Math.floor((100 * Math.min(st?.i ?? 0, total)) / total);
@@ -548,6 +552,20 @@ function keepLoaded(rt) {
 // ---------- come ----------
 /** @param {Runtime} rt */
 function stepCome(rt) {
+  const at = rt.job.at;
+  if (at) {
+    // a fixed spot (a settlement's bell, home): walk there and wait
+    if (at.dim && at.dim !== rt.e.dimension.id) {
+      stopJob(rt.e, `${rt.job.label} is in another dimension, so I stopped.`);
+      return;
+    }
+    rt.e.setProperty("crew:anim", rt.walk?.path ? 1 : 0);
+    if (walkTo(rt, at, 2.5, !!rt.job.beside) === "arrived") {
+      emit(rt.e, "arrived", { to: rt.job.label }, `at ${rt.job.label}.`);
+      stopJob(rt.e, undefined);
+    }
+    return;
+  }
   const p = onlinePlayer(rt.job.target);
   if (!p || p.dimension.id !== rt.e.dimension.id) {
     stopJob(rt.e, "can't find that player in this dimension, so I stopped.");
@@ -1308,7 +1326,10 @@ function takeTools(rt, at, inv) {
     }
     took.push(info.label);
   }
-  if (took.length) updateTag(rt.e);
+  if (took.length) {
+    updateTag(rt.e);
+    noteChestUse(rt.e.dimension.id, at);
+  }
   return took.join(", ");
 }
 /** @param {Runtime} rt @param {Container} inv @param {string} took @param {string} from */
@@ -1355,7 +1376,10 @@ function deposit(e, job, inv) {
     moved += item.amount - (left?.amount ?? 0);
     if (left) return "full";
   }
-  if (moved > 0) emit(e, "deposited", { items: moved, deposit: job.deposit.label }, `dropped off ${moved} items at ${job.deposit.label}.`);
+  if (moved > 0) {
+    emit(e, "deposited", { items: moved, deposit: job.deposit.label }, `dropped off ${moved} items at ${job.deposit.label}.`);
+    noteChestUse(job.deposit.dim, job.deposit);
+  }
   return "ok";
 }
 

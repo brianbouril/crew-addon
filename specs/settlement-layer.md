@@ -1,6 +1,6 @@
 # Spec: Settlement layer (V1, release 1-2)
 
-Owner: Brian · Status: **in review** (release 1) · Branch: `feat/settlement-layer` · Builder: A (weeks 2-3)
+Owner: Brian · Status: **in review** (releases 1 and 2) · Branch: `feat/settlement-layer` · Builder: A (weeks 2-3)
 
 <!-- Drafted Nov 16 2026 by the lead session; every open question answered by Brian Nov 16-17. -->
 

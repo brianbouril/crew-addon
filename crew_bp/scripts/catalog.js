@@ -46,9 +46,14 @@ export const JOBS = {
     },
   },
   come: {
-    description: "Walk to a player and wait there.",
-    params: { to: { type: "player", description: "Player name. Defaults to whoever gave the order." } },
+    description: "Walk to a player, or to a spot, and wait there.",
+    params: {
+      to: { type: "player", description: "Player name. Defaults to whoever gave the order." },
+      at: { type: "place", description: "Walk to this spot instead of a player: a saved place name or coordinates (same dimension as the worker)." },
+      label: { type: "string", description: "What to call the spot in messages (e.g. \"the bell\")." },
+    },
   },
+  go_home: { description: "Walk home to its bed and wait there. A worker with no home stays where it is.", params: {} },
   stop: { description: "Stop the current job, keep what is carried, go idle. An unfinished quarry or branch mine is kept as paused, so `resume` can continue it.", params: {} },
   set_home: {
     description: "Give the worker a home: it claims the bed (one worker per bed) and the nearest chest or barrel within 8 blocks becomes its home chest and default drop-off. At dusk it goes home, unloads and sleeps; at dawn it restocks from the chest and goes back to work.",

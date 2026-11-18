@@ -11,7 +11,7 @@ import { startWelcome } from "./guide.js";
 import { toolInfo } from "./tools.js";
 import { VERSION, onlinePlayer, tell } from "./util.js";
 import { WORKER_TYPE, buildFromBarrel, loadedWorkers, workerDied } from "./workers.js";
-import { BELL, checkBells, forgetBell, isProtected, protectedKeys, recordBell, syncOwners, takeQueued } from "./settlement.js";
+import { BELL, checkBells, forgetBell, getSettlements, isProtected, protectedKeys, recordBell, refreshStorage, syncOwners, takeQueued } from "./settlement.js";
 import { dispatch } from "./orders.js";
 
 system.beforeEvents.startup.subscribe((ev) => {
@@ -175,11 +175,21 @@ world.afterEvents.entityDie.subscribe((ev) => {
   if (ev.deadEntity.typeId === WORKER_TYPE) workerDied(ev.deadEntity);
 });
 
-/** Every 2 seconds: notice lost bells, keep workers owned by their settlement's founder, and give loaded workers the orders that waited for them. */
+/** Chores calls (2 s each) between re-reads of the settlement storage chests that are loaded. */
+const STORAGE_EVERY = 3;
+let storageIn = 0;
+/**
+ * Every 2 seconds: notice lost bells, keep workers owned by their settlement's founder, give loaded
+ * workers the orders that waited for them; every 6 seconds re-read loaded storage chests.
+ */
 function settlementChores() {
   try {
     checkBells();
     syncOwners();
+    if (--storageIn <= 0) {
+      storageIn = STORAGE_EVERY;
+      for (const s of Object.values(getSettlements())) refreshStorage(s);
+    }
     for (const e of loadedWorkers()) {
       for (const q of takeQueued(e.id)) {
         const r = dispatch(q.by, q.order);

@@ -6,7 +6,8 @@ import { fmt, getJSON, setJSON } from "./util.js";
 import { getRegistry, resolvePlace } from "./store.js";
 import { canCommand, findWorker, loadedWorkers, meta, roleOf } from "./workers.js";
 import { keepUp, pausedJob, resumeJob, startJob, stopJob, statusText } from "./runner.js";
-import { bedAt, bedClaimedBy, bedSafety, chestNear, getHome, setHome } from "./life.js";
+import { bedAt, bedClaimedBy, bedSafety, bedside, chestNear, getHome, setHome } from "./life.js";
+import { getSeen, peopleOf, queueOrder, rosterOf } from "./settlement.js";
 
 /** A loaded worker by its entity id. @param {string} id */
 const loadedWorkersById = (id) => loadedWorkers().find((w) => w.id === id);
@@ -74,10 +75,26 @@ export function dispatch(by, order) {
     case "status":
       return { ok: true, message: `${m.name} (${roleOf(e)}): ${statusText(e)}` };
     case "come": {
+      if (p.at !== undefined) {
+        const spot = depositFor(by, p.at, e.dimension.id);
+        if (typeof spot === "string") return { ok: false, message: spot };
+        if (spot.dim !== e.dimension.id) return { ok: false, message: `${spot.label} is in another dimension from ${m.name}.` };
+        const label = p.label ?? (typeof p.at === "string" ? spot.label : `the spot at ${fmt(spot)}`);
+        startJob(e, { type: "come", id: newId(), by: byRef, at: spot, label, beside: true });
+        return { ok: true, message: `${m.name} is on the way to ${label}.` };
+      }
       const target = p.to ?? (by.console ? undefined : by.name);
       if (!target) return { ok: false, message: "come needs 'to' (a player name) when sent from the console." };
       startJob(e, { type: "come", id: newId(), by: byRef, target: { name: target } });
       return { ok: true, message: `${m.name} is on the way to ${target}.` };
+    }
+    case "go_home": {
+      const home = getHome(e);
+      if (!home) return { ok: true, message: `${m.name} has no home, so it stays where it is.` };
+      if (home.dim !== e.dimension.id) return { ok: false, message: `${m.name}'s home is in another dimension.` };
+      const b = bedside(e.dimension, home);
+      startJob(e, { type: "come", id: newId(), by: byRef, at: { ...b, dim: home.dim }, label: "home" });
+      return { ok: true, message: `${m.name} is going home.` };
     }
     case "resume": {
       const paused = pausedJob(e);
@@ -124,6 +141,58 @@ export function dispatch(by, order) {
     default:
       return { ok: false, message: `${v.job} isn't wired up yet.` };
   }
+}
+
+/** What players see for each settlement order (job names, plus the bell). */
+export const SETTLEMENT_ORDERS = /** @type {const} */ ([["stop", "Stop"], ["resume", "Continue"], ["drop_off", "Drop off"], ["go_home", "Go home"], ["come_bell", "Come to the bell"]]);
+
+/**
+ * A settlement order: the same typed order sent to every worker in the settlement, or to one role.
+ * Loaded workers get it now; the others when their area loads. Only people in the settlement (and
+ * operators) can give one.
+ * @param {Commander} by @param {import("./settlement.js").Settlement} s
+ * @param {string} what  a job from SETTLEMENT_ORDERS ("come_bell" = come to the settlement's bell)
+ * @param {string} [role]  "all" (default) or a role name
+ */
+export function orderSettlement(by, s, what, role = "all") {
+  if (!(by.console || by.isOp || peopleOf(s).some((pp) => pp.id === by.id))) return { ok: false, message: `Only people in ${s.name} can give its workers orders.` };
+  const label = SETTLEMENT_ORDERS.find(([j]) => j === what)?.[1];
+  if (!label) return { ok: false, message: `'${what}' isn't an order for everyone.` };
+  let job = what;
+  /** @type {Record<string, any>} */
+  let params = {};
+  if (what === "come_bell") {
+    if (!s.bell) return { ok: false, message: `${s.name}'s bell isn't up. Place it and crouch-tap it first.` };
+    job = "come";
+    params = { at: [s.bell.x, s.bell.y, s.bell.z], label: `${s.name}'s bell` };
+  }
+  const loaded = new Map(loadedWorkers().map((w) => [w.id, w]));
+  const seen = getSeen();
+  let sent = 0, queued = 0;
+  /** @type {string[]} */
+  const failed = [];
+  for (const r of rosterOf(s)) {
+    const w = loaded.get(r.id);
+    const workerRole = w ? roleOf(w) : seen[r.id]?.role;
+    if (role !== "all" && workerRole !== role) continue;
+    const order = { worker: r.name, job, params };
+    if (!w) {
+      queueOrder(r.id, by, order);
+      queued++;
+    } else if (what === "come_bell" && s.bell && w.dimension.id !== s.bell.dim) {
+      failed.push(`${r.name} is in another dimension`);
+    } else {
+      const res = dispatch(by, order);
+      if (res.ok) sent++;
+      else failed.push(res.message);
+    }
+  }
+  const who = role === "all" ? "" : ` (${role}s)`;
+  if (!sent && !queued && !failed.length) return { ok: false, message: `${s.name} has no ${role === "all" ? "workers" : `${role}s`} to tell.` };
+  let msg = `${label}${who}: sent to ${sent} worker${sent === 1 ? "" : "s"}.`;
+  if (queued) msg += ` ${queued} far away will do it when their area loads.`;
+  if (failed.length) msg += ` ${failed.length} couldn't: ${failed.slice(0, 3).join("; ")}${failed.length > 3 ? "; ..." : ""}`;
+  return { ok: sent + queued > 0, message: msg };
 }
 
 /**

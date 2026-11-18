@@ -8,7 +8,8 @@
 //   crew:bells        {"dim|x,y,z": placerId}  bells players placed (only those can found one)
 //   crew:seen         {[workerId]: Seen}       what each worker was last doing (for the roster)
 //   crew:queue        {[workerId]: Queued[]}   orders waiting for an unloaded worker
-//   crew:cap          number                   workers per player (operator setting)
+//   crew:cap          number                   workers per person (operator setting)
+//   crew:stock:<spot> Stock                    last read contents of one storage chest
 // Membership isn't stored on workers: a worker belongs to its owner's settlement, and every worker
 // in a settlement is owned by its founder (Brian, Nov 18): a member's workers move to the founder
 // when they join, workers a member builds are the founder's, a player who leaves takes none, and a
@@ -17,14 +18,17 @@
 // (ownerId/ownerName) can hand that role to someone else, and nobody can remove the founder.
 import { ItemStack, world } from "@minecraft/server";
 import { DIMS, getJSON, setJSON, onlinePlayer, tell } from "./util.js";
-import { getRegistry, saveRegistry } from "./store.js";
+import { getPlaces, getRegistry, saveRegistry } from "./store.js";
 
 /**
  * @typedef {import("./store.js").Commander} Commander
  * @typedef {{id?: string, name: string}} PersonRef
  * @typedef {{dim: string, x: number, y: number, z: number, att: string, dir?: number}} BellSpot
- * @typedef {{id: string, name: string, ownerId: string, ownerName: string, members: {id: string, name: string}[], bell: BellSpot | null}} Settlement
- * @typedef {{role: string, status: string, busy: boolean, noTools: boolean, low: boolean, ticking: boolean, dim: string, x: number, y: number, z: number, ts: number}} Seen
+ * @typedef {{dim: string, x: number, y: number, z: number, label: string}} Spot  a storage chest
+ * @typedef {{id: string, name: string, ownerId: string, ownerName: string, members: {id: string, name: string}[], bell: BellSpot | null, storage?: Spot[]}} Settlement
+ * @typedef {{dim: string, x: number, y: number, z: number, label?: string}} ChestRef
+ * @typedef {{role: string, status: string, busy: boolean, noTools: boolean, low: boolean, ticking: boolean, dim: string, x: number, y: number, z: number, ts: number, home?: ChestRef, drop?: ChestRef}} Seen
+ * @typedef {{ts: number, items?: Record<string, number>, dup?: boolean, gone?: boolean}} Stock
  * @typedef {{by: Commander, order: any}} Queued
  * @typedef {{dimension: {id: string}, location: {x:number,y:number,z:number}, typeId: string, permutation?: any}} BlockLike
  */
@@ -463,6 +467,151 @@ export function forgetWorker(workerId) {
     setJSON(world, "crew:seen", seen);
   }
   takeQueued(workerId);
+}
+
+// ---------- storage chests and the ledger ----------
+/** @param {{dim: string, x: number, y: number, z: number}} p */
+const spotKey = (p) => `${p.dim}|${Math.floor(p.x)},${Math.floor(p.y)},${Math.floor(p.z)}`;
+/** @param {string} key */
+const stockProp = (key) => `crew:stock:${key}`;
+
+/** "minecraft:iron_ingot" -> "Iron ingot". @param {string} id */
+export function itemName(id) {
+  const s = id.replace(/^minecraft:/, "").replace(/_/g, " ");
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/**
+ * The settlement's storage chests: chests added with the Survey Stake, its people's named places,
+ * and its workers' home chests and last drop-off chests (from what they last reported).
+ * @param {Settlement} s @returns {Spot[]}
+ */
+export function storageSpots(s) {
+  /** @type {Map<string, Spot>} */
+  const out = new Map();
+  /** @param {ChestRef | undefined} p @param {string} label */
+  const add = (p, label) => {
+    if (!p?.dim) return;
+    const k = spotKey(p);
+    if (!out.has(k)) out.set(k, { dim: p.dim, x: Math.floor(p.x), y: Math.floor(p.y), z: Math.floor(p.z), label });
+  };
+  for (const st of s.storage ?? []) add(st, st.label);
+  const ids = new Set(peopleOf(s).map((p) => p.id));
+  for (const pl of getPlaces()) if (ids.has(pl.ownerId)) add(pl, pl.name);
+  const seen = getSeen();
+  for (const r of rosterOf(s)) {
+    const sn = seen[r.id];
+    add(sn?.home, `${r.name}'s home chest`);
+    add(sn?.drop, sn?.drop?.label ?? `${r.name}'s drop-off`);
+  }
+  return [...out.values()].sort((a, b) => spotKey(a).localeCompare(spotKey(b)));
+}
+
+/** Adds a chest or barrel to the settlement's storage (Survey Stake). @param {Commander} by @param {Settlement} s @param {BlockLike} block */
+export function addStorage(by, s, block) {
+  if (!inIt(by, s)) return { ok: false, message: `Only people in ${s.name} can add storage.` };
+  const cur = getSettlements()[s.id];
+  const p = { dim: block.dimension.id, x: Math.floor(block.location.x), y: Math.floor(block.location.y), z: Math.floor(block.location.z) };
+  if (storageSpots(cur).some((x) => spotKey(x) === spotKey(p))) return { ok: false, message: `That's already one of ${cur.name}'s storage chests.` };
+  const label = `${itemName(block.typeId)} at ${p.x} ${p.y} ${p.z}`;
+  (cur.storage ??= []).push({ ...p, label });
+  save(cur);
+  refreshStorage(cur, spotKey(p));
+  return { ok: true, message: `Added to ${cur.name}'s storage. Its contents now count in the settlement's totals.` };
+}
+
+/** Removes a chest added with the stake. @param {Commander} by @param {Settlement} s @param {BlockLike} block */
+export function removeStorage(by, s, block) {
+  if (!inIt(by, s)) return { ok: false, message: `Only people in ${s.name} can change its storage.` };
+  const cur = getSettlements()[s.id];
+  const k = bellKey(block);
+  const before = (cur.storage ?? []).length;
+  cur.storage = (cur.storage ?? []).filter((x) => spotKey(x) !== k);
+  if (cur.storage.length === before) return { ok: false, message: "Only chests added with the Survey Stake can be removed (home chests, drop-offs and named places always count)." };
+  save(cur);
+  return { ok: true, message: `Removed from ${cur.name}'s storage.` };
+}
+
+/** Is this chest one of the settlement's storage chests? @param {Settlement} s @param {BlockLike} block */
+export const isStorage = (s, block) => storageSpots(s).some((x) => spotKey(x) === bellKey(block));
+
+/** Reads a chest's contents; undefined if its area isn't loaded. @param {Spot} sp */
+function readChest(sp) {
+  let block;
+  try {
+    block = world.getDimension(sp.dim).getBlock(sp);
+  } catch {
+    return undefined;
+  }
+  if (!block) return undefined;
+  const c = block.getComponent("minecraft:inventory")?.container;
+  if (!c) return { gone: true, size: 0, items: {} };
+  /** @type {Record<string, number>} */
+  const items = {};
+  for (let i = 0; i < c.size; i++) {
+    const it = c.getItem(i);
+    if (it) items[it.typeId] = (items[it.typeId] ?? 0) + it.amount; // a shulker box counts as one item
+  }
+  return { gone: false, size: c.size, items };
+}
+
+/**
+ * Re-reads the settlement's loaded storage chests (or just one, by key). A chest whose area isn't
+ * loaded keeps its last contents and time. Both halves of a double chest open the same 54 slots,
+ * so the second half is marked as a duplicate and not counted twice.
+ * @param {Settlement} s @param {string} [onlyKey]
+ */
+export function refreshStorage(s, onlyKey) {
+  const spots = storageSpots(s);
+  const keys = new Set(spots.map(spotKey));
+  /** @type {Set<string>} */
+  const dup = new Set();
+  const now = Date.now();
+  for (const sp of spots) {
+    const k = spotKey(sp);
+    if (onlyKey && k !== onlyKey) continue;
+    if (dup.has(k) || (onlyKey && getJSON(world, stockProp(k), undefined)?.dup)) {
+      setJSON(world, stockProp(k), { ts: now, dup: true });
+      continue;
+    }
+    const r = readChest(sp);
+    if (!r) continue; // not loaded: keep what we knew
+    setJSON(world, stockProp(k), r.gone ? { ts: now, gone: true } : { ts: now, items: r.items });
+    if (r.size > 27) {
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nk = spotKey({ dim: sp.dim, x: sp.x + dx, y: sp.y, z: sp.z + dz });
+        if (keys.has(nk) && nk > k) dup.add(nk);
+      }
+    }
+  }
+}
+
+/** A worker just put something in or took something out of this chest. @param {string} dimId @param {{x:number,y:number,z:number}} loc */
+export function noteChestUse(dimId, loc) {
+  const k = spotKey({ dim: dimId, ...loc });
+  for (const s of Object.values(getSettlements())) if (storageSpots(s).some((x) => spotKey(x) === k)) refreshStorage(s, k);
+}
+
+/**
+ * The settlement's stock: totals per item across its storage chests (most first), and each chest
+ * with what it held when last read.
+ * @param {Settlement} s
+ */
+export function ledger(s) {
+  /** @type {Record<string, number>} */
+  const totals = {};
+  const chests = storageSpots(s).map((sp) => {
+    /** @type {Stock | undefined} */
+    const st = getJSON(world, stockProp(spotKey(sp)), undefined);
+    if (st?.items && !st.dup) for (const [id, n] of Object.entries(st.items)) totals[id] = (totals[id] ?? 0) + n;
+    return { ...sp, ts: st?.ts, items: st?.dup ? undefined : st?.items, dup: !!st?.dup, gone: !!st?.gone };
+  });
+  return { totals: Object.entries(totals).map(([id, n]) => ({ id, n })).sort((a, b) => b.n - a.n || a.id.localeCompare(b.id)), chests };
+}
+
+/** Which storage chests hold this item, and how many each. @param {Settlement} s @param {string} id */
+export function whereIs(s, id) {
+  return ledger(s).chests.filter((c) => c.items?.[id]).map((c) => ({ label: c.label, n: /** @type {Record<string, number>} */ (c.items)[id], ts: c.ts })).sort((a, b) => b.n - a.n);
 }
 
 // ---------- orders waiting for an unloaded worker ----------
