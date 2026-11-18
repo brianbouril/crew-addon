@@ -582,7 +582,7 @@ function sharesSlots(a, b) {
   }
   for (let i = 0; i < a.size; i++) {
     const it = a.getItem(i);
-    if (!it || it.maxAmount <= 1 || it.amount < 2 || it.nameTag || it.getLore?.().length || /shulker|book/.test(it.typeId)) continue;
+    if (!it || it.maxAmount <= 1 || it.amount < 2 || it.nameTag || it.getLore?.().length || /shulker|book|banner|firework/.test(it.typeId)) continue;
     const n = it.amount;
     try {
       it.amount = n - 1;

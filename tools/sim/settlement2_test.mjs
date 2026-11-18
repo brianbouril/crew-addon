@@ -102,6 +102,15 @@ check("the double chest is counted once, and the barrel beside it too", asMap()[
   check("checking a double chest never moves a valuable item", dbl.items[0] === shulker && dbl.items[0].nameTag === "Diamonds");
   check("and it still counts once", asMap()["minecraft:coal"] === 5 && asMap()["minecraft:shulker_box"] === 2, asMap());
   dbl.items[0] = coal;
+  // a full double chest (no empty slot): still counted once, nothing changed
+  const saved = [...dbl.items];
+  for (let i = 0; i < 54; i++) dbl.items[i] = new ItemStack("minecraft:cobblestone", 64);
+  const cob = asMap()["minecraft:cobblestone"];
+  run(200);
+  check("a full double chest counts once", asMap()["minecraft:cobblestone"] === cob + 54 * 64, { cob, now: asMap()["minecraft:cobblestone"] });
+  check("and stays full", dbl.items.every((i) => i?.amount === 64));
+  for (let i = 0; i < 54; i++) dbl.items[i] = saved[i];
+  run(200);
   removeStorage(asBy(brian), S(), ow.getBlock({ x: 3050, y: 65, z: 3020 }));
   removeStorage(asBy(brian), S(), ow.getBlock({ x: 3051, y: 65, z: 3020 }));
   run(200);
