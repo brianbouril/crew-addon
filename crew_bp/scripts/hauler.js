@@ -457,7 +457,7 @@ export function haulerIdle(e, ctx) {
   // looking over the depot's chests every 10 seconds is plenty
   const k = (tidyIn.get(e.id) ?? 0) - 1;
   tidyIn.set(e.id, k > 0 ? k : 10);
-  if (k <= 0 && tidyPlan(s)) startTidy(e, ctx);
+  if (k <= 0 && tidyPlan(s, chestSupply(invOf(e)) > 0)) startTidy(e, ctx);
 }
 
 /** Seconds until an idle Hauler next looks over the depot for tidying, by worker id. @type {Map<string, number>} */
@@ -1121,12 +1121,14 @@ function stepHaulJob(rt, ctx, inv) {
 const untouchable = (it) => /shulker_box/.test(it.typeId) || !!it.nameTag || !!toolInfo(it) || !!it.getComponent?.("minecraft:durability") || it.maxAmount <= 1;
 
 /**
- * The next tidying job in the depot: a chest with two part-full stacks of one kind (merge), or a
- * stack in a chest of another kind whose own chest has room (a stray). undefined = nothing to do.
- * @param {import("./settlement.js").Settlement | undefined} s
- * @returns {{kind: "merge", unit: number, cell: V3} | {kind: "stray", unit: number, cell: V3, slot: number, to: number} | undefined}
+ * The next tidying job in the depot: a chest with two part-full stacks of one kind (merge), a
+ * stack in a chest of another kind whose own chest has room (a stray), or, with chests in hand, a
+ * kind that had to share a chest getting a chest of its own (split; Brian, Nov 19). undefined =
+ * nothing to do.
+ * @param {import("./settlement.js").Settlement | undefined} s @param {boolean} [haveChest] it carries chests to place
+ * @returns {{kind: "merge", unit: number, cell: V3} | {kind: "stray", unit: number, cell: V3, slot: number, to: number} | {kind: "split", unit: number, cell: V3, item: string, place: V3} | undefined}
  */
-export function tidyPlan(s) {
+export function tidyPlan(s, haveChest = false) {
   const d = s?.depot;
   if (!d) return undefined;
   for (let ui = 0; ui < d.units.length; ui++) {
@@ -1145,6 +1147,11 @@ export function tidyPlan(s) {
             return !!ct && hasRoom(ct, it);
           }));
           if (to >= 0) return { kind: "stray", unit: ui, cell, slot: i, to };
+          // no chest of its own yet: one now, if it has a chest and the depot has room
+          if (haveChest && !d.units.some((x) => x.kind === it.typeId)) {
+            const t = targetFor(d, it, true);
+            if (t.kind === "place") return { kind: "split", unit: ui, cell, item: it.typeId, place: t.cells[0] };
+          }
         }
         if (it.amount < it.maxAmount) {
           // only stacks that really stack (same data: banners, fireworks, tipped arrows differ)
@@ -1190,7 +1197,7 @@ function stepTidy(rt, ctx) {
         st.pause--;
         return;
       }
-      const t = tidyPlan(s);
+      const t = tidyPlan(s, chestSupply(invOf(e)) > 0);
       if (!t) {
         ctx.stopJob(e, undefined, true);
         return;
@@ -1201,8 +1208,8 @@ function stepTidy(rt, ctx) {
     }
     case "to_chest": {
       const t = st.target;
-      if (ctx.walkTo(rt, t.cell, 2.6, true) !== "arrived") return;
-      st.pause = loadTicks(doTidy(d, t));
+      if (ctx.walkTo(rt, t.kind === "split" ? t.place : t.cell, 2.6, true) !== "arrived") return;
+      st.pause = loadTicks(t.kind === "split" ? splitOut(rt, d, t) : doTidy(d, t));
       st.target = undefined;
       st.phase = "plan";
       return;
@@ -1210,6 +1217,32 @@ function stepTidy(rt, ctx) {
     default:
       st.phase = "to_depot";
   }
+}
+
+/**
+ * A kind sharing another kind's chest gets its own: places a chest (from its supplies) and moves
+ * every stack of that kind there from the shared chest. Returns the stacks moved.
+ * @param {any} rt @param {Depot} d @param {any} t
+ */
+function splitOut(rt, d, t) {
+  const inv = invOf(rt.e);
+  const from = containerAt(d.dim, t.cell);
+  if (!inv || !from || !isAir(d.dim, t.place) || chestsPlaced(d) >= chestLimit(d) || !useChest(inv)) return 0;
+  world.getDimension(d.dim).setBlockType(t.place, CHEST);
+  d.units.push({ cells: [t.place], kind: t.item, group: groupOf(t.item) });
+  saveDepotUnits(rt.job.sid ?? settlementFor(rt.e)?.id ?? "", d.units);
+  const to = containerAt(d.dim, t.place);
+  let n = 0;
+  for (let i = 0; to && i < from.size; i++) {
+    const it = from.getItem(i);
+    if (!it || it.typeId !== t.item || untouchable(it)) continue;
+    const left = to.addItem(it);
+    from.setItem(i, left);
+    n++;
+  }
+  noteChestUse(d.dim, t.cell);
+  noteChestUse(d.dim, t.place);
+  return n;
 }
 
 /** Does one tidying job; returns the stacks moved. @param {Depot} d @param {any} t */

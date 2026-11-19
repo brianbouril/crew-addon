@@ -95,12 +95,20 @@ H.setDynamicProperty("crew:haulOff", undefined);
 setJSON(H, "crew:rounds", ["morning"]);
 H.setDynamicProperty("crew:roundsDay", 0);
 run(1200);
-const rockets = cob.items.filter((i) => i?.typeId === "minecraft:firework_rocket").map((i) => [i.data, i.amount]).sort();
+// (with chests in hand it gives the rockets a chest of their own: that's the split below)
+const rockets = depotConts().flatMap((c) => c.items).filter((i) => i?.typeId === "minecraft:firework_rocket").map((i) => [i.data, i.amount]).sort();
 check("rockets with different flights are never merged", JSON.stringify(rockets) === JSON.stringify([["flight 1", 5], ["flight 3", 7]]), rockets);
+check("a kind sharing a chest gets its own when it has chests (Brian, Nov 19)", depot().units.some((u) => u.kind === "minecraft:firework_rocket") && !cob.items.some((i) => i?.typeId === "minecraft:firework_rocket"), depot().units.map((u) => u.kind));
 check("the half cobblestone stacks were merged", cob.items.filter((i) => i?.typeId === "minecraft:cobblestone").length === 1, cob.items.filter(Boolean).map((i) => [i.typeId, i.amount]));
-check("and tidying stops (nothing left to do)", !A.tidyPlan(S()));
-cob.setItem(20, undefined);
-cob.setItem(21, undefined);
+check("and tidying stops (nothing left to do)", !A.tidyPlan(S(), true));
+for (const c of depotConts()) for (let i = 0; i < c.size; i++) if (c.items[i]?.typeId === "minecraft:firework_rocket") c.setItem(i, undefined);
+// without chests in hand a sharing kind stays put
+const supply = H.inv.items.slice(23);
+for (let i = 23; i < 36; i++) H.inv.setItem(i, undefined);
+cob.setItem(25, new ItemStack("minecraft:feather", 4));
+check("no chests: tidying leaves a sharing kind where it is", !A.tidyPlan(S(), false));
+cob.setItem(25, undefined);
+supply.forEach((it, j) => H.inv.setItem(23 + j, it));
 
 // ---- rounds done are kept per day ----
 setJSON(H, "crew:rounds", ["morning", "midday", "evening"]);

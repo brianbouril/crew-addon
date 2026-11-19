@@ -158,7 +158,8 @@ a full server restart: `reload` refuses to re-register it.
       waits at the depot with its load, and carries on when you empty a chest.
 - [ ] H7. A drop-off chest past 3/4 full calls it for an extra trip between rounds.
 - [ ] H8. Mix a stray item and two half stacks into a depot chest: between rounds it tidies them.
-      A named item, a shulker box and a tool are left where they are.
+      A named item, a shulker box and a tool are left where they are. With chests in hand, a kind
+      that had to share another kind's chest gets a chest of its own.
 - [ ] H9. At dusk while carrying it delivers to the depot first, then goes home to sleep. Its home
       chest is never filled or emptied (it only takes food from it in the morning).
 - [ ] H10. Stop mid-round: it stays put and starts no rounds by itself; Continue picks the round
