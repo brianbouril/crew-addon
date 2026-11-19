@@ -1588,7 +1588,7 @@ function blink(rt, target) {
 }
 
 /** What hauler.js needs from the engine (passed in, so hauler.js doesn't import this module). */
-const haulCtx = { walkTo, stopJob, startRest, startJob };
+const haulCtx = { walkTo, stopJob, startRest, startJob, resumeJob };
 
 export const isWorking = (/** @type {Entity} */ e) => active.has(e.id) || !!e.getDynamicProperty("crew:job");
 export { meta };

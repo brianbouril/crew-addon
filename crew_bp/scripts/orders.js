@@ -16,7 +16,7 @@ const isKnownWorker = (id) => Object.values(getRegistry()).some((r) => r.id === 
 import { kit } from "./tools.js";
 import { CLEAR_ABOVE_MAX, layersAbove } from "./blocks.js";
 import { quarryGeom } from "./plans.js";
-import { isHomeChest, roundJob } from "./hauler.js";
+import { HOLD_AFTER_ORDER, isHomeChest, roundJob } from "./hauler.js";
 
 /** @typedef {import("./store.js").Commander} Commander */
 
@@ -50,6 +50,9 @@ export function dispatch(by, order) {
   // (go_home isn't here on purpose: sent at night, the worker walks home and the routine puts it to bed)
   if (["come", "drop_off", "resume", "quarry", "branch_mine", "haul", "haul_now"].includes(v.job)) keepUp(e);
   const hauler = roleOf(e) === "Hauler";
+  // a Hauler called somewhere stays there a minute before its routine takes it back to the depot
+  if (hauler && ["come", "go_home", "drop_off"].includes(v.job)) e.setDynamicProperty("crew:hold", HOLD_AFTER_ORDER);
+  if (hauler && ["resume", "haul_now", "round"].includes(v.job)) e.setDynamicProperty("crew:hold", undefined);
 
   switch (v.job) {
     case "stop":
@@ -176,6 +179,7 @@ export function dispatch(by, order) {
       e.setDynamicProperty("crew:haulOff", undefined);
       const r = roundJob(e, v.job === "round" ? p.slot : "now");
       if (!r.ok) return r;
+      setJSON(e, "crew:paused", undefined); // a new round replaces an interrupted one
       if (!r.job.route.length) return { ok: false, message: `${m.name} has no chests to collect from: its settlement's Diggers and Miners haven't dropped off anywhere yet, and it has no pickup points (tap a chest with the Survey Stake while it's linked).` };
       startJob(e, r.job);
       return { ok: true, message: r.message };

@@ -34,6 +34,8 @@ export const DEPOT_DEFAULT = { width: 5, length: 7 }; // holds 16 chests
 const RETRY_AREA = 1200; // a minute
 const RETRY_FULL = 100;
 const SLOW_LOADED = 1.3; // walks this much slower with all 18 slots full
+/** Seconds it stays put after a player called it somewhere (Come here, Go home, Drop off), before going back to its rounds. */
+export const HOLD_AFTER_ORDER = 60;
 
 /**
  * @typedef {import("@minecraft/server").Entity} Entity
@@ -42,7 +44,7 @@ const SLOW_LOADED = 1.3; // walks this much slower with all 18 slots full
  * @typedef {{dim: string, x: number, y: number, z: number, label: string}} Spot
  * @typedef {import("./settlement.js").Depot} Depot
  * @typedef {import("./settlement.js").DepotUnit} DepotUnit
- * @typedef {{walkTo: (rt: any, goal: V3, reach: number, beside?: boolean, noShortcut?: boolean) => "moving"|"arrived"|"failed", stopJob: (e: Entity, why: string | undefined, done?: boolean) => void, startRest: (e: Entity, reason: "night"|"tired") => void, startJob: (e: Entity, job: any) => void}} Ctx
+ * @typedef {{walkTo: (rt: any, goal: V3, reach: number, beside?: boolean, noShortcut?: boolean) => "moving"|"arrived"|"failed", stopJob: (e: Entity, why: string | undefined, done?: boolean) => void, startRest: (e: Entity, reason: "night"|"tired") => void, startJob: (e: Entity, job: any) => void, resumeJob: (e: Entity) => any}} Ctx
  */
 
 const testFast = () => /** @type {any} */ (globalThis).crewTestFast === true;
@@ -284,6 +286,7 @@ export function addPickup(by, e, block) {
   const s = settlementFor(e);
   const name = meta(e).name;
   if (!s) return { ok: false, message: `${name} isn't in a settlement, so it has no rounds. Found one at a bell first.` };
+  if (!(by.console || by.isOp || peopleOf(s).some((x) => x.id === by.id))) return { ok: false, message: `Only people in ${s.name} can add pickup points.` };
   const p = { dim: block.dimension.id, x: Math.floor(block.location.x), y: Math.floor(block.location.y), z: Math.floor(block.location.z) };
   if (isDepotChest(s, p)) return { ok: false, message: "That's one of the depot's chests." };
   if (isHomeChest(p)) return { ok: false, message: "That's a worker's home chest: Haulers leave home chests alone." };
@@ -374,15 +377,28 @@ export function roundJob(e, slot, only) {
  */
 export function haulerIdle(e, ctx) {
   if (e.getDynamicProperty("crew:haulOff")) return;
+  // a player just called it somewhere: it stays a minute before going back to work
+  const hold = Number(e.getDynamicProperty("crew:hold") ?? 0);
+  if (hold > 0) {
+    e.setDynamicProperty("crew:hold", hold > 1 ? hold - 1 : undefined);
+    return;
+  }
   const s = settlementFor(e);
   const d = s?.depot;
   if (!d || d.dim !== e.dimension.id) return;
   if (energy(e) < EXHAUSTED) return ctx.startRest(e, "tired");
+  // a round that was interrupted (an order, a restart in the middle of an order) carries on
+  if (getJSON(e, "crew:paused", undefined)?.job?.type === "round") {
+    ctx.resumeJob(e);
+    return;
+  }
   const slot = dueRound(e);
   /** @param {string} sl @param {Spot[]} [only] */
   const go = (sl, only) => {
     const r = roundJob(e, sl, only);
     if (!r.ok) return;
+    // nothing to collect and nothing carried: the round is skipped quietly
+    if (!r.job.route.length && !cargoUsed(e)) return;
     ctx.startJob(e, r.job);
     const n = r.job.route.length;
     emit(e, "round_started", { slot: sl, chests: n }, sl === "extra" ? (n ? `${r.job.route[0].label} is nearly full: going to fetch it.` : "taking what I carry to the depot.") : `off on my ${SLOT_WORDS[/** @type {keyof typeof SLOT_WORDS} */ (sl)]} (${n} chest${n === 1 ? "" : "s"}).`);
