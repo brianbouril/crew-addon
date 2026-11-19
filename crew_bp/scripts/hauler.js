@@ -369,10 +369,14 @@ export function dueRound(e) {
   if (!slot) return undefined;
   return roundsDone(e).includes(slot) ? undefined : slot;
 }
-/** The day number (rounds done are kept per day, so a night spent far from players still starts a new day). */
+/**
+ * The day number (rounds done are kept per day, so a night spent far from players still starts a new
+ * day). The game counts a new day from time 0, but its morning starts at dawn (23000), so dawn to
+ * midnight already counts as the next day: one morning round, not one before 0 and another after.
+ */
 function today() {
   try {
-    return world.getDay();
+    return world.getDay() + (world.getTimeOfDay() >= DAWN ? 1 : 0);
   } catch {
     return 0;
   }
@@ -840,7 +844,11 @@ function storeStep(rt, ctx, inv, d, done) {
         st.phase = "store";
         return;
       }
-      if (!rt.job.tickingArea) takeArea(rt); // the storage chest may be out of the depot's area (best effort)
+      // the storage chest may be out of the depot's area: try for a work area now and then (best effort)
+      if (!rt.job.tickingArea && (st.areaTry = (st.areaTry ?? 0) - 1) <= 0) {
+        st.areaTry = 40;
+        takeArea(rt);
+      }
       if (ctx.walkTo(rt, src, 2.6, true) !== "arrived") return;
       const c = containerAt(src.dim, src);
       let took = 0;
