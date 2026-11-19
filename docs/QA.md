@@ -139,6 +139,36 @@ a full server restart: `reload` refuses to re-register it.
       it walks round to where it can see the block. No `[Crew-Inside]` lines in the log after a
       full quarry. (The stair pass-through Brian saw Nov 14 couldn't be reproduced in the mock.)
 
+**Hauler** (feat/hauler; model, texture and entity changes need Minecraft fully restarted)
+- [ ] H1. Build: barrel with a bundle and leather boots, carved pumpkin on top: a Hauler appears
+      (leather cap, backpack, tan and brown clothes, leather boots; no hard hat, nothing in hand).
+      A barrel with a pickaxe and a bundle still makes a Miner. At the settlement's limit it's refused.
+- [ ] H2. Depot: tap the ground with the stake, Make a depot here, default 5 by 7: the outline
+      shows; tap again and confirm. Refused on uneven ground or under a low roof.
+- [ ] H3. Two Diggers drop off in their chests; at morning (or Do a round now) the Hauler walks to
+      both (nearest first, same order each round), pausing longer at a full chest than an almost
+      empty one, and back to the depot. Backpack bulges when carrying, flat when empty; a little
+      slower with all 18 slots full. Status line: "On the morning round (1 of 2 chests)".
+- [ ] H4. In the depot it places chests in rows with walkways (you can reach every one), one kind
+      per chest, grouped by type. Totals in the bell's Storage match before and after.
+- [ ] H5. No chests anywhere: it says "I need chests for the depot" once. Put chests in a storage
+      chest (or tap it holding chests): it fetches them and carries on.
+- [ ] H6. Fill every depot chest: it says "The depot is full" once (you and settlement members),
+      waits at the depot with its load, and carries on when you empty a chest.
+- [ ] H7. A drop-off chest past 3/4 full calls it for an extra trip between rounds.
+- [ ] H8. Mix a stray item and two half stacks into a depot chest: between rounds it tidies them.
+      A named item, a shulker box and a tool are left where they are.
+- [ ] H9. At dusk while carrying it delivers to the depot first, then goes home to sleep. Its home
+      chest is never filled or emptied (it only takes food from it in the morning).
+- [ ] H10. Stop mid-round: it stays put and starts no rounds by itself; Continue picks the round
+      back up. Come here, Drop off (goes to the depot) and Go home work. A Digger refuses Do a round
+      now; the Hauler refuses Quarry. Its menu has no Tools or Role.
+- [ ] H11. `/crew:haul <hauler> "blue base" "x y z" minecraft:coal` moves only
+      the coal. Server log: no script errors over a 30 minute run; `tickingarea list` shows its
+      area during a round and not after.
+- [ ] H12 (Brian's playtest). One Hauler serving two Diggers over an in-game day: does it keep up,
+      does 18 slots feel right, does it look and move like a hauler, not a miner?
+
 **Renamed commands**
 - [x] 10. `/halt <worker>`, `/workers`, `/guide` and `/setplace "name"` work (short and with
       `crew:`). The server log has no "Custom Command alias ... already in use" warnings.

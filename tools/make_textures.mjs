@@ -5,6 +5,7 @@
 //   head 8x10x8 at (0,0)   nose 2x4x2 at (24,0)   hard hat dome (head size, inflated) at (32,0)
 //   body 8x12x6 at (16,20) arms 4x10x4 at (44,20)  legs 4x12x4 at (0,22)
 //   hat brim: one colour patch at (28,46)          hat lamp: 2x2 patch at (40,46)
+//   Hauler only: cap peak patch at (0,40), backpack leather patch at (0,46) (its cap dome uses the hat's area)
 import { deflateSync } from "node:zlib";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -100,6 +101,21 @@ const ROLES = {
     sleeve: "plaid", pants: JEANS, pantsD: JEANS_D,
     torso: (x, y) => (y === 11 ? BELT : plaid(x, y)),
   },
+  hauler: {
+    // brown leather cap, tan and brown clothes, leather boots; the backpack is drawn below
+    hat: [122, 78, 44, 255], hatD: [96, 60, 34, 255], lamp: [96, 60, 34, 255],
+    sleeve: [196, 164, 112, 255], pants: [110, 78, 50, 255], pantsD: [92, 64, 40, 255],
+    boots: [150, 96, 56, 255], bootsD: [118, 74, 42, 255],
+    torso: (x, y, fw, face) => {
+      // a tan shirt under a brown leather vest, with the backpack straps over the shoulders
+      const shirt = [196, 164, 112, 255], vest = [124, 86, 52, 255], strap = [84, 54, 30, 255];
+      if (y === 11) return BELT;
+      if ((face === "north" || face === "south") && (x === 1 || x === fw - 2) && y < 9) return strap;
+      if (face === "north" && x >= 3 && x <= fw - 4) return shirt;
+      return (x + y) % 7 === 0 ? [110, 76, 46, 255] : vest;
+    },
+    pack: true,
+  },
   farmer: {
     hat: [222, 192, 112, 255], hatD: [186, 156, 78, 255], lamp: [222, 192, 112, 255],
     sleeve: [228, 222, 196, 255], pants: [72, 122, 62, 255], pantsD: [58, 100, 50, 255],
@@ -157,13 +173,23 @@ function worker(path, r) {
     if (face === "down") return SKIN;
     return y >= 7 ? SKIN : sleeve;
   });
-  // legs: trousers, boots at the bottom
+  // legs: trousers, boots at the bottom (a Hauler's leather boots come up higher)
   box(0, 22, 4, 12, 4, (face, x, y) => {
     if (face === "up") return r.pants;
-    if (face === "down") return BOOT;
+    if (face === "down") return r.boots ? r.bootsD : BOOT;
+    if (r.boots && y >= 7) return y === 7 ? r.bootsD : r.boots;
     if (y >= 10) return BOOT;
     return x % 4 === 0 ? r.pantsD : r.pants;
   });
+  if (r.pack) {
+    rect(0, 40, 12, 44, r.hatD); // cap peak
+    // backpack: bundle-brown leather with darker stitching and a flap
+    const LEATHER = [138, 92, 54, 255], STITCH = [96, 62, 34, 255], FLAP = [116, 76, 44, 255];
+    for (let y = 46; y < 60; y++) for (let x = 0; x < 14; x++) {
+      const c = y < 49 ? FLAP : (x === 0 || y === 59 || x === 13 || (x + y) % 5 === 0) ? STITCH : LEATHER;
+      px[y * 64 + x] = c;
+    }
+  }
   png(path, 64, 64, px);
   if (PREVIEW) {
     // 8x enlarged copy on a grey background, for looking at the layout
