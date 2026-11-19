@@ -10,7 +10,7 @@ import { center, dist, floorV, fmt, getJSON, lerp, setJSON, onlinePlayer, sameV,
 import { emit, holdTool, loadedWorkers, meta, migrateRole, roleOf, syncRole, updateTag } from "./workers.js";
 import { isProtected, noteChestUse, saveSeen } from "./settlement.js";
 import { DRAIN_PER_BLOCK, EXHAUSTED, REST, TIRED, TIRED_SLOWDOWN, bedPose, bedSafety, bedside, eatOne, energy, energyWord, getHome, isNight, isSupply, restock, setEnergy } from "./life.js";
-import { CARGO_END, HAUL_SLOTS, haulStatus, haulerIdle, haulerIdleStatus, isHaulJob, keepsItem, newDay, stepHaul } from "./hauler.js";
+import { CARGO_END, HAUL_SLOTS, SLOT_WORDS, haulStatus, haulerIdle, haulerIdleStatus, isHaulJob, keepsItem, newDay, showLoad, stepHaul } from "./hauler.js";
 
 /**
  * @typedef {import("@minecraft/server").Entity} Entity
@@ -121,7 +121,7 @@ export function startJob(e, job) {
 }
 
 const isDig = (/** @type {any} */ job) => job?.type === "quarry" || job?.type === "branch_mine";
-const digName = (/** @type {any} */ job) => (job.type === "quarry" ? "quarry" : job.type === "round" ? ({ morning: "morning round", midday: "midday round", evening: "evening round", extra: "extra trip" }[/** @type {string} */ (job.slot)] ?? "round") : "branch mine");
+const digName = (/** @type {any} */ job) => (job.type === "quarry" ? "quarry" : job.type === "round" ? (/** @type {Record<string, string>} */ (SLOT_WORDS)[job.slot] ?? "round") : "branch mine");
 /** How far along a job is (0..1): dig steps, or chests on a round. @param {any} job @param {any} st */
 const doneShare = (job, st) => (job.type === "round" ? (job.route?.length ? Math.min(1, (st.idx ?? 0) / job.route.length) : 0) : st.i / job.geom.total);
 
@@ -326,6 +326,7 @@ function routine() {
       if (!night && e.getDynamicProperty("crew:stayUp")) e.setDynamicProperty("crew:stayUp", undefined);
       const hauler = roleOf(e) === "Hauler";
       if (hauler && night) newDay(e);
+      if (hauler) showLoad(e);
       if (job?.type === "rest") continue;
       if (!job) setEnergy(e, energy(e) + 0.1);
       if (!night) {

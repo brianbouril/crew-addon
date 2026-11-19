@@ -9,7 +9,7 @@ import { depthLabel, getPlan, giveStake, hasStake, planOrder, planText, updatePl
 import { countItem, isResting, isWorking, pausedJob, statusText, stopJob, wakeUp } from "./runner.js";
 import { canUsePlace, getPlaces } from "./store.js";
 import { KIT_SLOTS, TOOL_ROLES, addToKit, kit, setToolPref, stash, toolInfo, toolPref } from "./tools.js";
-import { CHEST, depotText, keepsItem, pickupSpots, removePickup, takeChests } from "./hauler.js";
+import { CHEST, depotText, keyOf, keepsItem, pickupSpots, removePickup, takeChests } from "./hauler.js";
 import { TORCH } from "./blocks.js";
 import { TORCH_EVERY } from "./plans.js";
 import { fmt, getJSON, setJSON, tell } from "./util.js";
@@ -378,7 +378,6 @@ async function pickupMenu(p, by, e) {
   const m = meta(e);
   const spots = pickupSpots(e);
   const own = getJSON(e, "crew:pickups", []);
-  const keyOf = (/** @type {any} */ x) => `${x.dim}|${x.x},${x.y},${x.z}`;
   const body = (spots.length ? `On each round ${m.name} collects from:\n${spots.map((s) => `- ${s.label} (${fmt(s)})`).join("\n")}` : `${m.name} has nowhere to collect from yet.`) +
     "\n\nIt collects from its settlement's Diggers' and Miners' drop-off chests by itself. To add another chest, link it with the Survey Stake (tap it), then tap the chest and pick Hauler pickup. It never takes from home chests.";
   /** @type {[string, () => any][]} */

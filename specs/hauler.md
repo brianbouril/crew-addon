@@ -148,4 +148,24 @@ Best guesses from the current code; the builder confirms before starting.
 - **Player-facing:** CHANGELOG, QA.md checks, a guide page "Haulers", lang strings.
 
 ## Open questions
-None: all answered by Brian on Nov 18 2026 (see Decisions).
+All of the original ones were answered by Brian on Nov 18 2026 (see Decisions). These came up while
+building (Builder B, Nov 18); the branch does what's described in each, pending Brian's answer:
+1. **`haul` scope.** It moves only between the settlement's own chests (storage chests, its people's
+   named places, drop-offs, pickup points, the depot), never a home chest or another settlement's
+   chest, so nobody can use a Hauler to empty someone else's chest. Or should it move between any
+   chests the player names?
+2. **Out of chests for a new kind.** With no chest to place and none in storage, it shares a depot
+   chest of the same group (then any) that has room, and says "The depot is full" only when no chest
+   has room (Q6: "every chest is full and it can't place another"). Or should it keep that load and
+   wait until it gets chests?
+3. **Stop.** After a player's Stop (also the bell's Stop for everyone) it starts no rounds by itself
+   until Continue or Do a round now. After Come here, Go home or Drop off it stays a minute, then goes
+   back to its rounds (and picks up an interrupted round). OK?
+4. **Lunch from its home chest.** Like every worker it takes food from its home chest in the
+   morning and eats it when tired (Q8: "food restores it like the others"). It never puts anything in
+   a home chest or takes anything else. Out of scope says home chests are "never read or filled":
+   is taking its own lunch OK?
+5. **Big depots.** The limit is as many chests as fit with walkways: 16 for the default 5 by 7, 2 for
+   the smallest (3 by 3), about 650 for the largest (32 by 32). Cap it (say at 64)?
+6. **Touches:** `commands.js` was added (`/crew:haul`, `/crew:round`) for "usable by slash commands".
+   New slash commands need a full server restart, not `reload`.

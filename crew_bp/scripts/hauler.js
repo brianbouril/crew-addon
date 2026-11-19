@@ -9,14 +9,14 @@
 // Saved: on the settlement, the depot (settlement.js setDepot/saveDepotUnits); on the Hauler,
 // crew:pickups (stake pickup points), crew:rounds (rounds done today), crew:haulOff (stopped by a
 // player: no rounds by itself until Continue), and the round itself in crew:job / crew:state.
-import { ItemStack, world } from "@minecraft/server";
+import { world } from "@minecraft/server";
 import { CARGO_END, HAUL_SLOTS, KIT_SLOTS, SUPPLY_FIRST, isGear, isHaulerBuild, stash, toolInfo } from "./tools.js";
-import { DAWN, DRAIN_PER_BLOCK, DUSK, EXHAUSTED, FOOD, energy, isNight, setEnergy } from "./life.js";
+import { DAWN, DRAIN_PER_BLOCK, DUSK, EXHAUSTED, FOOD, TIRED, eatOne, energy, isNight, setEnergy } from "./life.js";
 import { dist, floorV, fmt, getJSON, onlinePlayer, setJSON, tell } from "./util.js";
 import { emit, meta, roleOf } from "./workers.js";
 import { getPlaces } from "./store.js";
-import { addStorage, getSeen, getSettlements, isDepotChest, isStorage, itemName, noteChestUse, peopleOf, rosterOf, saveDepotUnits, setDepot, settlementOf, stockAt, storageSpots } from "./settlement.js";
-import { passable } from "./blocks.js";
+import { addStorage, getSeen, getSettlements, isDepotChest, isStorage, noteChestUse, peopleOf, rosterOf, saveDepotUnits, setDepot, settlementOf, stockAt, storageSpots } from "./settlement.js";
+import { AIR, LIGHT, passable } from "./blocks.js";
 
 export { CARGO_END, HAUL_SLOTS, SUPPLY_FIRST, isGear, isHaulerBuild };
 export const CARGO_FIRST = KIT_SLOTS;
@@ -32,7 +32,7 @@ export const ROUNDS = [
 export const DEPOT_MIN = 3, DEPOT_MAX = 32;
 export const DEPOT_DEFAULT = { width: 5, length: 7 }; // holds 16 chests
 const RETRY_AREA = 1200; // a minute
-const RETRY_FULL = 100;
+const RETRY_FULL = 100; // ticks (5 s) between checks for room while the depot is full
 const SLOW_LOADED = 1.3; // walks this much slower with all 18 slots full
 /** Seconds it stays put after a player called it somewhere (Come here, Go home, Drop off), before going back to its rounds. */
 export const HOLD_AFTER_ORDER = 60;
@@ -145,7 +145,8 @@ export function markDepot(by, s, area) {
     let below, room;
     try {
       below = dim.getBlock({ x, y: floor, z });
-      room = passable(dim, { x, y: floor + 1, z }) && passable(dim, { x, y: floor + 2, z });
+      // real air (or a light block): never a torch, carpet, rail, door or water it would have to remove
+      room = openAir(dim, { x, y: floor + 1, z }) && openAir(dim, { x, y: floor + 2, z });
     } catch {
       return { ok: false, message: "Part of that area isn't loaded. Go closer and try again." };
     }
@@ -157,6 +158,13 @@ export function markDepot(by, s, area) {
   const d = { dim: area.dim, x0, z0, x1, z1, y: floor + 1 };
   const r = setDepot(by, s, d);
   if (!r.ok) return r;
+  // chests kept from the old area that now stand on a walkway of the new layout are let go (left as ordinary chests)
+  const cur = getSettlements()[s.id]?.depot;
+  if (cur) {
+    const cells = new Set(depotLayout(cur).chestCells.map((c) => `${c.x},${c.z}`));
+    const units = cur.units.map((u) => ({ ...u, cells: u.cells.filter((c) => cells.has(`${c.x},${c.z}`)) })).filter((u) => u.cells.length);
+    if (units.length !== cur.units.length || units.some((u, i) => u.cells.length !== cur.units[i].cells.length)) saveDepotUnits(s.id, units);
+  }
   return { ok: true, message: `${r.message} It holds up to ${chestLimit({ ...d, units: [] })} chests; a Hauler sets them up as it needs them.` };
 }
 
@@ -231,7 +239,7 @@ function useChest(inv) {
 
 // ---------- pickups and the route ----------
 /** @param {{dim: string, x: number, y: number, z: number}} p */
-const keyOf = (p) => `${p.dim}|${Math.floor(p.x)},${Math.floor(p.y)},${Math.floor(p.z)}`;
+export const keyOf = (p) => `${p.dim}|${Math.floor(p.x)},${Math.floor(p.y)},${Math.floor(p.z)}`;
 /** The Hauler's settlement (its owner's). @param {Entity} e */
 export const settlementFor = (e) => {
   const m = meta(e);
@@ -289,6 +297,7 @@ export function addPickup(by, e, block) {
   if (!(by.console || by.isOp || peopleOf(s).some((x) => x.id === by.id))) return { ok: false, message: `Only people in ${s.name} can add pickup points.` };
   const p = { dim: block.dimension.id, x: Math.floor(block.location.x), y: Math.floor(block.location.y), z: Math.floor(block.location.z) };
   if (isDepotChest(s, p)) return { ok: false, message: "That's one of the depot's chests." };
+  if (othersChest(s, p)) return { ok: false, message: "That chest belongs to another settlement." };
   if (isHomeChest(p)) return { ok: false, message: "That's a worker's home chest: Haulers leave home chests alone." };
   const people = new Set(peopleOf(s).map((x) => x.id));
   if (getPlaces().some((pl) => !people.has(pl.ownerId) && keyOf(pl) === keyOf(p))) return { ok: false, message: "That chest is another player's place, not the settlement's." };
@@ -307,6 +316,21 @@ export function removePickup(e, p) {
   setJSON(e, "crew:pickups", left);
   return { ok: true, message: `${meta(e).name} no longer collects from there.` };
 }
+/**
+ * Is this chest one the Hauler may take from or fill: one of its settlement's storage chests (stake
+ * storage, its people's named places, its workers' drop-offs, the depot) or one of its pickups?
+ * Never a home chest (checked separately) and never another settlement's chest.
+ * @param {Entity} e @param {{dim: string, x: number, y: number, z: number}} p
+ */
+export function isSettlementChest(e, p) {
+  const s = settlementFor(e);
+  if (!s) return false;
+  const k = keyOf(p);
+  return storageSpots(s).some((sp) => keyOf(sp) === k) || pickupSpots(e).some((sp) => keyOf(sp) === k);
+}
+/** Another settlement's storage or depot chest? @param {import("./settlement.js").Settlement} s @param {{dim: string, x: number, y: number, z: number}} p */
+const othersChest = (s, p) => Object.values(getSettlements()).some((o) => o.id !== s.id && storageSpots(o).some((sp) => keyOf(sp) === keyOf(p)));
+
 /** Is this chest one of its stake pickup points? @param {Entity} e @param {V3 & {dim: string}} p */
 export const isPickup = (e, p) => getJSON(e, "crew:pickups", []).some((/** @type {any} */ x) => keyOf(x) === keyOf(p));
 
@@ -343,13 +367,25 @@ export function roundWindow() {
 export function dueRound(e) {
   const slot = roundWindow();
   if (!slot) return undefined;
-  return getJSON(e, "crew:rounds", []).includes(slot) ? undefined : slot;
+  return roundsDone(e).includes(slot) ? undefined : slot;
+}
+/** The day number (rounds done are kept per day, so a night spent far from players still starts a new day). */
+function today() {
+  try {
+    return world.getDay();
+  } catch {
+    return 0;
+  }
+}
+/** Rounds it has done today. @param {Entity} e @returns {string[]} */
+function roundsDone(e) {
+  return e.getDynamicProperty("crew:roundsDay") === today() ? getJSON(e, "crew:rounds", []) : [];
 }
 /** A pickup chest past 3/4 full (from what was last seen in it), if any. @param {Entity} e */
 export function nearlyFull(e) {
   return routeFor(e).find((sp) => (stockAt(sp)?.fill ?? 0) >= FULL_AT);
 }
-const SLOT_WORDS = { morning: "morning round", midday: "midday round", evening: "evening round", now: "round", extra: "extra trip" };
+export const SLOT_WORDS = { morning: "morning round", midday: "midday round", evening: "evening round", now: "round", extra: "extra trip" };
 
 /**
  * A round job (for startJob): its route is fixed when it starts. `only` = one chest (an extra
@@ -404,15 +440,23 @@ export function haulerIdle(e, ctx) {
     emit(e, "round_started", { slot: sl, chests: n }, sl === "extra" ? (n ? `${r.job.route[0].label} is nearly full: going to fetch it.` : "taking what I carry to the depot.") : `off on my ${SLOT_WORDS[/** @type {keyof typeof SLOT_WORDS} */ (sl)]} (${n} chest${n === 1 ? "" : "s"}).`);
   };
   if (slot) {
-    setJSON(e, "crew:rounds", [...getJSON(e, "crew:rounds", []), slot]);
+    setJSON(e, "crew:rounds", [...roundsDone(e), slot]);
+    e.setDynamicProperty("crew:roundsDay", today());
     return go(slot);
   }
   const full = nearlyFull(e);
   if (full) return go("extra", [full]);
   if (cargoUsed(e) > 0) return go("extra", []);
   const at = floorV(e.location);
-  if (!nearDepot(d, at) || tidyPlan(s)) startTidy(e, ctx);
+  if (!nearDepot(d, at)) return startTidy(e, ctx);
+  // looking over the depot's chests every 10 seconds is plenty
+  const k = (tidyIn.get(e.id) ?? 0) - 1;
+  tidyIn.set(e.id, k > 0 ? k : 10);
+  if (k <= 0 && tidyPlan(s)) startTidy(e, ctx);
 }
+
+/** Seconds until an idle Hauler next looks over the depot for tidying, by worker id. @type {Map<string, number>} */
+const tidyIn = new Map();
 
 /** At night: a new day's rounds. @param {Entity} e */
 export function newDay(e) {
@@ -426,21 +470,32 @@ export function stepHaul(rt, ctx) {
   const inv = invOf(e);
   if (!inv) throw new Error("worker has no inventory");
   walkedEnergy(rt, inv);
+  // tired: it eats its packed lunch (never the cargo), now and then, like a digger does
+  if ((st.eatIn = (st.eatIn ?? 0) - 1) <= 0 && energy(e) < TIRED) {
+    st.eatIn = 200;
+    eatOne(e, inv, SUPPLY_FIRST);
+  }
   const used = cargo(inv).length;
   rt.pace = used >= HAUL_SLOTS ? SLOW_LOADED : 1;
   const loaded = used > 0;
-  if (rt.loadedShown !== loaded) {
-    rt.loadedShown = loaded;
-    try {
-      e.setProperty("crew:loaded", loaded);
-    } catch {
-      /* entity gone */
-    }
-  }
+  showLoad(e, used);
   e.setProperty("crew:anim", rt.walk?.path ? 1 : 0);
   if (job.type === "round") return stepRound(rt, ctx, inv);
   if (job.type === "haul") return stepHaulJob(rt, ctx, inv);
   return stepTidy(rt, ctx);
+}
+
+/**
+ * The backpack bulges while it carries anything (entity property crew:loaded). Also called once a
+ * second for every Hauler, so it's right after "Take what it carries" or a drop-off too.
+ * @param {Entity} e @param {number} [used]
+ */
+export function showLoad(e, used = cargoUsed(e)) {
+  try {
+    if (e.getProperty("crew:loaded") !== used > 0) e.setProperty("crew:loaded", used > 0);
+  } catch {
+    /* entity gone */
+  }
 }
 
 /** Walking tires it: per block, more when loaded. @param {any} rt @param {Container} inv */
@@ -477,6 +532,8 @@ function stepRound(rt, ctx, inv) {
   if (job.tickingArea) moveArea(rt);
   switch (st.phase) {
     case "area": {
+      // it sets off from the depot (and waits there for a work area)
+      if (!job.tickingArea && !nearDepot(d, floorV(e.location)) && ctx.walkTo(rt, depotEntry(d), 1.8) !== "arrived") return;
       if (job.tickingArea || takeArea(rt)) {
         st.wait = undefined;
         st.toldArea = false;
@@ -530,7 +587,7 @@ function stepRound(rt, ctx, inv) {
     case "wait_full":
       return storeStep(rt, ctx, inv, d, () => {
         // all stored: on with the route (it came back full), or done
-        if (!stopping(e) && (st.idx ?? 0) < (job.route ?? []).length) st.phase = "to_pickup";
+        if (!stopping(e) && (st.idx ?? 0) < (job.route ?? []).length) st.phase = job.tickingArea ? "to_pickup" : "area";
         else finishRound(rt, ctx);
       });
     default:
@@ -557,7 +614,7 @@ function load(e, inv, sp, only, st) {
     const moved = it.amount - (left?.amount ?? 0);
     if (st) (st.loaded ??= {})[it.typeId] = (st.loaded[it.typeId] ?? 0) + moved;
   }
-  if (n) noteChestUse(sp.dim, sp);
+  noteChestUse(sp.dim, sp); // even when it took nothing: a stale "nearly full" mustn't call it back
   return n;
 }
 
@@ -610,7 +667,9 @@ function targetFor(d, item, haveChest, share = false) {
     }
     if (!want) {
       const g = groupOf(id);
-      const open = lay.slots.filter((sl) => sl.every(free));
+      // a whole free pair first (room for a double chest later), else any free cell
+      let open = lay.slots.filter((sl) => sl.every(free));
+      if (!open.length) open = lay.slots.flatMap((sl) => sl.filter(free).map((c) => [c]));
       if (open.length) {
         const same = d.units.filter((u) => u.group === g).flatMap((u) => u.cells);
         const otherCells = d.units.filter((u) => u.group !== g).flatMap((u) => u.cells);
@@ -630,11 +689,15 @@ function targetFor(d, item, haveChest, share = false) {
   const pick = any.find((x) => x.u.group === g) ?? any[0];
   return pick ? { kind: "store", unit: pick.i } : { kind: "full" };
 }
+/** Nothing there at all (air or a light block), so a chest can go there without removing anything. @param {import("@minecraft/server").Dimension} dim @param {V3} c */
+function openAir(dim, c) {
+  const b = dim.getBlock(c);
+  return !!b && (b.isAir || AIR.has(b.typeId) || LIGHT.test(b.typeId));
+}
 /** @param {string} dimId @param {V3} c */
 function isAir(dimId, c) {
   try {
-    const b = world.getDimension(dimId).getBlock(c);
-    return !!b && (b.isAir || passable(world.getDimension(dimId), c)) && !b.getComponent("minecraft:inventory");
+    return openAir(world.getDimension(dimId), c);
   } catch {
     return false;
   }
@@ -725,6 +788,7 @@ function storeStep(rt, ctx, inv, d, done) {
         }
       }
       if (!plan) {
+        dropArea(rt); // waiting at the depot needs no work area; it takes one again to set off
         st.phase = "wait_full";
         st.retry = pace(RETRY_FULL);
         if (!st.full) {
@@ -749,9 +813,8 @@ function storeStep(rt, ctx, inv, d, done) {
       if (ctx.walkTo(rt, cell, 2.6, true) !== "arrived") return;
       let unit = t.unit;
       if (t.kind === "place" || t.kind === "second") {
-        const first = cargo(inv)[0]?.item;
         const place = t.kind === "place" ? t.cells[0] : t.cell;
-        if (!first || !isAir(d.dim, place) || !useChest(inv)) {
+        if (!cargo(inv).length || !isAir(d.dim, place) || !useChest(inv)) {
           st.phase = "store";
           return;
         }
@@ -777,6 +840,7 @@ function storeStep(rt, ctx, inv, d, done) {
         st.phase = "store";
         return;
       }
+      if (!rt.job.tickingArea) takeArea(rt); // the storage chest may be out of the depot's area (best effort)
       if (ctx.walkTo(rt, src, 2.6, true) !== "arrived") return;
       const c = containerAt(src.dim, src);
       let took = 0;
@@ -1013,8 +1077,31 @@ function stepHaulJob(rt, ctx, inv) {
     case "full":
       e.setProperty("crew:anim", 0);
       if (--st.pause > 0) return;
-      ctx.stopJob(e, `${job.to.label} is full, so I kept the rest of what I carried (${st.moved ?? 0} items moved).`, true);
+      st.phase = "take_back";
       return;
+    case "take_back": {
+      // the destination is full: the rest goes back where it came from (never to the depot)
+      if (ctx.walkTo(rt, job.from, 2.6, true) !== "arrived") return;
+      const c = containerAt(job.from.dim, job.from);
+      /** @type {Record<string, number>} */
+      const want = st.loaded ?? {};
+      for (const { slot, item } of cargo(inv)) {
+        const k = want[item.typeId] ?? 0;
+        if (!c || k <= 0) continue;
+        const part = item.clone();
+        part.amount = Math.min(k, item.amount);
+        const left = c.addItem(part);
+        const moved = part.amount - (left?.amount ?? 0);
+        want[item.typeId] = k - moved;
+        if (item.amount - moved > 0) {
+          item.amount -= moved;
+          inv.setItem(slot, item);
+        } else inv.setItem(slot, undefined);
+      }
+      if (c) noteChestUse(job.from.dim, job.from);
+      ctx.stopJob(e, `${job.to.label} is full, so I put the rest back in ${job.from.label} (${st.moved ?? 0} items moved).`, true);
+      return;
+    }
     default:
       st.phase = "to_from";
   }
@@ -1038,7 +1125,7 @@ export function tidyPlan(s) {
     for (const cell of u.cells) {
       const c = containerAt(d.dim, cell);
       if (!c) continue;
-      /** @type {Record<string, number>} */
+      /** @type {Record<string, number[]>} */
       const part = {};
       for (let i = 0; i < c.size; i++) {
         const it = c.getItem(i);
@@ -1051,8 +1138,9 @@ export function tidyPlan(s) {
           if (to >= 0) return { kind: "stray", unit: ui, cell, slot: i, to };
         }
         if (it.amount < it.maxAmount) {
-          if (part[it.typeId] !== undefined) return { kind: "merge", unit: ui, cell };
-          part[it.typeId] = i;
+          // only stacks that really stack (same data: banners, fireworks, tipped arrows differ)
+          if ((part[it.typeId] ?? []).some((j) => c.getItem(j)?.isStackableWith(it))) return { kind: "merge", unit: ui, cell };
+          (part[it.typeId] ??= []).push(i);
         }
       }
     }
@@ -1135,15 +1223,18 @@ function doTidy(d, t) {
     return 1;
   }
   // merge: part-full stacks of the same kind in this chest are combined (named and unstackable things stay put)
-  /** @type {Record<string, number[]>} */
-  const parts = {};
+  // groups of slots whose stacks really stack with each other
+  /** @type {number[][]} */
+  const parts = [];
   for (let i = 0; i < c.size; i++) {
     const it = c.getItem(i);
     if (!it || untouchable(it) || it.amount >= it.maxAmount) continue;
-    (parts[it.typeId] ??= []).push(i);
+    const g = parts.find((sl) => c.getItem(sl[0])?.isStackableWith(it));
+    if (g) g.push(i);
+    else parts.push([i]);
   }
   let n = 0;
-  for (const slots of Object.values(parts)) {
+  for (const slots of parts) {
     if (slots.length < 2) continue;
     let total = 0;
     const proto = /** @type {import("@minecraft/server").ItemStack} */ (c.getItem(slots[0]));
@@ -1200,8 +1291,3 @@ export function depotText(e) {
   return `Depot: ${d.x1 - d.x0 + 1} by ${d.z1 - d.z0 + 1} at ${d.x0} ${d.y} ${d.z0}, ${chestsPlaced(d)} of ${chestLimit(d)} chests${groups ? ` (${groups})` : ""}.`;
 }
 
-/** Kinds in the depot, for messages. @param {Depot} d */
-export const depotKinds = (d) => d.units.map((u) => itemName(u.kind));
-
-/** A fresh chest item (tests and the menu). @param {number} n */
-export const chestItems = (n) => new ItemStack(CHEST, n);

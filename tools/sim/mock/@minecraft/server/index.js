@@ -6,11 +6,12 @@ export const CustomCommandParamType = new Proxy({}, { get: (_, k) => k });
 export const CustomCommandSource = { Block: "Block", Entity: "Entity", NPCDialogue: "NPCDialogue", Server: "Server" };
 export const CustomCommandStatus = { Success: 0, Failure: 1 };
 const MAXDUR = { wooden: 59, golden: 32, stone: 131, copper: 190, iron: 250, diamond: 1561, netherite: 2031 };
+// `data` (tests only) stands for item data such as banner patterns or firework flights: stacks with different data never stack.
 export class ItemStack {
   constructor(typeId, amount = 1) { this.typeId = typeId; this.amount = amount; this.damage = 0; this.enchants = {}; }
   get maxAmount() { return /_(pickaxe|shovel|axe|hoe|sword)$|bundle|leather_boots|shulker_box/.test(this.typeId) ? 1 : 64; }
-  isStackableWith(o) { return o.typeId === this.typeId && this.maxAmount > 1 && (o.nameTag ?? "") === (this.nameTag ?? ""); }
-  clone() { const c = new ItemStack(this.typeId, this.amount); c.damage = this.damage; c.enchants = { ...this.enchants }; if (this.nameTag !== undefined) c.nameTag = this.nameTag; return c; }
+  isStackableWith(o) { return o.typeId === this.typeId && this.maxAmount > 1 && (o.nameTag ?? "") === (this.nameTag ?? "") && (o.data ?? "") === (this.data ?? ""); }
+  clone() { const c = new ItemStack(this.typeId, this.amount); c.damage = this.damage; c.enchants = { ...this.enchants }; if (this.nameTag !== undefined) c.nameTag = this.nameTag; if (this.data !== undefined) c.data = this.data; return c; }
   getComponent(n) {
     const m = /^minecraft:(\w+?)_(pickaxe|shovel|axe|hoe)$/.exec(this.typeId);
     if (n === "minecraft:durability" && m) { const it = this; return { get damage() { return it.damage; }, set damage(v) { it.damage = v; }, maxDurability: MAXDUR[m[1]] }; }
@@ -92,8 +93,10 @@ const LOOT = { "minecraft:stone": "minecraft:cobblestone", "minecraft:iron_ore":
 export const lootCalls = [];
 let timeOfDay = 1000; // day by default; tests move the clock with setTimeOfDay
 export const setTimeOfDay = (t) => { timeOfDay = ((t % 24000) + 24000) % 24000; };
+let day = 0; // world.getDay(); tests move it with setDay
+export const setDay = (n) => { day = n; };
 export const world = {
-  getDimension: (id) => dims[id], getAllPlayers: () => players, getTimeOfDay: () => timeOfDay,
+  getDimension: (id) => dims[id], getAllPlayers: () => players, getTimeOfDay: () => timeOfDay, getDay: () => day,
   getDynamicProperty: (k) => wprops.get(k), setDynamicProperty: (k, v) => (v === undefined ? wprops.delete(k) : wprops.set(k, v)), getDynamicPropertyIds: () => [...wprops.keys()],
   getLootTableManager: () => ({ generateLootFromBlock: (b, tool) => { lootCalls.push([b.typeId, tool?.typeId ?? "hand"]); return [new ItemStack(LOOT[b.typeId] ?? b.typeId, 1)]; } }),
   afterEvents: new Proxy({}, { get: sub("world.afterEvents") }), beforeEvents: new Proxy({}, { get: sub("world.beforeEvents") }),

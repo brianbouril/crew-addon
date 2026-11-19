@@ -65,10 +65,11 @@ export const PACKED_TORCHES = 64;
 
 /**
  * Eats one food item it carries (the first one in its inventory). Returns the energy gained, 0 if none.
- * @param {import("@minecraft/server").Entity} e @param {import("@minecraft/server").Container} inv
+ * `from`: the first slot to look in (a Hauler eats only its own lunch, slot 23 on, never cargo).
+ * @param {import("@minecraft/server").Entity} e @param {import("@minecraft/server").Container} inv @param {number} [from]
  */
-export function eatOne(e, inv) {
-  for (let i = KIT_SLOTS; i < inv.size; i++) {
+export function eatOne(e, inv, from = KIT_SLOTS) {
+  for (let i = from; i < inv.size; i++) {
     const it = inv.getItem(i);
     if (!it || !isFood(it.typeId)) continue;
     const gain = /** @type {Record<string, number>} */ (FOOD)[it.typeId];

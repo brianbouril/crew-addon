@@ -41,6 +41,7 @@ const steps = [
   ["settlement (release 2: storage, orders to everyone)", ["settlement2_test.mjs"]],
   ["hauler (build, roles, depot, sorting, counts, what it touches, haul)", ["hauler_test.mjs"]],
   ["hauler (schedule, ticking area, reload, depot full, night and energy)", ["hauler2_test.mjs"]],
+  ["hauler (review fixes: own chests only, no block removed, sorting, tidying, days, work area)", ["hauler3_test.mjs"]],
   ["main.js loads", ["-e", 'import("./scripts/main.js").then(() => console.log("ok"))']],
   // A test written before its feature (test-writer subagent) goes in with { todo: true }: it runs,
   // but its failure doesn't fail the run. The builder removes the flag once it passes; a branch
