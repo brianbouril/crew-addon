@@ -110,7 +110,7 @@ export function registerCommands(reg) {
   cmd(reg, { name: "crew:cap", description: "Operators: the worker limit, per person in a settlement and on your own (no number: show it).", permissionLevel: CommandPermissionLevel.GameDirectors,
     optionalParameters: [{ name: "workers", type: T.Integer }] },
     (by, n) => {
-      if (n === undefined) return answer(by, true, `The worker limit is ${getCap()} for each person in a settlement, and ${getCap()} for a player on their own.`);
+      if (n === undefined) return answer(by, true, `The worker limit is ${getCap()} for each person in a settlement, and ${getCap()} for a player on their own. To change it, put a number after the command, e.g. /crew:cap 8.`);
       const r = setCap(by, n);
       answer(by, r.ok, r.message);
     });
