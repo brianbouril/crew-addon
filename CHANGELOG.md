@@ -44,7 +44,7 @@ turns it into that version's section.
   Diggers' and Miners' drop-off chests and any chest you mark as a **Hauler pickup**, carries up to
   18 stacks at a time, and sorts everything into chests it sets up in the depot: one kind per chest,
   grouped by type, with walkways between the rows (16 chests for the default size, more for a
-  bigger area). A drop-off chest that's about 3/4 full calls it for an extra trip. Between rounds
+  bigger area; a depot is at most 16 by 16 blocks). A drop-off chest that's about 3/4 full calls it for an extra trip. Between rounds
   it tidies the depot. It takes chests from settlement storage or from you (tap it holding chests),
   says "I need chests for the depot" when it has none and "The depot is full" when there's no room
   left, and never touches home chests. It sleeps, tires from walking, finishes a delivery before

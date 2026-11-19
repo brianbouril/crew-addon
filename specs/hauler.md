@@ -79,6 +79,21 @@ between chests."
   operators any. Its orders: Come here, Stop, Continue, Drop off, Go home, and **"Do a round now"**.
   The bell's settlement-wide orders reach it. Diggers' and Miners' jobs are refused (role split,
   decision 32); diggers and miners refuse `haul` and the round orders.
+- 2026-11-19 **Builder's questions answered (Brian, via the lead):**
+  1. `haul` moves only between the settlement's own chests (storage chests, its people's named
+     places, drop-offs, pickup points, the depot), never a home chest or another settlement's chest.
+  2. Out of chests for a new kind (none to place, none in storage), it shares a depot chest of the
+     same group (then any) with room; "The depot is full" only when no chest has room. Tidying
+     separates them again when chests come.
+  3. After Stop (including the bell's) it starts no rounds until Continue or Do a round now. After
+     Come here, Go home or Drop off it waits a minute, then goes back to its rounds (picking up an
+     interrupted round).
+  4. It takes its own food from its own home chest (the morning restock every worker does) and eats
+     it when tired. "Never home chests" means never collecting goods from (or putting them in) home
+     chests.
+  5. The depot area is at most **16 by 16** (the stake's sliders and every other way of setting it
+     refuse bigger). The limit is as many chests as fit with walkways (16 for the default 5 by 7).
+  6. `/crew:haul` and `/crew:round` slash commands in `commands.js`.
 - Standing rules: never break blocks; stable Script API only; `crew:` ids only; pack UUIDs fixed.
 
 ## Out of scope
@@ -135,7 +150,8 @@ Best guesses from the current code; the builder confirms before starting.
   from a bundle and leather boots, role); `tools.js` (`ROLES` has no Hauler since it isn't
   tool-based: role from the build instead); `runner.js` (round job type, load/unload pauses, loaded
   pace); `life.js` (routine, energy from walking, restock for a role with no tools);
-  `settlement.js` (depot area, drop-off chest fill level from `noteChestUse`); `ui.js` (Hauler menu,
+  `settlement.js` (depot area, drop-off chest fill level from `noteChestUse`); `commands.js`
+  (`/crew:haul`, `/crew:round`; new slash commands need a full server restart); `ui.js` (Hauler menu,
   status lines); `marker.js` (stake: "Make a depot here", chest tap "Hauler pickup");
   `guide_pages.js`.
 - **Entity and pack:** `crew:role` in `entities/worker.json` gets a hauler value and a `crew:loaded`
@@ -148,24 +164,4 @@ Best guesses from the current code; the builder confirms before starting.
 - **Player-facing:** CHANGELOG, QA.md checks, a guide page "Haulers", lang strings.
 
 ## Open questions
-All of the original ones were answered by Brian on Nov 18 2026 (see Decisions). These came up while
-building (Builder B, Nov 18); the branch does what's described in each, pending Brian's answer:
-1. **`haul` scope.** It moves only between the settlement's own chests (storage chests, its people's
-   named places, drop-offs, pickup points, the depot), never a home chest or another settlement's
-   chest, so nobody can use a Hauler to empty someone else's chest. Or should it move between any
-   chests the player names?
-2. **Out of chests for a new kind.** With no chest to place and none in storage, it shares a depot
-   chest of the same group (then any) that has room, and says "The depot is full" only when no chest
-   has room (Q6: "every chest is full and it can't place another"). Or should it keep that load and
-   wait until it gets chests?
-3. **Stop.** After a player's Stop (also the bell's Stop for everyone) it starts no rounds by itself
-   until Continue or Do a round now. After Come here, Go home or Drop off it stays a minute, then goes
-   back to its rounds (and picks up an interrupted round). OK?
-4. **Lunch from its home chest.** Like every worker it takes food from its home chest in the
-   morning and eats it when tired (Q8: "food restores it like the others"). It never puts anything in
-   a home chest or takes anything else. Out of scope says home chests are "never read or filled":
-   is taking its own lunch OK?
-5. **Big depots.** The limit is as many chests as fit with walkways: 16 for the default 5 by 7, 2 for
-   the smallest (3 by 3), about 650 for the largest (32 by 32). Cap it (say at 64)?
-6. **Touches:** `commands.js` was added (`/crew:haul`, `/crew:round`) for "usable by slash commands".
-   New slash commands need a full server restart, not `reload`.
+None: the original ones were answered by Brian on Nov 18 and the builder's on Nov 19 (see Decisions).

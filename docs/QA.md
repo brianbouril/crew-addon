@@ -144,7 +144,8 @@ a full server restart: `reload` refuses to re-register it.
       (leather cap, backpack, tan and brown clothes, leather boots; no hard hat, nothing in hand).
       A barrel with a pickaxe and a bundle still makes a Miner. At the settlement's limit it's refused.
 - [ ] H2. Depot: tap the ground with the stake, Make a depot here, default 5 by 7: the outline
-      shows; tap again and confirm. Refused on uneven ground or under a low roof.
+      shows; tap again and confirm. Refused on uneven ground or under a low roof. The sliders stop
+      at 16 (a depot is at most 16 by 16).
 - [ ] H3. Two Diggers drop off in their chests; at morning (or Do a round now) the Hauler walks to
       both (nearest first, same order each round), pausing longer at a full chest than an almost
       empty one, and back to the depot. Backpack bulges when carrying, flat when empty; a little

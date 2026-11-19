@@ -158,7 +158,7 @@ Workers belong to the settlement (on paper, to its founder), so someone who leav
 
 **Build one:** a barrel holding a **bundle** and **leather boots** (no tools), carved pumpkin on top. It wears a leather cap and a backpack. It never digs.
 
-**Mark a depot** first: tap the ground with the Survey Stake, pick **Make a depot here**, set the width and length, check the outline, then tap again and confirm. It needs a flat floor with 2 blocks of room. One per settlement; 5 by 7 holds 16 chests, a bigger area more.
+**Mark a depot** first: tap the ground with the Survey Stake, pick **Make a depot here**, set the width and length, check the outline, then tap again and confirm. It needs a flat floor with 2 blocks of room. One per settlement, up to 16 by 16; 5 by 7 holds 16 chests, a bigger area more.
 
 **Three rounds a day** (morning, midday and evening) it walks the same loop of chests, nearest first: your settlement's Diggers' and Miners' drop-off chests, plus any chest you tap with the stake while it's linked (**Hauler pickup**). It carries 18 stacks at a time and brings everything back to the depot. A drop-off chest that gets about 3/4 full calls it for an extra trip. It never touches home chests.
 

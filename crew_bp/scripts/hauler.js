@@ -29,7 +29,8 @@ export const ROUNDS = [
   { slot: "midday", from: 6000, to: 9000 },
   { slot: "evening", from: 9000, to: DUSK },
 ];
-export const DEPOT_MIN = 3, DEPOT_MAX = 32;
+/** Depot sides: 3 to 16 blocks (Brian, Nov 19: capped at 16 by 16). */
+export const DEPOT_MIN = 3, DEPOT_MAX = 16;
 export const DEPOT_DEFAULT = { width: 5, length: 7 }; // holds 16 chests
 const RETRY_AREA = 1200; // a minute
 const RETRY_FULL = 100; // ticks (5 s) between checks for room while the depot is full

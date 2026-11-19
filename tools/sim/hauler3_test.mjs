@@ -19,7 +19,7 @@ import { setEnergy, energy } from "./scripts/life.js";
 import { setJSON } from "./scripts/util.js";
 
 const TITLE = "hauler part 3 (review fixes)";
-const A = await loadApi(["takeChests", "markDepot", "addPickup", "dueRound", "tidyPlan"]);
+const A = await loadApi(["takeChests", "markDepot", "addPickup", "dueRound", "tidyPlan", "chestLimit", "DEPOT_MAX"]);
 if (fails.length) finish(TITLE);
 const OW = "minecraft:overworld";
 const brian = mkPlayer("p1", "Brian", false, { x: 7002, y: 65, z: 6995 }), cal = mkPlayer("p3", "Cal", false, { x: 7200, y: 65, z: 7000 });
@@ -52,6 +52,16 @@ ow.setBlockType({ x: 7002, y: 65, z: 7003 }, "minecraft:air");
 check("without it the depot is marked", A.markDepot(by, S(), DEP).ok);
 const depot = () => getSettlements()[S().id].depot;
 const depotConts = () => depot().units.flatMap((u) => u.cells.map((c) => containerAt(c)));
+
+// ---- the depot is at most 16 by 16 (Brian, Nov 19) ----
+const area = (w, l) => ({ dim: OW, from: { x: 7100, y: 64, z: 7100 }, to: { x: 7100 + w - 1, y: 64, z: 7100 + l - 1 } });
+const s0 = JSON.stringify(depot());
+check("a 17 by 5 depot is refused", !A.markDepot(by, S(), area(17, 5)).ok);
+check("a 5 by 17 depot is refused", !A.markDepot(by, S(), area(5, 17)).ok);
+check("refusing it keeps the depot as it was", JSON.stringify(depot()) === s0);
+check("16 by 16 is the largest", A.chestLimit({ ...area(16, 16), x0: 7100, z0: 7100, x1: 7115, z1: 7115, y: 65, units: [] }) > 16);
+check("the sliders and the check use the same limit", A.DEPOT_MAX === 16);
+check("the depot is back where it was", A.markDepot(by, S(), DEP).ok);
 
 // ---- only the settlement's chests ----
 const haulStray = dispatch(by, { worker: "Fixer", job: "haul", params: { from: [7030, 65, 7020], to: [7020, 65, 7000] } });
