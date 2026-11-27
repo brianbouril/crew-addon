@@ -34,7 +34,7 @@ The four skins share one face, nose, and hair drawing. Miner and Woodcutter shar
 | `crew_rp/pack_icon.png` and `crew_bp/pack_icon.png` | 64×64, byte-identical | `icon()` builds a 64×64 canvas and writes both paths |
 | `crew_rp/textures/items/crew_survey_stake.png` | 16×16 | `stake()` builds a 16×16 canvas |
 
-Entity skins and pack icons in this pack are 64×64. The only item texture shipped is the Survey Stake, and it is 16×16. That is the item-icon size this repo has used. There is no second item icon to compare it with.
+Entity skins and pack icons in this pack are 64×64. The shipped Survey Stake item texture is still 16×16. Brian, 2026-11-27 (art-director): redraw that icon at 32×32 with a `#000000` outline. `crew_rp/textures/items/crew_survey_stake.png` and `stake()` in `tools/make_textures.mjs` stay 16×16 until a worker pull request changes them. This knowledge file does not edit those files.
 
 A hand edit of a PNG will not match the next run of `make_textures.mjs`. An optional script argument writes 8× preview PNGs. Those previews are not in the packs.
 
@@ -79,6 +79,8 @@ Role hats (`ROLES` in the generator) and the torso colors the histograms confirm
 
 The four hats are four different colors. The Miner hat is the yellow pair above.
 
+Brian, 2026-11-27 (art-director): do not paint every hard hat `#00FF00`. Each worker has its own model and its own hat design. The shipped client entity still uses one geometry, `geometry.crew_worker`, and the four role textures in the table. A pack change that splits the geometry is a worker pull request, not a change to this file.
+
 Survey Stake (`stake()`), all four colors present in the 16×16 PNG:
 
 | Use | Hex | RGB |
@@ -92,7 +94,7 @@ Pack icon (`icon()`), confirmed in both icon PNGs: background `#282e3c` `[40, 46
 
 Spawn egg on the client entity: `"base_color": "#ff7814"` (stake flag and icon stripe), `"overlay_color": "#f5c414"` (Miner hat and icon hat).
 
-Day-0 pixel reads found no `#000000` pixel and no `#00ff00`, `#ff00ff`, or `#00ffff` pixel in the six PNGs. The generator does not write those values. Whether that is a standing ban is an open question below. It is a description of these files.
+Day-0 pixel reads found no `#000000` pixel and no `#00ff00`, `#ff00ff`, or `#00ffff` pixel in the six PNGs. The generator does not write those values. Brian, 2026-11-27, rejected `#00FF00` hats and asked for a `#000000` outline on the future 32×32 Survey Stake icon. The shipped PNGs do not have that outline yet.
 
 The sample palette in `docs/grok/POC-KNOWLEDGE-FACTORY-v5.md` (`#3B322C`, `#6E5D4F`, `#A89984`, `#D4A359`, a 4-shade cap, a 12-word blurb cap) is a blank example in that charter. Those hexes are not in `make_textures.mjs` or in these PNGs.
 
@@ -133,7 +135,7 @@ Item and entity names in lang are title case. Interact lines are sentence case. 
 ## Open questions
 
 1. Nose, brow, eye, jeans-shade, and boot colors are in the generator. Day 0 did not confirm each of them in the most common PNG pixels. They are painted; they are small.
-2. No `#000000` and no `#00ff00` in the current PNGs is an observation. No dated decision says new art must stay that way.
+2. The shipped PNGs still have no `#000000` pixel. The 32×32 Survey Stake outline is the target above. It is not in the generator yet.
 3. Decision 12 says the worker is about 1.75 blocks tall and needs 2 blocks of headroom. The collision box height is `1.8`. The client entity scale is `0.8`. The files do not say which number is the intended on-screen height.
 4. `knowledge/assets/examples/` has no annotated Do/Don't PNGs. The pictures to compare against are the files under `crew_rp/textures/`.
 5. There is no lore file beyond the lang strings and the guide pages. The guide does not give the workers a backstory.
