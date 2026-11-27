@@ -63,6 +63,6 @@ Aliases: `mine_area` still maps to `quarry`. Do not remove it without a migratio
 
 Keys stay `crew:`. Read and write JSON through `getJSON` / `setJSON` in `util.js`. Do not rename an existing key. A shape change needs a migration and a mock test that loads the old value (`migrateRole` is the pattern).
 
-## Commit
+## Branch and pull request
 
-Pack script changes use `fix(pack):` or `feat(pack):` as `AGENTS.md` describes. Include the changelog and QA updates in that commit when players would notice. The branch-versus-`main` conflict is an open question in `knowledge/agents/worker-agent.md`; do not resolve it by skipping tests.
+Pack script changes go on `feat/<name>` or `fix/<name>` (`CLAUDE.md` rules 2 and 3) and open a pull request into `main`. The commit subject and the pull request title use `feat(pack):` or `fix(pack):` (`AGENTS.md`). Include the changelog and QA updates on that branch when players would notice. Do not push the branch to `main` yourself. Do not skip the mock tests because the pull request is the review step.

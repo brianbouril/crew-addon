@@ -29,7 +29,7 @@ README's dedicated-server steps are the player-facing install: stop, back up, re
 
 `CLAUDE.md` rule 1: `main` stays playable. Mock tests pass. Unfinished features stay off `main`.
 
-That rule conflicts with the Knowledge Factory's direct-to-main pack prefixes. The conflict is recorded in `AGENTS.md` and is an open question. It does not waive the UUID, mock, changelog, or stable-API rules.
+`CLAUDE.md` rules 2 and 3: a game feature is built on `feat/<name>` (the spec name) and a fix on `fix/<name>`, then opened as a pull request. It merges only when the mock tests, the reviewer, the changelog, and `docs/QA.md` are done. The pull request title uses `feat(pack):` or `fix(pack):` (`AGENTS.md`). Knowledge, agent-instruction, and evaluation changes use their own branches and pull requests. None of them are pushed straight to `main`. Those branches do not waive the UUID, mock, changelog, or stable-API rules.
 
 ## Player-visible changes
 

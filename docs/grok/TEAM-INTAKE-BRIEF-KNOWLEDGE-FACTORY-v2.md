@@ -15,7 +15,7 @@ Rather than asking humans to manually maintain AI instructions forever, we propo
 
 1. **Agents Consume & Flag Gaps:** As team members use AI tools to draft specs, presentations, code, or visual assets, agents read from our central knowledge store and log structured flags whenever rules are missing, ambiguous, or corrected by a human.
 2. **Continuous 24/7 Intake & Reconciliation:** A scheduled **Curator Agent** wakes up automatically to ingest new flags, Teams critique threads, SharePoint updates, and human-edited exports (e.g., manual polish made in Figma or slide decks).
-3. **Human-Gated Governance:** The Curator resolves conflicts using a clear authority hierarchy and opens clean **Pull Requests** for human sign-off before any rule updates go live across our organization's Claude workflows.
+3. **Human-Gated Governance:** The Curator resolves conflicts using a clear authority hierarchy and opens clean **Pull Requests** for human sign-off before any rule updates go live. The worker and the friction observer use pull requests too. Nothing in this loop is pushed straight to `main`. In the Crew sandbox, branch names are `feat/<name>` and `fix/<name>` for the game (`CLAUDE.md` rules 2 and 3), `chore/knowledge-<topic>`, `meta/agents-<topic>`, and `docs/eval-<topic>`.
 
 ---
 
