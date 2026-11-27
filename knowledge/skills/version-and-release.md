@@ -36,4 +36,4 @@ Players keep a cached resource pack until the version changes, so a server updat
 
 `README.md` shows world pack-list entries at `[0, 4, 0]` and tells the reader to look for `[Crew] v0.4.0 loaded`. Those numbers match the manifests today.
 
-`tools/release.mjs` rewrites the changelog heading, runs `make_guide.mjs`, and bumps the manifests and `util.js`. It does not edit `README.md`. The last line of a release only prints a reminder to set the new triplet in the world's pack lists. After the next release, someone has to update the README examples or they will lie. Flagged at low severity because they are still true at `0.4.0`.
+`tools/release.mjs` rewrites the changelog heading, runs `make_guide.mjs`, and bumps the manifests and `util.js`. It does not edit `README.md`. The last line of a release only prints a reminder to set the new triplet in the world's pack lists. After the next release, someone has to update the README examples or they will lie. A flag records that. The examples are still true at `0.4.0`.

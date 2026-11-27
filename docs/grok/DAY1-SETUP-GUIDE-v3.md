@@ -1,6 +1,6 @@
 # Day 1 Setup Guide: Autonomous Knowledge Factory POC (Zero-Local-Touch Edition)
 **Platform:** Standalone Grok Bot App (No Slack or Local Terminal Required)  
-**Git Workflow:** Direct-to-`main` with Conventional Commit Prefixes (Free GitHub Account Friendly)
+**Git Workflow:** Pull requests into `main`. Conventional commit prefixes are the commit subject and the pull request title. Day 0's bootstrap commit (`1e34815`, `chore(knowledge): day 0 knowledge factory bootstrap`) is already on `main`. Further worker, curator, and observer changes use a branch and a pull request. Do not push to `main`.
 
 ---
 
@@ -34,45 +34,28 @@ Open the **Grok Bot desktop or mobile app** and create three separate bots with 
 ## Step 4: Run the "Zero-Touch" Day 0 Bootstrap
 Because you aren't editing files locally, attach (or paste the text of) **`POC-KNOWLEDGE-FACTORY-v5.md`** and **`PROJECT-BRIEF-KNOWLEDGE-FACTORY-v5.md`** directly into your Grok Bot group chat along with this prompt:
 
+Day 0 already ran. The scaffold is on `main` in commit `1e34815`. Do not run the old "commit directly on main" instruction again. Later changes follow `AGENTS.md`: a branch, a pull request, and these prefixes.
+
 ```text
-@KnowledgeCurator Run a complete Day 0 Bootstrap pass on our connected repository right now. I am not making any local edits—you are handling 100% of the initial folder scaffold, file creation, and commits directly on `main` using strict conventional commit prefixes.
+Branch and pull request (every role):
 
-Execute these steps in order:
+- Game feature: branch `feat/<name>` (the spec name; CLAUDE.md rules 2 and 3). Title and commits: `feat(pack):`.
+- Game fix: branch `fix/<name>`. Title and commits: `fix(pack):`.
+- Knowledge, AGENTS.md, inbox state, docs/grok: branch `chore/knowledge-<topic>`. Title and commits: `chore(knowledge):`.
+- Agent instruction files under knowledge/agents/: a separate branch `meta/agents-<topic>`. Title and commits: `meta(agents):`.
+- Evaluation log: branch `docs/eval-<topic>`. Title and commits: `docs(eval):`.
 
-1. Save Attached Reference Docs & Inspect Repo History:
-   - Save the attached `POC-KNOWLEDGE-FACTORY-v5.md` and `PROJECT-BRIEF-KNOWLEDGE-FACTORY-v5.md` into the root of the repository (or a `docs/` folder).
-   - Read `CLAUDE.md` (if present) and inspect the last 15 Git commits/diffs across `behavior_packs/` and `resource_packs/` to understand our current add-on structure.
+Do not push to main. The curator opens the knowledge pull request. The worker opens the pack pull request. The observer opens the eval pull request.
 
-2. Initialize the Vendor-Neutral Knowledge Layer:
-   - Create `AGENTS.md` at the repo root defining the shared Knowledge Factory rules, authority hierarchy (`art-director` > `official-docs` > `contributor` > `player-feedback`), and direct-to-main conventional commit prefixes:
-     * Worker code/asset changes: `feat(pack):` or `fix(pack):`
-     * Curator knowledge updates: `chore(knowledge):`
-     * Agent instruction self-tuning: `meta(agents):`
-     * Observer evaluation logs: `docs(eval):`
-   - If `CLAUDE.md` exists, prepend a short "Shared Knowledge Base" pointer instructing Claude to read and follow `AGENTS.md` and `knowledge/` before making changes.
-
-3. Populate Initial Knowledge, Proxy Folders & Agent Definitions:
-   - Extract patterns, schemas, API versions, and styling conventions from our commit history into starter files inside `knowledge/skills/`, `knowledge/domain/` (including `visual-identity.md`), and `knowledge/data-access/`.
-   - Create `knowledge/assets/examples/.gitkeep` and `approved-exports/.gitkeep` so the visual grounding and silent-edit proxy folders exist in Git.
-   - Create `inbox/player-feedback.md` seeded with 2–3 realistic conflicting player feedback notes (one low-authority suggestion that conflicts with our visual identity rules) so we can test authority governance.
-   - Create the three vendor-agnostic agent instruction files in `knowledge/agents/`:
-     * `worker-agent.md`
-     * `curator-agent.md` (configured for direct-to-main commits with `chore(knowledge):` and `meta(agents):` prefixes, plus a diff-based dirty check using `inbox/.curator-state.json`)
-     * `friction-observer.md`
-
-4. Initialize Tracking & State Files:
-   - Create `inbox/knowledge-flags.jsonl` (empty or seeded with any obvious gaps found during bootstrap).
-   - Create `inbox/.curator-state.json` initialized with the current HEAD commit SHA and `"last_processed_flag_line": 0`.
-   - Create `EVALUATION-NOTES.md` for `@FrictionObserver` to log friction, reverts, and misses.
-
-5. Commit & Report:
-   - Commit all new and updated files directly to `main` with the commit message `chore(knowledge): day 0 knowledge factory bootstrap`.
-   - Post a concise summary in this chat listing every file created and any open questions or conflicts you spotted in the existing repo.
+Flag lines use only: timestamp, category, authority, source, issue_summary, evidence, suggested_fix.
+inbox/.curator-state.json uses only: last_processed_commit_sha, last_processed_flag_line, last_run_timestamp.
+The watermark moves when the curator pull request merges. The stored SHA is origin/main at the start of that run.
+The value still in the file from day 0 is the pre-bootstrap main SHA 8c171ddf4463dbe61c6081707197cdc6ed39541e, with last_processed_flag_line 0, because no curator pass has processed those seed flags.
 ```
 
 ---
 
 ## Step 5: Activate the 24/7 Schedule & Start Week 1
-1. **Schedule `@KnowledgeCurator`:** Once the Day 0 commit lands on `main`, tell `@KnowledgeCurator` in chat:
-   > *"Set a recurring routine to run your knowledge intake check every 6 hours (or nightly at 2:00 AM). Always run your dirty check against `inbox/.curator-state.json` first and exit immediately if nothing changed."*
-2. **Start Building with `@AddonWorker`:** Ask `@AddonWorker` to build your next Minecraft add-on feature or texture, or drop a manually edited PNG into `approved-exports/` via the Grok Bot file uploader to watch `@KnowledgeCurator` infer your visual edits on its next cycle.
+1. **Schedule `@KnowledgeCurator`:** Tell `@KnowledgeCurator` in chat:
+   > *"Set a recurring routine to run your knowledge intake check every 6 hours (or nightly at 2:00 AM). Always run your dirty check against `inbox/.curator-state.json` on origin/main first and exit immediately if nothing changed. Open a pull request when something changed. Do not push to main."*
+2. **Start Building with `@AddonWorker`:** Ask `@AddonWorker` to open a `feat/<name>` or `fix/<name>` pull request for the next pack change, or drop a manually edited PNG into `approved-exports/` via the Grok Bot file uploader so `@KnowledgeCurator` can infer the edit on its next pull request.

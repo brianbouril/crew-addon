@@ -1,6 +1,6 @@
 # Evaluation notes
 
-The Friction Observer (`knowledge/agents/friction-observer.md`) appends entries here and commits them on `main` with `docs(eval):`.
+The Friction Observer (`knowledge/agents/friction-observer.md`) appends entries here and opens a pull request from `docs/eval-<topic>` with `docs(eval):`. It does not push to `main`.
 
 The observer does not edit pack code, `knowledge/`, or the inbox watermark. This file is the scorecard source named in `docs/grok/POC-KNOWLEDGE-FACTORY-v5.md` section 7.
 

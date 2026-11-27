@@ -43,6 +43,6 @@ Follow `crew_bp/items/survey_stake.json` and `crew_bp/recipes/survey_stake.json`
 - Keep sentences in the voice described in `knowledge/domain/visual-identity.md`.
 - Changelog line and a `docs/QA.md` check go in the same pack commit when players will notice (`CLAUDE.md` rule 6).
 
-## Commit
+## Branch and pull request
 
-Asset changes use `feat(pack):` or `fix(pack):`. Do not commit generated previews, `dist/`, or `*.mcaddon` (gitignored).
+Asset changes go on `feat/<name>` or `fix/<name>` and open a pull request into `main`. The commit subject and the pull request title use `feat(pack):` or `fix(pack):`. Do not commit generated previews, `dist/`, or `*.mcaddon` (gitignored). Do not push to `main`.

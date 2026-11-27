@@ -51,6 +51,10 @@ repository-root/
     └── .curator-state.json           # Deterministic watermark (last processed commit SHA & flag line)
 ```
 
+In the Crew add-on repository the two pack trees are `crew_bp/` and `crew_rp/`, not `behavior_packs/` and `resource_packs/`. README copies those folders into a server's `behavior_packs/` and `resource_packs/` directories. Do not create a second source tree under the charter's names. `CLAUDE.md` in this repo is the Crew factory rulebook, with a short pointer to `AGENTS.md` at the top. It is not only that one pointer.
+
+Every change, including worker pack edits and observer notes, reaches `main` only through a pull request. Commit subjects and pull request titles use `feat(pack):` / `fix(pack):` (branches `feat/<name>` and `fix/<name>`, matching `CLAUDE.md` rules 2 and 3), `chore(knowledge):` (branch `chore/knowledge-<topic>`), `meta(agents):` (branch `meta/agents-<topic>`), and `docs(eval):` (branch `docs/eval-<topic>`).
+
 ---
 
 ## 4. Reference Architecture & Feedback Loops (Vendor-Agnostic)
@@ -128,11 +132,13 @@ flowchart TB
 All AI assistants, coding agents, and autonomous bots operating in this repository MUST follow these rules:
 1. **Consult Shared Knowledge First:** Before generating code, configurations, copy, or visual assets, read the relevant files in `knowledge/skills/`, `knowledge/domain/`, and `knowledge/data-access/`.
 2. **Respect Visual References:** Compare visual designs against `knowledge/domain/visual-identity.md` and the reference assets in `knowledge/assets/examples/`.
-3. **Never Bypass Pull Requests:** Never push directly to `main`. All updates to `knowledge/` or `knowledge/agents/` must go through a Pull Request.
+3. **Never Bypass Pull Requests:** Never push directly to `main`. Worker, curator, and observer changes all go through a branch and a pull request. Pack branches are `feat/<name>` and `fix/<name>` with titles `feat(pack):` / `fix(pack):`. Knowledge branches are `chore/knowledge-<topic>` with `chore(knowledge):`. Agent-instruction branches are `meta/agents-<topic>` with `meta(agents):`. Evaluation branches are `docs/eval-<topic>` with `docs(eval):`.
 4. **Role-Specific Instructions:** If you are operating as an autonomous pipeline agent, load your specific role definition from `knowledge/agents/`.
 ```
 
-### B. `knowledge/domain/visual-identity.md` (Brand & Visual Identity Template)
+### B. `knowledge/domain/visual-identity.md` (blank example, not the Crew pack)
+
+The block below is a blank example for some other brand. It is not Crew Workers. This repo's file is `knowledge/domain/visual-identity.md`, taken from `crew_rp/` and `tools/make_textures.mjs`: 64×64 entity skins and pack icons, a 16×16 Survey Stake item icon, and the hexes in that file. Do not copy the placeholder palette, the 4-shade cap, or the 12-word cap into the Crew file.
 ```markdown
 # Visual Identity & Voice Standards
 
@@ -181,6 +187,7 @@ You are an autonomous execution agent responsible for building domain artifacts 
 2. **Read-Only Knowledge Consumer:** Never modify files inside `knowledge/` directly.
 3. **Flag All Knowledge Gaps:** Whenever you encounter a deprecated API, undocumented schema rule, ambiguous visual standard, or user correction, append one single-line JSON entry to `inbox/knowledge-flags.jsonl` (`timestamp`, `category`, `authority`, `source`, `issue_summary`, `evidence`, `suggested_fix`).
 4. **Visual Self-Audit:** Compare any generated visual assets against `knowledge/domain/visual-identity.md` and `knowledge/assets/examples/` before finalizing.
+5. **Pull Request:** Pack changes open a pull request from `feat/<name>` or `fix/<name>` with `feat(pack):` or `fix(pack):`. Do not push to `main`. Flag lines use only `timestamp`, `category`, `authority`, `source`, `issue_summary`, `evidence`, `suggested_fix`.
 ```
 
 ### B. `knowledge/agents/curator-agent.md`
@@ -192,10 +199,10 @@ You are an autonomous 24/7 knowledge intake and governance agent. Your job is to
 ## Scheduled Intake Loop
 1. **Quota-Saving Dirty Check (Mandatory First Step):** Read `inbox/.curator-state.json`. Check if new lines exist in `inbox/knowledge-flags.jsonl`, new commits landed in the repository, new files appeared in `approved-exports/`, or new entries were added to `inbox/player-feedback.md`. If nothing changed and no scheduled external doc check is due, exit immediately without modifying files.
 2. **Ingest & Reconcile Signals:** Gather unprocessed flags, recent commit diffs, external documentation updates (via your web/doc reader tool), and workspace feedback threads.
-3. **Infer Silent Human Edits:** Compare files in `approved-exports/` against earlier drafts in `resource_packs/`. Identify unstated visual or copy adjustments made by the human and codify them into rules.
+3. **Infer Silent Human Edits:** Compare files in `approved-exports/` against earlier drafts in the resource pack (`crew_rp/` in the Crew repo; `resource_packs/` in the generic scaffold). Identify unstated visual or copy adjustments made by the human and codify them into rules.
 4. **Enforce Authority Hierarchy:** Resolve conflicts strictly by authority: `art-director` > `official-docs` > `contributor` > `player-feedback`. Never let lower-authority inputs overwrite higher-authority rules; list unresolved conflicts under a "Needs Human Decision" section in the PR description.
-5. **Open Knowledge Pull Request:** Update the relevant Markdown files in `knowledge/`, update `inbox/.curator-state.json`, and open a Pull Request via your Git PR tool summarizing all changes and source authorities.
-6. **Controlled Self-Tuning:** When triggered to review a missed catch or noisy PR, propose exact refinements to `knowledge/agents/*.md` via a **separate Pull Request**—never auto-merge changes to your own instructions.
+5. **Open Knowledge Pull Request:** Update the relevant Markdown files in `knowledge/` on branch `chore/knowledge-<topic>` with commit subject `chore(knowledge):`. Update `inbox/.curator-state.json` using only `last_processed_commit_sha` (the `origin/main` SHA the run started from), `last_processed_flag_line`, and `last_run_timestamp`. Open a pull request. The watermark advances when that pull request merges. Do not push to `main`.
+6. **Controlled Self-Tuning:** When triggered to review a missed catch or noisy pull request, propose exact refinements to `knowledge/agents/*.md` on a **separate** branch `meta/agents-<topic>` with `meta(agents):` commits. Never put those edits in the knowledge pull request, and never merge your own instructions.
 ```
 
 ### C. `knowledge/agents/friction-observer.md`
@@ -212,6 +219,7 @@ You are a passive evaluation auditor. Your sole responsibility is to capture obj
    - Excessive token/context burn on a routine check.
    - A Curator Pull Request being rejected or requiring manual cleanup.
 3. **Entry Format:** `- **[YYYY-MM-DD HH:MM]** | **Agent:** [Name] | **Type:** [Stall / Override / Hallucination / Token-Burn / PR-Rejection] | **Summary:** [1-sentence root cause]`
+4. **Pull Request:** Open a pull request from `docs/eval-<topic>` with `docs(eval):`. Do not push to `main`. The Crew repo also logs Revert and Miss; see `knowledge/agents/friction-observer.md`.
 ```
 
 ---
