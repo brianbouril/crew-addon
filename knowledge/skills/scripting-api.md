@@ -6,7 +6,7 @@ How script changes are made in this repo. Rules and version pins: `knowledge/dom
 
 1. Read `AGENTS.md`, this file, and the module you are about to change.
 2. Read the job you are touching in `crew_bp/scripts/catalog.js` before changing behavior in `runner.js` or `orders.js`.
-3. If the work is a feature, it needs a `specs/<name>.md` whose status is `ready` (`CLAUDE.md` rule 8). A gap in the spec is an open question, not a guess. Flag it and stop on that part.
+3. If the work is a feature, `CLAUDE.md` rule 8 says the builder does not start until `specs/<name>.md` is status `ready`. What the other status words say, and what is not written about opening a pull request, is `knowledge/skills/spec-status.md`. A gap in the spec is an open question, not a guess. Flag it and stop on that part.
 
 ## Versions in the shipped pack
 
@@ -37,6 +37,7 @@ Do not import any other `@minecraft/*` module from `crew_bp/scripts/`. Do not se
 | `scripts/life.js` | Home, beds, energy, food, restock |
 | `scripts/workers.js` | Spawn, ownership, role property, name tag |
 | `scripts/store.js` | World dynamic properties for places and the worker registry |
+| `scripts/settlement.js` | Settlement save data and rules. Imports only `store.js` and `util.js`. Menus stay in `ui.js`. Event wiring stays in `main.js`. |
 | `scripts/guide_pages.js` | Player guide source. No game imports, so Node can read it |
 | `scripts/util.js` | `VERSION` and small helpers. No game state |
 
@@ -61,7 +62,9 @@ Aliases: `mine_area` still maps to `quarry`. Do not remove it without a migratio
 
 ## Dynamic properties
 
-Keys stay `crew:`. Read and write JSON through `getJSON` / `setJSON` in `util.js`. Do not rename an existing key. A shape change needs a migration and a mock test that loads the old value (`migrateRole` is the pattern).
+Keys stay `crew:`. JSON values go through `getJSON` / `setJSON` in `util.js`. `crew:cap` is the exception already in `settlement.js`: it is a number on `world.getDynamicProperty` / `setDynamicProperty`, not JSON. Do not rename an existing key, including `crew:settlements`, `crew:bells`, `crew:seen`, `crew:queue`, `crew:cap`, and `crew:stock:<spot>`. The list is in `knowledge/domain/pack-conventions.md`. A shape change needs a migration and a mock test that loads the old value (`migrateRole` is the pattern).
+
+Settlement-wide orders are not new `JOBS` names. `orders.js` `SETTLEMENT_ORDERS` is `stop`, `resume`, `drop_off`, `go_home`, and `come_bell`. `come_bell` is sent as the existing `come` job aimed at the bell. Unloaded workers wait on `crew:queue`. Mock tests: `tools/sim/settlement_test.mjs` and `tools/sim/settlement2_test.mjs`, both named in `tools/sim/run.mjs`.
 
 ## Branch and pull request
 
