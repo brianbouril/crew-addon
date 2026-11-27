@@ -1,6 +1,6 @@
 # External sources
 
-Where to read facts. This repo does not connect to SharePoint, Figma, or a DAM. Those names in `docs/grok/` are the enterprise metaphor. The stand-in for a human-edited export is `approved-exports/`, which is empty.
+Where to read facts. This repo does not connect to SharePoint, Figma, or a DAM. Those names in `docs/grok/` are the enterprise metaphor. The stand-in for a human-edited export is `approved-exports/`. At `6ef219c` that folder still has only `.gitkeep`. No silent-edit diff was available on this pass.
 
 Do not copy personal data, server allow-lists, or credentials into `knowledge/`. `CLAUDE.md` rule 11.
 
@@ -10,7 +10,8 @@ Do not copy personal data, server allow-lists, or credentials into `knowledge/`.
 | --- | --- |
 | What may an agent do? | `AGENTS.md`, then `knowledge/agents/` if you are that role |
 | Product rules and dated decisions | `CLAUDE.md` decision table. Specs in `specs/` when status is `ready` |
-| What players can order | `crew_bp/scripts/catalog.js` `JOBS` |
+| What players can order | `crew_bp/scripts/catalog.js` `JOBS`. Settlement-wide orders are `orders.js` `SETTLEMENT_ORDERS`, not extra catalog names. |
+| Settlement save data and rules | `crew_bp/scripts/settlement.js`. Spec: `specs/settlement-layer.md`. |
 | What the guide says | `crew_bp/scripts/guide_pages.js` (source). `PLAYER_GUIDE.md` is generated |
 | What shipped | `CHANGELOG.md`. What to retest: `docs/QA.md` |
 | Visuals | `knowledge/domain/visual-identity.md`, `tools/make_textures.mjs`, `crew_rp/textures/` |
