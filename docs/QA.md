@@ -67,8 +67,9 @@ a full server restart: `reload` refuses to re-register it.
       workers, and you theirs. They can add and remove members, rename and move the bell, but
       can't remove you (the founder). Make them the founder (every worker's owner becomes them), then make yourself founder again.
       Remove them: their workers stay in the list, now yours, and their orders are refused.
-- [ ] 12f. Worker limit: alone in your settlement, as an operator set it to your current count with
-      `/crew:cap`. Building one more is refused with "<settlement> has N workers, its limit is N" and
+- [ ] 12f. Worker limit: `/crew:cap` alone shows the limit and how to change it. Alone in your
+      settlement, count your workers (`/crew:workers`), then as an operator set the limit to that
+      count with `/crew:cap <count>` (e.g. `/crew:cap 3`). Building one more is refused with "<settlement> has N workers, its limit is N" and
       the barrel keeps its tools. Add a member: the limit doubles and their build belongs to you.
       Set it back to 6 (`/crew:cap 6`), then build: it works. A non-operator can't run `/crew:cap 6`.
 - [ ] 12g. Existing workers on the live-world copy (staging) all show up after founding, with their
