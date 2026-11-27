@@ -38,11 +38,14 @@ Every change reaches `main` through a branch and a pull request. That includes t
 
 The prefix is the commit subject and the pull request title. One concern per pull request. Do not mix a pack change and a knowledge change in the same pull request. Agent-instruction edits (`knowledge/agents/`) are their own pull request, separate from other knowledge updates.
 
+`.github/workflows/auto-merge-knowledge.yml` can auto-approve and squash-merge a pull request. The curator treats a pull request as auto-merge only when every changed path is under `knowledge/skills/`, `knowledge/data-access/`, `inbox/`, or `EVALUATION-NOTES.md`, and the description does not contain `Needs Human Decision`. One file outside those paths disqualifies auto-merge. `knowledge/domain/`, `knowledge/assets/`, `knowledge/agents/`, `AGENTS.md`, `docs/grok/`, and any unresolved conflict (heading `## Needs Human Decision`) are a separate pull request for Brian. The curator does not edit `EVALUATION-NOTES.md`; the observer does. How the watermark is split across those pull requests is in `knowledge/agents/curator-agent.md`.
+
 | Change | Branch | Commit subject and PR title |
 | --- | --- | --- |
 | Game feature (`crew_bp/`, `crew_rp/`, player-facing guide) | `feat/<name>` after `specs/<name>.md` | `feat(pack):` |
 | Game fix | `fix/<name>` | `fix(pack):` |
-| Curator updates to `knowledge/`, `AGENTS.md`, `inbox/` state, or `docs/grok/` | `chore/knowledge-<topic>` | `chore(knowledge):` |
+| Low-risk curator updates (`knowledge/skills/`, `knowledge/data-access/`, `inbox/` only) | `chore/knowledge-<topic>` | `chore(knowledge):` |
+| Curator updates for review (`knowledge/domain/`, `knowledge/assets/`, `AGENTS.md`, `docs/grok/`, or `## Needs Human Decision`) | `chore/knowledge-<topic>-review` | `chore(knowledge):` |
 | Curator edits to `knowledge/agents/*.md` | `meta/agents-<topic>` | `meta(agents):` |
 | Friction Observer entries in `EVALUATION-NOTES.md` | `docs/eval-<topic>` | `docs(eval):` |
 
@@ -90,4 +93,4 @@ There is no `ts`, `path`, `gap`, or `severity` key.
 
 The day-0 value of `last_processed_commit_sha` stays `8c171ddf4463dbe61c6081707197cdc6ed39541e`, the `main` commit before the bootstrap. No curator pull request has processed `main` since then, and `last_processed_flag_line` stays `0`, so the seed flags are still unread. `last_run_timestamp` is when this schema was written, not a claim that a curator pass finished.
 
-The watermark moves only when a curator pull request that updates this file is merged. The SHA stored in that pull request is the `origin/main` SHA the run started from. See `knowledge/agents/curator-agent.md`.
+The watermark moves only when the curator's low-risk pull request (the one that contains this file and no review-only path) is merged. The SHA stored in that pull request is the `origin/main` SHA the run started from. A review pull request does not carry this file. See `knowledge/agents/curator-agent.md`.
