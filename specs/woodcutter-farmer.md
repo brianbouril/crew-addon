@@ -1,6 +1,6 @@
 # Spec: Woodcutter and Farmer (V1, release week 3)
 
-Owner: Brian · Status: **in review** · Branch: `feat/woodcutter-farmer` · Builder: B (week 3)
+Owner: Brian · Status: **building** · Branch: `feat/woodcutter-farmer` · Builder: B (week 3)
 
 <!-- Drafted 2026-11-27 from Brian's answers the same day, FACTORY_PLAN week 3, and the
 standing decisions in CLAUDE.md. One spec, two jobs. The cut line is at the end of Decisions. -->
