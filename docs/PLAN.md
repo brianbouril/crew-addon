@@ -203,7 +203,7 @@ can't hurt workers yet**; Quarry and Branch mine stay as precise jobs.
 **Worker count and build cost (Nov 17):** players may run as many workers as they like up to one
 per-player server limit (an operator setting, starting at 6, set by the load test); there's nothing
 to earn to get more. The challenge is in building them: **stronger workers cost more to build**
-(e.g. Digger, Woodcutter, Farmer early; Miner and Hauler with some progress; Sifter, Smith and
+(e.g. Digger, Woodcutter, Farmer and Hauler early; Miner with some progress; Sifter, Smith and
 Builder mid to late game). Each worker's spec sets its exact build.
 
 ### Done
@@ -379,13 +379,15 @@ The Miner's own release (planned Nov 13 as "Prospector"); all of it is Miner onl
   beyond tools, and the entrance and sign look right.
 
 ### v0.7 Hauler (new worker)
-1. **New worker type** with its own look (backpack, no tool); build recipe to decide (see open
-   questions); own menu.
-2. **Depot:** a designated spot (a named place like "blue base"); nearby chests count as one depot.
-3. **Rounds:** collects from its owner's mine entrance chests (and any pickup points it's given),
-   carries to the depot, puts each item in a chest that already holds that item, else any free one.
+Spec: `specs/hauler.md` (ready Nov 18).
+1. **New worker type:** built from a barrel holding a bundle and leather boots, pumpkin on top.
+   Leather backpack (bulges when loaded), cap and boots; own menu; carries 18 slots.
+2. **Depot:** an area marked with the Survey Stake; the Hauler sets up chests there as it needs
+   them (up to 16, more for a bigger area) and keeps them sorted, one item kind per chest.
+3. **Rounds:** morning, midday and evening along a fixed route of the settlement's drop-off chests
+   and stake pickup points, plus an extra trip when a chest is nearly full. Never home chests.
 4. **`haul` job:** one-off move from one place to another, for the LLM and slash commands.
-5. Keeps the same daily routine (home, sleep, energy).
+5. Keeps the same daily routine (home, sleep, energy from walking).
 - **Gate:** a hauler keeps two prospecting Miners' entrance chests from filling up and the depot sorted,
   across 200+ blocks.
 
@@ -453,13 +455,15 @@ The Miner's own release (planned Nov 13 as "Prospector"); all of it is Miner onl
 - **Smith and the depot as central store (Brian, Nov 16):** the Hauler's depot holds the
   settlement's raw materials; a Smith takes what it needs from the depot to make tools and weapons,
   and keeps what it makes in its own storage chest (both count in the settlement's storage totals).
+- **Hauler delivers supplies (Brian, Nov 18):** the Hauler brings torches, food and spare tools
+  from the depot to workers running low; with the Smith, it takes the Smith's new tools to the
+  workers who need them.
 - **Teamwork (Brian, Nov 17):** two or more workers of the same role split one staked job, e.g. two
   Diggers level an area together in half the time.
 - **Contractor mode (Phase 3):** multi-step plans (prospect, then haul, then report), several
   workers splitting one goal, an approval step before big jobs.
 
 ### Open questions (also asked in the shared roadmap)
-- How do you build a Hauler? Idea: a barrel with a chest inside (no tools) and a pumpkin on top.
 - Does the mine entrance cost wood the worker carries, or is it free?
 - Mine names: automatic ("Digby's Diamond Mine No. 1"), chosen when ordering, or both?
 - How many workers should be able to roam far from players at once (the world allows 10 loaded areas)?

@@ -1,3 +1,7 @@
+## Shared Knowledge Base
+
+Read and follow `AGENTS.md` and `knowledge/` before making changes. `AGENTS.md` is the shared entry point for every assistant. The procedures in `knowledge/skills/`, the rules in `knowledge/domain/` (including `visual-identity.md`), the pointers in `knowledge/data-access/`, and the role files in `knowledge/agents/` are that knowledge base.
+
 # Crew Workers: the factory rulebook
 
 A Minecraft Bedrock add-on of worker mobs, built by a small "software factory" of Claude sessions
