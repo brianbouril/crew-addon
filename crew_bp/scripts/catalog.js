@@ -89,7 +89,7 @@ export const JOBS = {
   field: {
     roles: ["Farmer"],
     description:
-      "Farmer only. Keep a marked field: till empty dirt, plant seeds the player provides, harvest mature crops, and replant the same crop. Nether crops also need the player to provide the ground (soul sand for nether wart). Uses bonemeal the player provides, one stage at a time. Does not place water and does not cook. The plot stays going.",
+      "Farmer only. Keep a marked field: till empty dirt, plant crops the player provides, harvest when ready, and replant. Stems and berry bushes stay; cane, cactus, and bamboo keep their base. Places a water channel every 9 blocks along the long side from water buckets the player provides. Nether wart needs soul sand, cane and cactus need sand, cocoa needs jungle logs, all from the player. Uses bonemeal one stage at a time. Does not cook. The plot stays going.",
     params: {
       from: { type: "vec3", required: true, description: "One ground corner of the field." },
       to: { type: "vec3", required: true, description: "The opposite ground corner. At most 64 by 64." },

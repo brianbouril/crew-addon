@@ -33,8 +33,23 @@ they sleep, and in the morning they go back to it."
   crop such as nether wart, the player must also provide the ground block (soul sand). The Farmer
   does not dig that ground out of the world.
 - 2026-11-27 **Field work (Q7):** till empty dirt in the field, plant, harvest when the crop is
-  mature, replant the same crop, and use bonemeal the player provided. No cooking. See Open
-  questions for water: that part is not guessed.
+  mature, replant the same crop, and use bonemeal the player provided. No cooking.
+- 2026-11-27 **Water (Brian, on the review):** the Farmer places a water channel every 9 blocks
+  across the field, which is vanilla's hydration range (farmland stays within 4 blocks of
+  water). The channels run along the longer side. A square field's channels run east-west.
+  Along the other side, each band of 9, and the shorter band at the end, gets one water row
+  through its middle. The water comes from water buckets in the home chest or the deposit.
+  Placing one empties the bucket, and the empty bucket goes to the deposit. If there is no
+  bucket, the Farmer skips the channel and says so. It does not take water from the world.
+- 2026-11-27 **The other crops (Brian, on the review):** plant these as well, and only from
+  what the player provides. The player also provides any special ground. Report it when that
+  ground is missing. Do not dig it up and do not invent a substitute.
+  - Pumpkin and melon: the stem stays. Harvest the fruit beside it.
+  - Cocoa: on jungle logs the player provides. Harvest the pod when it is grown and replant it.
+  - Sweet berries: pick the bush when it has berries. Do not break the bush.
+  - Sugar cane, cactus, and bamboo: leave the base. Harvest everything above it. Cane and
+    cactus need sand from the player. Cactus only goes where all four sides are empty. Cane
+    only goes on sand with water beside it.
 - 2026-11-27 **Output (Q8):** a deposit chest is required, the same idea as a quarry. The home
   chest is for restocking tools, saplings, and seeds. Keep everything by default (decision 25).
 - 2026-11-27 **Cut line:** one spec, two jobs. If the Dec 13 release is tight, Woodcutter ships
@@ -54,9 +69,6 @@ they sleep, and in the morning they go back to it."
 
 ## Out of scope
 - Cooking meals (PLAN.md still says the Farmer cooks; Brian, 2026-11-27, says no).
-- Placing water. The pattern is an open question below. The player puts water in the field.
-- Pumpkin and melon fruits, sweet berries, sugar cane, cactus, bamboo, and cocoa. They don't
-  grow as one aged block on one spot. Listed below rather than invented.
 - The Hauler picking up these deposit chests. That stays on `feat/hauler`.
 - A second worker sharing the same plot. Nothing coordinates them.
 
@@ -76,6 +88,13 @@ they sleep, and in the morning they go back to it."
      is harvested, the yield goes to the deposit, and the same crop is replanted. Nether wart
      is not planted on dirt unless the player has provided soul sand. One bonemeal the player
      provided advances a crop one stage. Nothing is cooked.
+   - **Water:** on a field longer than it is wide, the water row runs the long way, through the
+     middle of each 9-block band. Buckets come from the player. No bucket: the row is skipped
+     and reported, and no water is taken from the world.
+   - **Other crops:** a pumpkin or melon stem is left and the fruit is taken. Cocoa is planted
+     on a jungle log and replanted after the pod is picked. A berry bush is picked back to age
+     1, not broken. Cane, cactus, and bamboo keep their base. Cane and cactus are not planted
+     without sand the player provided. Cactus is not planted against another block.
    - **Ongoing:** after a pass the job is still the forest or the field. At night the worker
      sleeps and in the morning the same plot resumes.
    - **Path:** when a walk can go around a crop, the path does not step on that crop.
@@ -85,7 +104,7 @@ they sleep, and in the morning they go back to it."
    Prints `[Crew-Test] PASS woodcutter-farmer`. Not built: layer 2 does not exist, and GameTest
    stays out of the packs.
 3. **Playtest check for Brian:** one Woodcutter on a real oak and one Farmer on a wheat field
-   for an in-game day. Do the replants look right, and does the Farmer leave your water alone?
+   for an in-game day. Do the replants look right, and does the water row sit every 9 blocks?
 4. **No new script errors** in the staging server log over a 30 minute run.
 
 ## Touches
@@ -100,12 +119,4 @@ they sleep, and in the morning they go back to it."
   exist; this feature does not redraw them.
 
 ## Open questions
-1. **Water.** Q7 says the Farmer places water. It does not say where, how many sources, or
-   whether a water bucket is emptied and put back. Until that's answered the Farmer does not
-   place water. The player puts water in the field. The rest of the field job does not depend
-   on this.
-2. **Crops that grow a neighbor block** (pumpkin, melon, cocoa) or that aren't one aged block
-   (berries, cane, cactus, bamboo). Q6 says anything plantable the player provides. The shape
-   of those plants isn't specified. The Farmer skips them and says so, and plants the aged
-   crops it does know: wheat, beetroot, carrot, potato, torchflower, pitcher pod, and nether
-   wart on soul sand the player provided.
+None. Brian answered the water layout and the remaining crops on 2026-11-27.

@@ -1,7 +1,6 @@
 // Ongoing forest and field jobs (specs/woodcutter-farmer.md). The runner calls stepPlot; this
-// file decides what to cut, plant, or leave. It never places water (open question 1) and it
-// never cooks.
-import { BlockPermutation, world } from "@minecraft/server";
+// file decides what to cut, plant, or leave. It does not cook.
+import { BlockPermutation, ItemStack, world } from "@minecraft/server";
 import { PLOT_HEIGHT } from "./catalog.js";
 import { AIR } from "./blocks.js";
 import { getHome } from "./life.js";
@@ -28,9 +27,10 @@ const SAPLING = {
 };
 
 /**
- * Aged crops this version plants. Anything else the player hands over is skipped and logged
- * (open question 2). `soil` is an item the player must provide; the farmer does not dig it up.
- * @type {{item: string, block: string, age: number, ground: string, soil?: string}[]}
+ * What the farmer plants. `soil` is a block item the player must provide; the farmer does not
+ * dig it out of the world. `mode` is how it grows: aged crop, stem (fruit beside it), cocoa on
+ * a jungle log, berry bush, or a column that keeps its base.
+ * @type {{item: string, block: string, age: number, ground: string, soil?: string, mode?: string, fruit?: string, space?: boolean}[]}
  */
 export const CROPS = [
   { item: "minecraft:wheat_seeds", block: "minecraft:wheat", age: 7, ground: "minecraft:farmland" },
@@ -39,13 +39,22 @@ export const CROPS = [
   { item: "minecraft:potato", block: "minecraft:potatoes", age: 7, ground: "minecraft:farmland" },
   { item: "minecraft:torchflower_seeds", block: "minecraft:torchflower_crop", age: 1, ground: "minecraft:farmland" },
   { item: "minecraft:pitcher_pod", block: "minecraft:pitcher_crop", age: 4, ground: "minecraft:farmland" },
+  { item: "minecraft:pumpkin_seeds", block: "minecraft:pumpkin_stem", age: 7, ground: "minecraft:farmland", mode: "stem", fruit: "minecraft:pumpkin" },
+  { item: "minecraft:melon_seeds", block: "minecraft:melon_stem", age: 7, ground: "minecraft:farmland", mode: "stem", fruit: "minecraft:melon" },
+  { item: "minecraft:cocoa_beans", block: "minecraft:cocoa", age: 2, ground: "minecraft:jungle_log", soil: "minecraft:jungle_log", mode: "cocoa" },
+  { item: "minecraft:sweet_berries", block: "minecraft:sweet_berry_bush", age: 3, ground: "minecraft:dirt", mode: "berry" },
   { item: "minecraft:nether_wart", block: "minecraft:nether_wart", age: 3, ground: "minecraft:soul_sand", soil: "minecraft:soul_sand" },
+  { item: "minecraft:sugar_cane", block: "minecraft:sugar_cane", age: 0, ground: "minecraft:sand", soil: "minecraft:sand", mode: "column" },
+  { item: "minecraft:cactus", block: "minecraft:cactus", age: 0, ground: "minecraft:sand", soil: "minecraft:sand", mode: "column", space: true },
+  { item: "minecraft:bamboo", block: "minecraft:bamboo", age: 0, ground: "minecraft:dirt", mode: "column" },
 ];
+/** A water row every 9 blocks, through the middle of each band, so crops stay within 4 of water. */
+export const WATER_EVERY = 9;
 const CROP_BY_BLOCK = Object.fromEntries(CROPS.map((c) => [c.block, c]));
 const CROP_BY_ITEM = Object.fromEntries(CROPS.map((c) => [c.item, c]));
 const TILL = new Set(["minecraft:dirt", "minecraft:grass_block"]);
 /** Kept in the inventory for the next plant, not dumped in the deposit. */
-const KEEP_CARRY = /_sapling$|_seeds$|^minecraft:(carrot|potato|beetroot_seeds|pitcher_pod|torchflower_seeds|nether_wart|crimson_fungus|warped_fungus|mangrove_propagule|bone_meal|soul_sand)$/;
+const KEEP_CARRY = /_sapling$|_seeds$|^minecraft:(carrot|potato|beetroot_seeds|pitcher_pod|torchflower_seeds|nether_wart|crimson_fungus|warped_fungus|mangrove_propagule|bone_meal|soul_sand|cocoa_beans|sand|jungle_log)$/;
 
 /** @param {string} id */
 export function woodKind(id) {
@@ -149,32 +158,121 @@ export function findTrees(dim, box) {
 }
 
 /**
- * What the field needs this pass. `plant` is the seed to put on empty cells (a crop already
- * growing, else the first one the worker is carrying).
- * @param {import("@minecraft/server").Dimension} dim @param {Box} box @param {string | undefined} plant
+ * Where the water channels go. They run along the longer side (east-west when the field is
+ * square). Along the other side, each band of 9 blocks, and the shorter band at the end, gets
+ * one water row through its middle.
+ * @param {Box} box @returns {V3[]}
  */
-export function findFieldWork(dim, box, plant) {
+export function channelCells(box) {
+  const sx = box.max.x - box.min.x + 1, sz = box.max.z - box.min.z + 1;
+  const alongX = sx >= sz;
+  const span = alongX ? sz : sx;
+  /** @type {V3[]} */
+  const cells = [];
+  for (let start = 0; start < span; start += WATER_EVERY) {
+    const band = Math.min(WATER_EVERY, span - start);
+    const at = start + Math.floor((band - 1) / 2);
+    if (alongX) {
+      const z = box.min.z + at;
+      for (let x = box.min.x; x <= box.max.x; x++) cells.push({ x, y: box.min.y, z });
+    } else {
+      const x = box.min.x + at;
+      for (let z = box.min.z; z <= box.max.z; z++) cells.push({ x, y: box.min.y, z });
+    }
+  }
+  return cells;
+}
+
+const SIDES = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+/** @param {import("@minecraft/server").Dimension} dim @param {V3} at */
+function sidesAir(dim, at) {
+  return SIDES.every(([dx, dz]) => AIR.has(dim.getBlock({ x: at.x + dx, y: at.y, z: at.z + dz })?.typeId ?? "x"));
+}
+/** @param {import("@minecraft/server").Dimension} dim @param {V3} ground @param {Box} box */
+function besideWater(dim, ground, box) {
+  return SIDES.some(([dx, dz]) => {
+    const n = { x: ground.x + dx, y: ground.y, z: ground.z + dz };
+    if ((dim.getBlock(n)?.typeId ?? "") === "minecraft:water") return true;
+    return channelCells(box).some((c) => c.x === n.x && c.y === n.y && c.z === n.z);
+  });
+}
+/** Open side of a jungle log for a cocoa pod. Direction matches Bedrock's cocoa `direction` (0 south, 1 west, 2 north, 3 east). @param {import("@minecraft/server").Dimension} dim @param {V3} log */
+function cocoaSide(dim, log) {
+  const faces = [[0, -1, 2], [0, 1, 0], [1, 0, 3], [-1, 0, 1]];
+  for (const [dx, dz, direction] of faces) {
+    const at = { x: log.x + dx, y: log.y, z: log.z + dz };
+    const id = dim.getBlock(at)?.typeId ?? "";
+    if (AIR.has(id)) return { at, direction };
+  }
+  return undefined;
+}
+
+/**
+ * What the field needs this pass. `plants` is what the player provided, crops already growing first.
+ * @param {import("@minecraft/server").Dimension} dim @param {Box} box @param {typeof CROPS} plants
+ */
+export function findFieldWork(dim, box, plants) {
   /** @type {any[]} */
   const actions = [];
-  const spec = plant ? CROP_BY_ITEM[plant] : undefined;
+  for (const at of channelCells(box)) {
+    if ((dim.getBlock(at)?.typeId ?? "") !== "minecraft:water") actions.push({ kind: "water", at });
+  }
   for (let x = box.min.x; x <= box.max.x; x++) for (let z = box.min.z; z <= box.max.z; z++) {
     const ground = { x, y: box.min.y, z };
     const above = { x, y: box.min.y + 1, z };
     const gId = dim.getBlock(ground)?.typeId ?? "";
     const aBlock = dim.getBlock(above);
     const aId = aBlock?.typeId ?? "";
+    if (aId === "minecraft:pumpkin" || aId === "minecraft:melon") actions.push({ kind: "fruit", at: above });
+    if (gId === "minecraft:cocoa" || aId === "minecraft:cocoa") {
+      const at = gId === "minecraft:cocoa" ? ground : above;
+      const block = dim.getBlock(at);
+      const age = Number(block?.permutation?.getState?.("age") ?? 0);
+      const crop = CROP_BY_ITEM["minecraft:cocoa_beans"];
+      actions.push(age >= 2 ? { kind: "cocoa-pick", at, crop } : { kind: "bonemeal", at, crop });
+    }
     const crop = CROP_BY_BLOCK[aId];
-    if (crop) {
-      const age = Number(aBlock?.permutation?.getState?.("age") ?? 0);
-      actions.push(age >= crop.age ? { kind: "harvest", at: above, crop } : { kind: "bonemeal", at: above, crop });
+    if (crop?.mode === "column") {
+      let y = above.y + 1;
+      while ((dim.getBlock({ x, y, z })?.typeId ?? "") === crop.block && y < box.min.y + PLOT_HEIGHT) {
+        actions.push({ kind: "break", at: { x, y, z } });
+        y++;
+      }
       continue;
     }
-    if (!spec || (aId && !AIR.has(aId))) continue;
-    if (gId === spec.ground) actions.push({ kind: "plant", at: above, item: spec.item });
-    else if (spec.soil && (TILL.has(gId) || gId === "minecraft:farmland")) actions.push({ kind: "soil", at: ground, above, item: spec.item });
-    else if (!spec.soil && TILL.has(gId)) actions.push({ kind: "till", at: ground, plant: spec.item });
+    if (crop) {
+      const age = Number(aBlock?.permutation?.getState?.("age") ?? 0);
+      if (crop.mode === "berry") actions.push(age >= 2 ? { kind: "berry", at: above, crop } : { kind: "bonemeal", at: above, crop });
+      else if (crop.mode === "stem") { if (age < crop.age) actions.push({ kind: "bonemeal", at: above, crop }); }
+      else if (crop.mode !== "cocoa") actions.push(age >= crop.age ? { kind: "harvest", at: above, crop } : { kind: "bonemeal", at: above, crop });
+      continue;
+    }
+    if (gId === "minecraft:jungle_log") {
+      const side = cocoaSide(dim, ground);
+      if (side && plants.some((p) => p.mode === "cocoa")) actions.push({ kind: "cocoa-plant", at: side.at, log: ground, direction: side.direction });
+      continue;
+    }
+    if ((dim.getBlock(ground)?.typeId ?? "") === "minecraft:water" || (aId && !AIR.has(aId))) continue;
+    const spec = plants.find((p) => p.mode !== "cocoa" && cellFits(dim, box, ground, above, gId, p));
+    if (!spec) continue;
+    if (gId === spec.ground || (spec.mode === "berry" && (gId === "minecraft:dirt" || gId === "minecraft:grass_block"))) actions.push({ kind: "plant", at: above, item: spec.item });
+    else if (spec.soil) actions.push({ kind: "soil", at: ground, above, item: spec.item });
+    else if (spec.ground === "minecraft:farmland" && TILL.has(gId)) actions.push({ kind: "till", at: ground, plant: spec.item });
   }
   return actions;
+}
+
+/** @param {import("@minecraft/server").Dimension} dim @param {Box} box @param {V3} ground @param {V3} above @param {string} gId @param {(typeof CROPS)[number]} spec */
+function cellFits(dim, box, ground, above, gId, spec) {
+  if (spec.mode === "cocoa") return false;
+  if (spec.item === "minecraft:sugar_cane" && !besideWater(dim, ground, box)) return false;
+  if (spec.space && !sidesAir(dim, above)) return false;
+  if (gId === spec.ground) return true;
+  if (spec.mode === "berry" && (gId === "minecraft:dirt" || gId === "minecraft:grass_block" || gId === "minecraft:podzol")) return true;
+  if (spec.item === "minecraft:bamboo" && (gId === "minecraft:dirt" || gId === "minecraft:grass_block" || gId === "minecraft:sand" || gId === "minecraft:podzol")) return true;
+  if (spec.soil && (TILL.has(gId) || gId === "minecraft:farmland" || gId === "minecraft:dirt")) return true;
+  if (!spec.soil && spec.ground === "minecraft:farmland" && TILL.has(gId)) return true;
+  return false;
 }
 
 const testFast = () => /** @type {any} */ (globalThis).crewTestFast === true;
@@ -289,6 +387,61 @@ function dump(rt, inv) {
 /** @param {any} rt @param {import("@minecraft/server").Container} inv @param {any} act */
 function doAction(rt, inv, act) {
   const dim = rt.e.dimension;
+  if (act.kind === "water") {
+    if ((dim.getBlock(act.at)?.typeId ?? "") === "minecraft:water") return;
+    if (pull(rt, inv, "minecraft:water_bucket", 1) < 1) {
+      rt.st.noWater = true;
+      logSkip(rt, "minecraft:water_bucket", act.at, "it needs a water bucket from home or the deposit");
+      return;
+    }
+    spend(inv, "minecraft:water_bucket", 1);
+    const above = { x: act.at.x, y: act.at.y + 1, z: act.at.z };
+    const aboveId = dim.getBlock(above)?.typeId ?? "";
+    if (aboveId && !AIR.has(aboveId)) breakAt(rt, inv, above);
+    dim.setBlockType(act.at, "minecraft:water");
+    const left = stash(inv, new ItemStack("minecraft:bucket", 1));
+    if (left) dim.spawnItem(left, rt.e.location);
+    return;
+  }
+  if (act.kind === "fruit") {
+    breakAt(rt, inv, act.at);
+    return;
+  }
+  if (act.kind === "berry") {
+    const block = dim.getBlock(act.at);
+    const age = Number(block?.permutation?.getState?.("age") ?? 0);
+    if (!block || age < 2) return;
+    const n = age >= 3 ? 3 : 2;
+    block.setPermutation(BlockPermutation.resolve("minecraft:sweet_berry_bush", { age: 1 }));
+    const left = stash(inv, new ItemStack("minecraft:sweet_berries", n));
+    if (left) dim.spawnItem(left, rt.e.location);
+    return;
+  }
+  if (act.kind === "cocoa-plant") {
+    if ((dim.getBlock(act.log)?.typeId ?? "") !== "minecraft:jungle_log") return;
+    if (!AIR.has(dim.getBlock(act.at)?.typeId ?? "x")) return;
+    if (pull(rt, inv, "minecraft:cocoa_beans", 1) < 1) {
+      logSkip(rt, "minecraft:cocoa_beans", act.at, "it needs cocoa beans");
+      return;
+    }
+    spend(inv, "minecraft:cocoa_beans", 1);
+    dim.getBlock(act.at)?.setPermutation(BlockPermutation.resolve("minecraft:cocoa", { age: 0, direction: act.direction }));
+    return;
+  }
+  if (act.kind === "cocoa-pick") {
+    breakAt(rt, inv, act.at);
+    const log = SIDES.map(([dx, dz]) => ({ x: act.at.x + dx, y: act.at.y, z: act.at.z + dz })).find((p) => dim.getBlock(p)?.typeId === "minecraft:jungle_log");
+    if (!log) return;
+    const face = SIDES.findIndex(([dx, dz]) => act.at.x === log.x + dx && act.at.z === log.z + dz);
+    const direction = [3, 1, 0, 2][face] ?? 2;
+    if (pull(rt, inv, "minecraft:cocoa_beans", 1) < 1) {
+      logSkip(rt, "minecraft:cocoa_beans", act.at, "it needs cocoa beans to replant");
+      return;
+    }
+    spend(inv, "minecraft:cocoa_beans", 1);
+    dim.getBlock(act.at)?.setPermutation(BlockPermutation.resolve("minecraft:cocoa", { age: 0, direction }));
+    return;
+  }
   if (act.kind === "break") {
     const id = dim.getBlock(act.at)?.typeId ?? "";
     if (!AIR.has(id)) breakAt(rt, inv, act.at);
@@ -355,11 +508,23 @@ function doAction(rt, inv, act) {
       return;
     }
     const ground = dim.getBlock({ x: act.at.x, y: act.at.y - 1, z: act.at.z })?.typeId;
-    if (ground !== spec.ground) return;
+    const groundOk = ground === spec.ground
+      || (spec.mode === "berry" && (ground === "minecraft:dirt" || ground === "minecraft:grass_block" || ground === "minecraft:podzol"))
+      || (spec.item === "minecraft:bamboo" && (ground === "minecraft:dirt" || ground === "minecraft:grass_block" || ground === "minecraft:sand" || ground === "minecraft:podzol"));
+    if (!groundOk) return;
+    if (spec.item === "minecraft:sugar_cane" && !besideWater(dim, { x: act.at.x, y: act.at.y - 1, z: act.at.z }, rt.job.box)) {
+      logSkip(rt, spec.item, act.at, "sugar cane needs water beside the sand");
+      return;
+    }
+    if (spec.space && !sidesAir(dim, act.at)) {
+      logSkip(rt, spec.item, act.at, "cactus needs empty space on every side");
+      return;
+    }
     if (pull(rt, inv, spec.item, 1) < 1) return;
     spend(inv, spec.item, 1);
     const block = dim.getBlock(act.at);
-    block?.setPermutation(BlockPermutation.resolve(spec.block, { age: 0 }));
+    if (spec.mode === "column") dim.setBlockType(act.at, spec.block);
+    else block?.setPermutation(BlockPermutation.resolve(spec.block, { age: 0 }));
     return;
   }
   if (act.kind === "bonemeal") {
@@ -374,6 +539,7 @@ function doAction(rt, inv, act) {
   }
   if (act.kind === "harvest") {
     const spec = act.crop;
+    if (spec?.mode === "stem") return;
     breakAt(rt, inv, act.at);
     doAction(rt, inv, { kind: "plant", at: act.at, item: spec.item });
   }
@@ -426,6 +592,10 @@ export function stepPlot(rt, ctx) {
       const act = st.queue[st.qi];
       if (!act) {
         st.phase = "dump";
+        return;
+      }
+      if (act.kind === "water" && st.noWater) {
+        st.qi++;
         return;
       }
       const goal = act.at?.[0] && act.kind === "replant" ? act.at[0] : act.at;
@@ -492,21 +662,21 @@ function forestQueue(dim, box) {
 
 /** @param {import("@minecraft/server").Dimension} dim @param {Box} box @param {import("@minecraft/server").Container} inv */
 function fieldQueue(dim, box, inv) {
-  let plant;
-  for (let x = box.min.x; x <= box.max.x && !plant; x++) for (let z = box.min.z; z <= box.max.z && !plant; z++) {
-    const crop = CROP_BY_BLOCK[dim.getBlock({ x, y: box.min.y + 1, z })?.typeId ?? ""];
-    if (crop) plant = crop.item;
+  const growing = new Set();
+  for (let x = box.min.x; x <= box.max.x; x++) for (let z = box.min.z; z <= box.max.z; z++) {
+    for (const y of [box.min.y, box.min.y + 1]) {
+      const id = dim.getBlock({ x, y, z })?.typeId ?? "";
+      const crop = CROP_BY_BLOCK[id];
+      if (crop) growing.add(crop.item);
+      if (id === "minecraft:pumpkin") growing.add("minecraft:pumpkin_seeds");
+      if (id === "minecraft:melon") growing.add("minecraft:melon_seeds");
+    }
   }
-  if (!plant) for (const c of CROPS) if (countOf(inv, c.item) > 0) {
-    plant = c.item;
-    break;
-  }
-  const q = findFieldWork(dim, box, plant);
-  for (let i = 0; i < inv.size; i++) {
-    const id = inv.getItem(i)?.typeId ?? "";
-    if (/_seeds$/.test(id) && !CROP_BY_ITEM[id]) q.push({ kind: "plant", at: { x: box.min.x, y: box.min.y + 1, z: box.min.z }, item: id });
-  }
-  return q;
+  const plants = [
+    ...CROPS.filter((c) => growing.has(c.item)),
+    ...CROPS.filter((c) => !growing.has(c.item) && countOf(inv, c.item) > 0),
+  ];
+  return findFieldWork(dim, box, plants);
 }
 
 /** Status line for a forest or field. @param {any} job @param {any} st */

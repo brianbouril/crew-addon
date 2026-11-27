@@ -302,7 +302,7 @@ export function restock(dim, home, inv, role) {
   if (role === "Woodcutter" || role === "Farmer") {
     const wantId = (/** @type {string} */ id) => role === "Woodcutter"
       ? /_sapling$|mangrove_propagule$|_fungus$/.test(id)
-      : /_seeds$|^minecraft:(carrot|potato|nether_wart|pitcher_pod|bone_meal|soul_sand)$/.test(id);
+      : /_seeds$|^minecraft:(carrot|potato|nether_wart|pitcher_pod|bone_meal|soul_sand|cocoa_beans|sweet_berries|sugar_cane|cactus|bamboo|water_bucket|sand|jungle_log)$/.test(id);
     for (let i = 0; i < chest.size; i++) {
       const it = chest.getItem(i);
       if (!it || !wantId(it.typeId)) continue;

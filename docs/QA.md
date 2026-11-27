@@ -33,7 +33,14 @@ server, which runs as SYSTEM: `C:\Windows\System32\config\systemprofile\AppData\
       replant, and leaves the stump bare.
 - [ ] W5. Stake a field. Dirt becomes farmland and your seeds are planted. Ripe wheat is picked
       into the deposit chest and replanted. One bonemeal grows a crop one stage. Nether wart on
-      dirt waits until you give it soul sand. It does not place water and it does not cook.
+      dirt waits until you give it soul sand. It does not cook.
+- [ ] W5b. Give it water buckets. A water row appears every 9 blocks along the long side of the
+      field (through the middle of each band). The empty buckets go to the deposit. With no
+      bucket it says so and does not take water from a lake.
+- [ ] W5c. Pumpkin and melon: the stem stays, the fruit is picked. Cocoa on a jungle log you
+      gave it is picked and replanted. Sweet berries are picked and the bush stays. Sugar cane,
+      cactus, and bamboo keep the bottom block. Cane and cactus are not planted without sand
+      from you. Cactus is not planted against another block.
 - [ ] W6. At dusk it goes to bed; at dawn it is back on the same forest or field. Stop, then
       Continue, picks the plot back up. It walks around the crops when there's a path around them.
 - [ ] W7. No new script errors over a 30 minute run. Brian: does the replanting look right, and

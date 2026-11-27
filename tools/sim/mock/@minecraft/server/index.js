@@ -103,6 +103,8 @@ export const world = {
     if (LEAF_SAPLING[b.typeId]) return [new ItemStack(LEAF_SAPLING[b.typeId], 1), new ItemStack("minecraft:stick", 1), ...(b.typeId === "minecraft:oak_leaves" ? [new ItemStack("minecraft:apple", 1)] : [])];
     if (b.typeId === "minecraft:wheat") return [new ItemStack("minecraft:wheat", 1), new ItemStack("minecraft:wheat_seeds", 1)];
     if (b.typeId === "minecraft:nether_wart") return [new ItemStack("minecraft:nether_wart", 1)];
+    if (b.typeId === "minecraft:melon") return [new ItemStack("minecraft:melon_slice", 4)];
+    if (b.typeId === "minecraft:cocoa") return [new ItemStack("minecraft:cocoa_beans", 2)];
     return [new ItemStack(LOOT[b.typeId] ?? b.typeId, 1)];
   } }),
   afterEvents: new Proxy({}, { get: sub("world.afterEvents") }), beforeEvents: new Proxy({}, { get: sub("world.beforeEvents") }),

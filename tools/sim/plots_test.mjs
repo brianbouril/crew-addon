@@ -4,6 +4,7 @@ import { startEngine } from "./scripts/runner.js";
 import { roleOf, spawnWorker } from "./scripts/workers.js";
 import { dispatch } from "./scripts/orders.js";
 import { advance, newSearch } from "./scripts/path.js";
+import { channelCells } from "./scripts/plots.js";
 
 const logs = [];
 const out = console.log;
@@ -106,7 +107,7 @@ const planted = runUntil(() => idAt({ x: 202, y: 64, z: 200 }) === "minecraft:fa
 check("empty dirt is tilled and planted", planted, { ground: idAt({ x: 202, y: 64, z: 200 }), crop: idAt({ x: 202, y: 65, z: 200 }) });
 const harvested = runUntil(() => count(chestItems({ x: 200, y: 65, z: 198 }), "minecraft:wheat") >= 1 && idAt({ x: 203, y: 65, z: 200 }) === "minecraft:wheat", 6000);
 check("mature wheat is harvested, replanted, and stored", harvested, { crop: idAt({ x: 203, y: 65, z: 200 }), chest: count(chestItems({ x: 200, y: 65, z: 198 }), "minecraft:wheat") });
-check("pumpkin seeds are not invented into a block", logs.some((l) => l.includes("pumpkin_seeds") && l.includes('"skipped"')));
+check("wheat is still what gets planted when the field is already wheat", idAt({ x: 202, y: 65, z: 200 }) === "minecraft:wheat");
 check("nothing is cooked", ![...tillie.inv.items, ...chestItems({ x: 200, y: 65, z: 198 })].some((i) => /baked|cooked|bread/.test(i?.typeId ?? "")));
 // nether wart: dirt, no soul sand, then soul sand arrives
 ow.setBlockType({ x: 206, y: 64, z: 210 }, "minecraft:dirt");
@@ -131,6 +132,82 @@ dispatch(by, { worker: "Bonny", job: "field", params: { from: [210, 64, 220], to
 const aged = runUntil(() => count(bon.inv.items, "minecraft:bone_meal") === 0, 3000);
 const ageNow = ow.getBlock({ x: 210, y: 65, z: 220 })?.permutation?.getState?.("age");
 check("one bonemeal advances the crop one stage", aged && (ageNow === 7 || count(chestItems({ x: 210, y: 65, z: 218 }), "minecraft:wheat") >= 1), { age: ageNow, meal: count(bon.inv.items, "minecraft:bone_meal") });
+
+// ---- water channels: long side, middle of each 9-block band ----
+const band = channelCells({ min: { x: 0, y: 64, z: 0 }, max: { x: 8, y: 64, z: 2 } });
+check("a 9 by 3 field waters the middle row, along its length", band.length === 9 && band.every((c) => c.z === 1 && c.y === 64), band);
+const square = channelCells({ min: { x: 0, y: 64, z: 0 }, max: { x: 8, y: 64, z: 8 } });
+check("a square field's channel runs east-west", square.every((c) => c.z === 4) && new Set(square.map((c) => c.x)).size === 9);
+ow.setBlockType({ x: 500, y: 65, z: 498 }, "minecraft:chest");
+const { e: wet } = spawnWorker(ow, { x: 500.5, y: 65, z: 499.5 }, owner, "Wendy", [new ItemStack("minecraft:iron_hoe")]);
+for (let i = 0; i < 9; i++) wet.inv.setItem(6 + i, new ItemStack("minecraft:water_bucket", 1));
+dispatch(by, { worker: "Wendy", job: "field", params: { from: [500, 64, 500], to: [508, 64, 502], deposit: [500, 65, 498] } });
+const watered = runUntil(() => [500, 504, 508].every((x) => idAt({ x, y: 64, z: 501 }) === "minecraft:water") && idAt({ x: 500, y: 64, z: 500 }) !== "minecraft:water", 8000);
+check("buckets become a water row, and the crop rows stay dry", watered, { mid: idAt({ x: 504, y: 64, z: 501 }), edge: idAt({ x: 500, y: 64, z: 500 }) });
+const dry = dispatch(by, { worker: "Tillie", job: "stop", params: {} });
+check("stop still works", dry.ok, dry.message);
+const toldDry = logs.some((l) => l.includes("water_bucket") && l.includes('"skipped"'));
+check("no bucket is reported, and a lake is not used", toldDry && idAt({ x: 206, y: 64, z: 209 }) !== "minecraft:water");
+
+// ---- stems, cocoa, berries, columns ----
+ow.setBlockType({ x: 320, y: 64, z: 320 }, "minecraft:farmland");
+ow.getBlock({ x: 320, y: 65, z: 320 }).setPermutation(BlockPermutation.resolve("minecraft:pumpkin_stem", { age: 7 }));
+ow.setBlockType({ x: 321, y: 65, z: 320 }, "minecraft:pumpkin");
+ow.setBlockType({ x: 320, y: 65, z: 318 }, "minecraft:chest");
+const { e: patch } = spawnWorker(ow, { x: 320.5, y: 65, z: 319.5 }, owner, "Patch", [new ItemStack("minecraft:iron_hoe")]);
+dispatch(by, { worker: "Patch", job: "field", params: { from: [320, 64, 320], to: [322, 64, 322], deposit: [320, 65, 318] } });
+const fruit = runUntil(() => idAt({ x: 321, y: 65, z: 320 }) !== "minecraft:pumpkin" && idAt({ x: 320, y: 65, z: 320 }) === "minecraft:pumpkin_stem", 5000);
+check("the pumpkin is picked and the stem stays", fruit, { fruit: idAt({ x: 321, y: 65, z: 320 }), stem: idAt({ x: 320, y: 65, z: 320 }) });
+ow.setBlockType({ x: 330, y: 65, z: 330 }, "minecraft:jungle_log");
+ow.setBlockType({ x: 331, y: 65, z: 330 }, "minecraft:air");
+ow.getBlock({ x: 331, y: 65, z: 330 }).setPermutation(BlockPermutation.resolve("minecraft:cocoa", { age: 2, direction: 3 }));
+ow.setBlockType({ x: 330, y: 65, z: 328 }, "minecraft:chest");
+const { e: coco } = spawnWorker(ow, { x: 330.5, y: 66, z: 329.5 }, owner, "Coco", [new ItemStack("minecraft:iron_hoe")]);
+dispatch(by, { worker: "Coco", job: "field", params: { from: [330, 65, 330], to: [332, 65, 332], deposit: [330, 65, 328] } });
+const pod = runUntil(() => {
+  const b = ow.getBlock({ x: 331, y: 65, z: 330 });
+  return b?.typeId === "minecraft:cocoa" && Number(b.permutation?.getState?.("age") ?? 9) === 0;
+}, 5000);
+check("cocoa is picked and replanted on the jungle log", pod, ow.getBlock({ x: 331, y: 65, z: 330 })?.typeId);
+ow.setBlockType({ x: 340, y: 64, z: 340 }, "minecraft:dirt");
+ow.getBlock({ x: 340, y: 65, z: 340 }).setPermutation(BlockPermutation.resolve("minecraft:sweet_berry_bush", { age: 3 }));
+ow.setBlockType({ x: 340, y: 65, z: 338 }, "minecraft:chest");
+const { e: berry } = spawnWorker(ow, { x: 340.5, y: 65, z: 339.5 }, owner, "Berry", [new ItemStack("minecraft:iron_hoe")]);
+dispatch(by, { worker: "Berry", job: "field", params: { from: [340, 64, 340], to: [342, 64, 342], deposit: [340, 65, 338] } });
+const picked = runUntil(() => Number(ow.getBlock({ x: 340, y: 65, z: 340 })?.permutation?.getState?.("age") ?? 9) === 1, 5000);
+check("berries are picked and the bush stays at age 1", picked && idAt({ x: 340, y: 65, z: 340 }) === "minecraft:sweet_berry_bush");
+ow.setBlockType({ x: 350, y: 64, z: 350 }, "minecraft:sand");
+ow.setBlockType({ x: 351, y: 64, z: 350 }, "minecraft:water");
+ow.setBlockType({ x: 350, y: 65, z: 350 }, "minecraft:sugar_cane");
+ow.setBlockType({ x: 350, y: 66, z: 350 }, "minecraft:sugar_cane");
+ow.setBlockType({ x: 350, y: 65, z: 348 }, "minecraft:chest");
+const { e: cane } = spawnWorker(ow, { x: 350.5, y: 65, z: 349.5 }, owner, "Cane", [new ItemStack("minecraft:iron_hoe")]);
+dispatch(by, { worker: "Cane", job: "field", params: { from: [350, 64, 350], to: [350, 64, 350], deposit: [350, 65, 348] } });
+const cutCane = runUntil(() => idAt({ x: 350, y: 66, z: 350 }) !== "minecraft:sugar_cane" && idAt({ x: 350, y: 65, z: 350 }) === "minecraft:sugar_cane", 5000);
+check("sugar cane keeps its base", cutCane, { base: idAt({ x: 350, y: 65, z: 350 }), top: idAt({ x: 350, y: 66, z: 350 }) });
+ow.setBlockType({ x: 360, y: 64, z: 360 }, "minecraft:sand");
+ow.setBlockType({ x: 360, y: 65, z: 360 }, "minecraft:cactus");
+ow.setBlockType({ x: 360, y: 66, z: 360 }, "minecraft:cactus");
+ow.setBlockType({ x: 360, y: 65, z: 358 }, "minecraft:chest");
+const { e: cact } = spawnWorker(ow, { x: 360.5, y: 65, z: 359.5 }, owner, "Barb", [new ItemStack("minecraft:iron_hoe")]);
+dispatch(by, { worker: "Barb", job: "field", params: { from: [360, 64, 360], to: [360, 64, 360], deposit: [360, 65, 358] } });
+const cutCactus = runUntil(() => idAt({ x: 360, y: 66, z: 360 }) !== "minecraft:cactus" && idAt({ x: 360, y: 65, z: 360 }) === "minecraft:cactus", 5000);
+check("cactus keeps its base", cutCactus, { base: idAt({ x: 360, y: 65, z: 360 }), top: idAt({ x: 360, y: 66, z: 360 }) });
+ow.setBlockType({ x: 370, y: 64, z: 370 }, "minecraft:dirt");
+ow.setBlockType({ x: 370, y: 65, z: 370 }, "minecraft:bamboo");
+ow.setBlockType({ x: 370, y: 66, z: 370 }, "minecraft:bamboo");
+ow.setBlockType({ x: 370, y: 65, z: 368 }, "minecraft:chest");
+const { e: bam } = spawnWorker(ow, { x: 370.5, y: 65, z: 369.5 }, owner, "Bam", [new ItemStack("minecraft:iron_hoe")]);
+dispatch(by, { worker: "Bam", job: "field", params: { from: [370, 64, 370], to: [370, 64, 370], deposit: [370, 65, 368] } });
+const cutBam = runUntil(() => idAt({ x: 370, y: 66, z: 370 }) !== "minecraft:bamboo" && idAt({ x: 370, y: 65, z: 370 }) === "minecraft:bamboo", 5000);
+check("bamboo keeps its base", cutBam, { base: idAt({ x: 370, y: 65, z: 370 }), top: idAt({ x: 370, y: 66, z: 370 }) });
+ow.setBlockType({ x: 380, y: 64, z: 380 }, "minecraft:dirt");
+ow.setBlockType({ x: 380, y: 65, z: 378 }, "minecraft:chest");
+const { e: nosand } = spawnWorker(ow, { x: 380.5, y: 65, z: 379.5 }, owner, "Sandy", [new ItemStack("minecraft:iron_hoe")]);
+nosand.inv.setItem(6, new ItemStack("minecraft:sugar_cane", 2));
+dispatch(by, { worker: "Sandy", job: "field", params: { from: [380, 64, 380], to: [382, 64, 382], deposit: [380, 65, 378] } });
+const needsSand = runUntil(() => logs.some((l) => l.includes("Sandy") && l.includes("sand") && l.includes('"skipped"')), 4000);
+check("cane without sand is reported and the dirt stays", needsSand && idAt({ x: 380, y: 64, z: 380 }) === "minecraft:dirt", idAt({ x: 380, y: 64, z: 380 }));
 
 // ---- path goes around a crop when it can ----
 ow.setBlockType({ x: 0, y: 65, z: 2 }, "minecraft:farmland");

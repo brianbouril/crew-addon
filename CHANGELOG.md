@@ -14,7 +14,10 @@ turns it into that version's section.
   dirt, plants seeds you provide, harvests ripe crops and replants them, and uses bonemeal you
   give it one stage at a time. Nether wart also needs soul sand from you. It does not place water
   and it does not cook. Both need a deposit chest; the home chest restocks tools, saplings and
-  seeds. They walk around crops when another way is open.
+  seeds. They walk around crops when another way is open. The Farmer also lays a water
+  channel every 9 blocks along the long side of the field, from water buckets you provide,
+  and picks pumpkins, melons, cocoa, sweet berries, sugar cane, cactus, and bamboo the way
+  those plants grow (stems and berry bushes stay, cane and cactus and bamboo keep their base).
 - **Settlements.** Place a bell yourself and crouch-tap it to found a settlement and name it. Every
   worker you build belongs to it, including the ones you already have. Crouch-tap the bell for the
   settlement menu: **Workers** lists all of them with what each is doing and where, who's **Out of
