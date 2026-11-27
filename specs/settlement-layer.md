@@ -1,6 +1,6 @@
 # Spec: Settlement layer (V1, release 1-2)
 
-Owner: Brian · Status: **building** · Branch: `feat/settlement-layer` · Builder: A (weeks 2-3)
+Owner: Brian · Status: **ready** · Branch: `feat/settlement-layer` · Builder: A (weeks 2-3)
 
 <!-- Drafted Nov 16 2026 by the lead session; every open question answered by Brian Nov 16-17. -->
 
@@ -67,7 +67,7 @@ what we've gathered in one place, and give orders to everyone at once."
   "Who?" choice: everyone, or one role ("All Diggers"). Each is sent as the normal typed
   `{by, worker, job, params}` order to every chosen worker; an unloaded worker runs it when it
   loads. Dig orders stay one worker at a time.
-- 2026-11-17: **worker cap is per player** (each member of a shared settlement has their own
+- 2026-11-17 (changed Nov 18, above: per settlement): **worker cap is per player** (each member of a shared settlement has their own
   allowance) and **applies with or without a bell** (no settlement = the same cap). Workers over the cap when this ships are kept and keep working; only new
   builds are refused, leaving the barrel and tools as they were ("You have 6 workers, your limit is
   4."). **The base cap should allow one worker of each type**: 6 in V1 (Digger, Miner, Hauler,
@@ -80,6 +80,27 @@ what we've gathered in one place, and give orders to everyone at once."
   (also the Dec 6 default); the week 3 load test sets the real value. The challenge comes instead
   from each worker type's build cost ("stronger workers cost more to build"), decided in each
   worker's own spec, not here.
+- 2026-11-17: **everyone in a settlement is equal** (Brian): every member can add and remove members,
+  rename the settlement and move its bell, like the player who founded it. **Except the founder role:**
+  only the founder can hand it to another member ("Make X the founder"), and nobody can remove the
+  founder. The founder leaves only after handing the role on, unless nobody else is in it; the last
+  person leaving ends the settlement (its bell becomes an ordinary bell; workers are kept).
+  Settlements get their own id at founding, since the founder can change.
+- 2026-11-18: **the settlement owns its workers** (Brian): every worker in it belongs to the founder.
+  A member's workers become the settlement's when they join (the founder's), and workers a member
+  builds are the founder's. A player who leaves or is removed takes no workers. A new founder takes
+  them all. **The worker limit is per settlement: 6 (the cap) for each person in it** (4 friends: 24),
+  counted over all its workers; a player outside any settlement keeps their own limit of 6. When
+  someone leaves and the settlement is over its limit, its workers keep working; no new builds until
+  it's under. Everyone in it can also manage its workers (name, role, tools, dismiss). This replaces
+  the per-player limit below and "members' workers leave with them".
+- 2026-11-18: **missing workers are managed from the bell menu** (Brian). Workers only die from
+  attacks (players, mobs, explosions), `/kill` or the void. Tapping a worker that isn't loaded in the
+  Workers list offers "Forget this worker" (anyone in the settlement): it leaves the list and stops
+  counting toward the limit. If it's alive after all, it's added back when its area loads. Deaths
+  from now on are cleaned up automatically.
+- 2026-11-18: **storage counts only the settlement's own chests** (Brian: "worker storage or central
+  storage"): a worker's home chest or drop-off that's another player's named place doesn't count.
 - 2026-11-17: **settlements have names**, typed when founding (the box starts as "<player>'s
   Settlement"), shown as the settlement menu's title and in messages; the owner can rename it from
   the menu. No automatic sign.

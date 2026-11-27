@@ -165,6 +165,25 @@ export const PAGES = [
     ].join("\n"),
   },
   {
+    title: "Your settlement",
+    body: [
+      H("Your settlement"),
+      "",
+      `${K("Found one:")} place a ${K("bell")} yourself, then ${K("crouch and tap it")} (empty hand, or holding anything that isn't a block). Name it, and every worker you've built (and every one you build later) belongs to it, wherever it is.`,
+      "",
+      `Crouch-tap the bell any time for the settlement menu:`,
+      `- ${K("Workers")}: all your settlement's workers, what each is doing and where. ${K("Out of tools")} (red) and ${K("Tools low")} (yellow) show who needs tools. Far-away workers show ${K("Working far away")} or ${K("Paused: nobody nearby")}. Tap one for its menu; orders to a far-away worker wait until its area loads. A worker that was killed can be taken off the list with ${K("Forget this worker")} (if it was only far away, it comes back when its area loads).`,
+      `- ${K("Storage")}: everything in the settlement's chests, added up (most first). Tap an item to see which chests hold it. Storage chests are your workers' home chests and drop-offs, your named places, and any chest you tap with the Survey Stake and pick ${K("Add to settlement storage")}. Chests far away show what they held when they were last loaded.`,
+      `- ${K("Give orders to everyone")}: Stop, Continue, Drop off, Go home or Come to the bell, for every worker or just one kind (All Diggers). Far-away workers do it when their area loads.`,
+      `- ${K("Members")}: add friends. Everyone in a settlement runs it together: their workers become the settlement's, and they can give orders to every worker, add and remove members, rename it and move its bell. The ${K("founder")} (who rang it first) can't be removed and can hand that role to someone else; the founder leaves only after doing that.`,
+      `- ${K("Name")} and ${K("Move the bell")}. The bell can't be broken, by you or anyone, and explosions skip it: Move the bell puts it in your inventory, then place it and crouch-tap it again.`,
+      "",
+      "A plain tap still rings the bell. Village bells aren't yours to claim (for now).",
+      "",
+      `Workers belong to the settlement (on paper, to its founder), so someone who leaves takes none with them. A settlement can have ${K("6 workers for each person in it")}; on your own you can have 6. A server operator can change the 6 to keep the server running smoothly.`,
+    ].join("\n"),
+  },
+  {
     title: "Stop and continue",
     body: [
       H("Stop and continue"),
@@ -183,7 +202,7 @@ export const PAGES = [
     body: [
       H("Sharing and good manners"),
       "",
-      `Only the ${K("owner")} and the players they allow can give a worker orders or tools. Owners add friends under ${K("Who can give orders")}. Server operators can always help out.`,
+      `Only the ${K("owner")} and the players they allow can give a worker orders or tools. Owners add friends under ${K("Who can give orders")}. Everyone in your settlement can give orders to all its workers. Server operators can always help out.`,
       "",
       `${K("Workers dig whatever is inside the plan")}, whoever built it, and with Clear above, everything over a quarry too. So stake your digs away from other people's builds, and check the outline (it shows the full height) before you confirm.`,
       "",
@@ -207,6 +226,7 @@ export const PAGES = [
       `- ${K("/crew:setplace \"name\"")}: save the chest you're looking at as a named drop-off (add ${K("true")} to share it with everyone)`,
       `- ${K("/crew:places")}: list saved places`,
       `- ${K("/crew:jobs")}: every job and its options`,
+      `- ${K("/crew:cap [number]")}: (operators) the worker limit, per person in a settlement and on your own`,
     ].join("\n"),
   },
   {

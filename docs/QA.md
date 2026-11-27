@@ -44,6 +44,49 @@ a full server restart: `reload` refuses to re-register it.
 - **Run C, at night (7, 7b, 7c):** crouch-tap the sleeping worker and its bed (7), Wake up and wait a
   minute (7b), wake it again and give it a small dig (7c).
 
+**Settlements, release 1 (built Nov 17, mock-tested; staging first)**
+- [ ] 12. Place a bell yourself, crouch-tap it with an empty hand: it doesn't ring, villagers nearby
+      don't run inside, and a "Found a settlement here?" form opens with "<your name>'s Settlement".
+      Found it: the message says how many of your workers joined. A plain tap still rings it.
+- [ ] 12b. Crouch-tap a village's own bell: "This bell belongs to the village", no ring. Crouch with
+      a block in hand against a bell: the block is placed as usual.
+- [ ] 12c. Try to break the settlement bell, and the block under it, as the owner and as someone
+      else: refused with "Move the bell from the settlement menu". Blow up TNT next to it: the bell
+      and its block stay. Move the bell: it's in your inventory, the menu says the bell isn't up;
+      place it elsewhere and crouch-tap: it's back with the same name and workers.
+      Repeat with a bell hung on a wall: the wall block is protected, the blocks either side of
+      the bell along the wall can still be broken. Same with a bell hanging under a block.
+- [ ] 12d. Workers list on a phone-size screen: each worker shows name and role, then what it's
+      doing and how far/which way. Take a Digger's last tool: it shows red "Out of tools". Walk far
+      away from a working Digger (still loaded by its ticking area): "Working far away". A worker in
+      an unloaded area shows "Paused: nobody nearby" (or "last seen N min ago" if it was idle); give
+      it Stop from its far menu, walk back: it stops. Forget a far-away worker: it leaves the list;
+      walk back to it: it's on the list again. Kill a worker (/kill): it leaves the list by itself.
+      A worker that dropped off at a friend's named place outside the settlement: that chest isn't in Storage.
+- [ ] 12e. Add a friend as a member: their workers appear in the list, they can open and order your
+      workers, and you theirs. They can add and remove members, rename and move the bell, but
+      can't remove you (the founder). Make them the founder (every worker's owner becomes them), then make yourself founder again.
+      Remove them: their workers stay in the list, now yours, and their orders are refused.
+- [ ] 12f. Worker limit: `/crew:cap` alone shows the limit and how to change it. Alone in your
+      settlement, count your workers (`/crew:workers`), then as an operator set the limit to that
+      count with `/crew:cap <count>` (e.g. `/crew:cap 3`). Building one more is refused with "<settlement> has N workers, its limit is N" and
+      the barrel keeps its tools. Add a member: the limit doubles and their build belongs to you.
+      Set it back to 6 (`/crew:cap 6`), then build: it works. A non-operator can't run `/crew:cap 6`.
+- [ ] 12g. Existing workers on the live-world copy (staging) all show up after founding, with their
+      jobs, homes and tools unchanged.
+
+**Settlements, release 2 (built Nov 18, mock-tested; staging first)**
+- [ ] 13. Storage: put things in a worker's home chest and a named place, and tap a third chest with
+      the Survey Stake, Add to settlement storage. The settlement menu's Storage adds all three up,
+      most first; tap an item for which chests hold it. A double chest counts once. Two double chests side
+      by side, both full of cobblestone and both added: both count (and nothing in them changes). Take a stack out
+      and reopen Storage a few seconds later: the total dropped.
+- [ ] 13b. Walk far from one storage chest (out of loaded range): Storage says it's far away and
+      shows its last count; come back and it updates. A worker's drop-off shows up straight away.
+- [ ] 13c. Give orders to everyone: Come to the bell (everyone walks to the bell), All Diggers > Stop
+      (only Diggers stop), Go home (workers with a bed walk home, the rest stay), Drop off, and
+      Continue after a Stop (paused digs pick up). A worker far away does it when you come near.
+
 **Diggers and Miners (built Nov 15, mock-tested; not on the server yet)**
 - [ ] 11. Existing workers turn into Diggers the first time they load: the name tag says Digger, the
       skin changes, and the owner gets one "I'm a Digger now" message. A quarry it was digging (or

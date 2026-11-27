@@ -10,6 +10,7 @@ import { openMenu } from "./ui.js";
 import { openGuide } from "./guide.js";
 import { dispatch } from "./orders.js";
 import { statusText, stopJob } from "./runner.js";
+import { getCap, setCap } from "./settlement.js";
 
 /** @typedef {import("./store.js").Commander & {player?: import("@minecraft/server").Player}} Who */
 
@@ -104,6 +105,14 @@ export function registerCommands(reg) {
     (by) => {
       const list = getPlaces().filter((p) => canUsePlace(by, p));
       answer(by, true, list.length ? list.map((p) => `${p.name} @ ${p.x} ${p.y} ${p.z}${p.shared ? " (shared)" : ""} by ${p.ownerName}`).join("\n") : "No places yet. Look at a chest and run /crew:setplace \"name\".");
+    });
+
+  cmd(reg, { name: "crew:cap", description: "Operators: the worker limit, per person in a settlement and on your own (no number: show it).", permissionLevel: CommandPermissionLevel.GameDirectors,
+    optionalParameters: [{ name: "workers", type: T.Integer }] },
+    (by, n) => {
+      if (n === undefined) return answer(by, true, `The worker limit is ${getCap()} for each person in a settlement, and ${getCap()} for a player on their own. To change it, put a number after the command, e.g. /crew:cap 8.`);
+      const r = setCap(by, n);
+      answer(by, r.ok, r.message);
     });
 
   cmd(reg, { name: "crew:workers", description: "List workers you can command.", permissionLevel: ANY },

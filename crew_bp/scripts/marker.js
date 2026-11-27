@@ -16,6 +16,7 @@ import { digForm, openMenu, whoIs } from "./ui.js";
 import { dispatch } from "./orders.js";
 import { bedAt, bedSafety, chestNear, getHome } from "./life.js";
 import { savePlace } from "./store.js";
+import { addStorage, isStorage, removeStorage, settlementOf } from "./settlement.js";
 import { statusText } from "./runner.js";
 
 export const STAKE = "crew:survey_stake";
@@ -153,6 +154,11 @@ async function chestTapped(p, block) {
     savePlace(whoIs(p), name, block.dimension.id, loc, !!r?.formValues?.[1]);
     tell(p, `Saved '${name}' at ${fmt(loc)}. Workers can drop off there by that name.`);
   }]);
+  const s = settlementOf({ id: p.id, name: p.name });
+  if (s) {
+    if (!isStorage(s, block)) b.push(["Add to settlement storage", () => say(p, addStorage(whoIs(p), s, block))]);
+    else if ((s.storage ?? []).some((x) => x.x === loc.x && x.y === loc.y && x.z === loc.z && x.dim === block.dimension.id)) b.push(["Remove from settlement storage", () => say(p, removeStorage(whoIs(p), s, block))]);
+  }
   b.push(["Cancel", () => {}]);
   const f = new ActionFormData().title(`This ${what}`).body(`The ${what} at ${fmt(loc)}.${e ? "" : "\n\nTap one of your workers with the stake to link it; then this chest can be its home chest."}`);
   for (const [label] of b) f.button(label);
