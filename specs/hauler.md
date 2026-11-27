@@ -1,6 +1,6 @@
 # Spec: Hauler (V1, release 1)
 
-Owner: Brian · Status: **in review** · Branch: `feat/hauler` · Builder: B (week 2)
+Owner: Brian · Status: **building** · Branch: `feat/hauler` · Builder: B (week 2)
 
 <!-- Drafted Nov 16 2026 by the lead session from docs/PLAN.md "v0.7 Hauler", the CLAUDE.md
 roadmap and docs/FACTORY_PLAN.md. Open questions answered by Brian on Nov 18 2026. -->
