@@ -43,11 +43,26 @@ Everything this add-on defines uses the `crew:` prefix. `CLAUDE.md` rule 4: neve
 | Item | `crew:<snake>` | `crew:survey_stake` |
 | Entity property | `crew:role` (int 0–3), `crew:anim` (int 0–4) | both client-synced |
 | Component group / event | `crew:<snake>` | `crew:idle`, `crew:working`, `crew:manage`, `crew:give_tool`, `crew:start_work`, `crew:stop_work` |
-| Slash command and enum | `crew:<snake>` | `crew:guide`, `crew:halt`, `crew:keep` |
-| Dynamic property | `crew:<name>` | `crew:name`, `crew:ownerId`, `crew:home`, `crew:job`, `crew:places`, `crew:workers`, `crew:toolPref` |
+| Slash command and enum | `crew:<snake>` | `crew:guide`, `crew:halt`, `crew:keep`, `crew:cap` |
+| Dynamic property | `crew:<name>` | See the two lists under this table |
 | Family | `crew_worker` (underscore, no colon) plus `mob` | `minecraft:type_family` |
 
-File names are `snake_case.json`. Script files are one lowercase module per concern (`runner.js`, `catalog.js`, `marker.js`), not a bundle.
+World and entity dynamic properties already in the scripts. Do not rename them.
+
+Older keys, still used: `crew:name`, `crew:ownerId`, `crew:home`, `crew:job`, `crew:places`, `crew:workers`, `crew:toolPref`.
+
+Settlement keys in `crew_bp/scripts/settlement.js` (the comment at the top of that file, and the reads and writes below it):
+
+| Key | Stored as | What the file says |
+| --- | --- | --- |
+| `crew:settlements` | JSON object through `getJSON` / `setJSON` | Map of settlement id to one settlement |
+| `crew:bells` | JSON object | `"dim\|x,y,z"` to the id of the player who placed that bell |
+| `crew:seen` | JSON object | Worker id to the last roster note for that worker |
+| `crew:queue` | JSON object | Worker id to orders waiting while that worker is unloaded |
+| `crew:cap` | A number, `world.getDynamicProperty` / `setDynamicProperty`, not JSON | Workers per person. Missing or not a positive integer reads as `CAP_DEFAULT` (`6`). Operators set it from 1 to 100. |
+| `crew:stock:<spot>` | JSON object, one property per spot | `<spot>` is `dim\|x,y,z` from `spotKey`. Last read contents of one storage chest. Properties whose spot is gone are deleted. |
+
+File names are `snake_case.json`. Script files are one lowercase module per concern (`runner.js`, `catalog.js`, `marker.js`, `settlement.js`), not a bundle.
 
 `crew:role` values: 0 Miner, 1 Digger, 2 Woodcutter, 3 Farmer (`syncRole` in `workers.js`). The render-controller skin array is in that same order. Do not reorder one without the other.
 
