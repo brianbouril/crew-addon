@@ -1,7 +1,14 @@
+# Auto-merge a pull request only when every changed path is on the allow list
+# and the body does not contain "Needs Human Decision".
+#
+# pull_request_target runs this file from the base branch, not from the pull
+# request head. A pull request that edits this workflow still executes the
+# trusted copy. That copy refuses to merge, because .github/ is not allowed.
+# This job does not check out the pull request and does not run its code.
 name: Auto-Merge Low-Risk Knowledge PRs
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened]
 
 permissions:
@@ -12,37 +19,129 @@ jobs:
   evaluate-and-merge:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Check changed files & PR body for high-blast-radius rules
+      - name: Allow-list changed files and reject unresolved conflicts
         id: policy
         env:
-          PR_BODY: ${{ github.event.pull_request.body }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_BODY: ${{ github.event.pull_request.body || '' }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
         run: |
-          CHANGED_FILES=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
-          echo "Changed files:"
-          echo "$CHANGED_FILES"
+          set -euo pipefail
+          decide() {
+            if [[ "$1" == "allow" ]]; then
+              echo "requires_human=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "requires_human=true" >> "$GITHUB_OUTPUT"
+            fi
+          }
 
-          # Block auto-merge if core domain rules, agent prompts, or pack code changed
-          if echo "$CHANGED_FILES" | grep -E '^(knowledge/domain/|knowledge/agents/|AGENTS\.md|behavior_packs/|resource_packs/)'; then
-            echo "requires_human=true" >> $GITHUB_OUTPUT
-            echo "Reason: High-blast-radius path modified."
+          if printf '%s' "$PR_BODY" | grep -qi "Needs Human Decision"; then
+            echo "Reason: pull request body contains Needs Human Decision."
+            decide deny
             exit 0
           fi
 
-          # Block auto-merge if the PR explicitly flags an unresolved conflict
-          if echo "$PR_BODY" | grep -qi "Needs Human Decision"; then
-            echo "requires_human=true" >> $GITHUB_OUTPUT
-            echo "Reason: PR contains unresolved authority conflicts."
-            exit 0
+          tmp=$(mktemp)
+          trap 'rm -f "$tmp"' EXIT
+          if ! gh api --paginate \
+            -H "Accept: application/vnd.github+json" \
+            "repos/${REPO}/pulls/${PR_NUMBER}/files?per_page=100" \
+            > "$tmp"; then
+            echo "Reason: API error listing pull request files. Fail closed."
+            decide deny
+            exit 1
           fi
 
-          echo "requires_human=false" >> $GITHUB_OUTPUT
+          set +e
+          python3 - "$tmp" << 'PY'
+          import json, sys
+
+          raw = open(sys.argv[1], encoding="utf-8").read()
+          if not raw.strip():
+              print("Reason: empty API response. Fail closed.")
+              sys.exit(1)
+
+          decoder = json.JSONDecoder()
+          files = []
+          idx = 0
+          length = len(raw)
+          pages = 0
+          while idx < length:
+              while idx < length and raw[idx].isspace():
+                  idx += 1
+              if idx >= length:
+                  break
+              try:
+                  page, end = decoder.raw_decode(raw, idx)
+              except json.JSONDecodeError as exc:
+                  print(f"Reason: could not parse file list ({exc}). Fail closed.")
+                  sys.exit(1)
+              idx = end
+              pages += 1
+              if isinstance(page, list):
+                  files.extend(page)
+              else:
+                  message = page.get("message") if isinstance(page, dict) else None
+                  print(f"Reason: API error payload ({message or type(page).__name__}). Fail closed.")
+                  sys.exit(1)
+
+          print(f"Pages: {pages}. Files: {len(files)}.")
+          if pages == 0 or len(files) == 0:
+              print("Reason: empty changed-file list. Fail closed.")
+              sys.exit(1)
+
+          def allowed(path):
+              if not isinstance(path, str) or path == "":
+                  return False
+              parts = path.split("/")
+              if path.startswith("/") or "\\" in path or ".." in parts or "" in parts:
+                  return False
+              if path == ".github" or path.startswith(".github/"):
+                  return False
+              if path == "EVALUATION-NOTES.md":
+                  return True
+              return (
+                  path.startswith("knowledge/skills/")
+                  or path.startswith("knowledge/data-access/")
+                  or path.startswith("inbox/")
+              )
+
+          for entry in files:
+              if not isinstance(entry, dict):
+                  print("Reason: file entry was not an object. Fail closed.")
+                  sys.exit(1)
+              name = entry.get("filename")
+              previous = entry.get("previous_filename")
+              status = entry.get("status") or ""
+              print(f"{status}\t{previous or ''}\t{name}")
+              if not allowed(name):
+                  print(f"Reason: path is not on the allow list: {name}")
+                  sys.exit(2)
+              if previous not in (None, ""):
+                  if not allowed(previous):
+                      print(f"Reason: rename is outside the allow list: {previous} -> {name}")
+                      sys.exit(2)
+              elif status == "renamed":
+                  print(f"Reason: rename is missing previous_filename for {name}. Fail closed.")
+                  sys.exit(1)
+
+          print("Allow list matched every changed file.")
+          sys.exit(0)
+          PY
+          policy_status=$?
+          set -e
+          if [[ "$policy_status" -eq 0 ]]; then
+            decide allow
+            exit 0
+          fi
+          if [[ "$policy_status" -eq 2 ]]; then
+            decide deny
+            exit 0
+          fi
+          decide deny
+          echo "Reason: allow-list check failed closed (status ${policy_status})."
+          exit 1
 
       - name: Approve and Auto-Merge Low-Risk PR
         if: steps.policy.outputs.requires_human == 'false'
@@ -50,5 +149,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: |
-          gh pr review "$PR_URL" --approve -b "Auto-approved: Only low-risk knowledge paths modified with zero conflicts."
+          gh pr review "$PR_URL" --approve -b "Auto-approved: every changed file is on the knowledge allow list and the body has no unresolved conflict."
           gh pr merge "$PR_URL" --auto --squash
