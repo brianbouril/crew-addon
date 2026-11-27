@@ -5,6 +5,13 @@ turns it into that version's section.
 
 ## Unreleased
 
+- **Sieve and Sifter.** Craft a sieve from eight iron bars around a stick. Set a chest on top
+  (gravel, sand, dirt, or soul sand) and a chest underneath. Use it by hand for one piece, or
+  power it with redstone and it keeps sifting whenever more input arrives. Most pieces yield
+  nothing; gravel sometimes gives flint, and a gem is rare. Soul sand only sifts if you supply
+  it. Ore in the input chest is left alone. A sieve in the barrel builds a Sifter, which counts
+  toward your worker limit and can mind one sieve during the day.
+
 - **Settlements.** Place a bell yourself and crouch-tap it to found a settlement and name it. Every
   worker you build belongs to it, including the ones you already have. Crouch-tap the bell for the
   settlement menu: **Workers** lists all of them with what each is doing and where, who's **Out of

@@ -14,7 +14,7 @@ export const MATERIALS = {
   netherite: { tier: 4, speed: 9, name: "Netherite" },
 };
 export const ROLES = { pickaxe: "Miner", shovel: "Digger", axe: "Woodcutter", hoe: "Farmer" };
-export const ROLE_LIST = ["Miner", "Digger", "Woodcutter", "Farmer"];
+export const ROLE_LIST = ["Miner", "Digger", "Woodcutter", "Farmer", "Sifter"];
 const TIER_NAMES = ["wooden", "stone", "iron", "diamond", "netherite"];
 const KIND_NAMES = { pickaxe: "Pickaxe", shovel: "Shovel", axe: "Axe", hoe: "Hoe" };
 
@@ -73,7 +73,7 @@ export function defaultRole(k) {
 }
 
 /** The tool kinds a role keeps in its kit and restocks. Diggers carry pickaxes too, for stone. @param {string} role */
-export const roleKinds = (role) => (role === "Miner" || role === "Digger" ? ["pickaxe", "shovel"] : role === "Woodcutter" ? ["axe"] : ["hoe"]);
+export const roleKinds = (role) => (role === "Miner" || role === "Digger" ? ["pickaxe", "shovel"] : role === "Woodcutter" ? ["axe"] : role === "Farmer" ? ["hoe"] : []);
 
 /** The worker's tool setting: "save" its best tools (default) or use the "fastest". @param {import("@minecraft/server").Entity} e @returns {"save"|"fastest"} */
 export const toolPref = (e) => (e.getDynamicProperty("crew:toolPref") === "fastest" ? "fastest" : "save");

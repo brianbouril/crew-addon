@@ -18,6 +18,7 @@ import { forgetMissing, itemName, ledger, whereIs } from "./settlement.js";
 import { addMember, bellRefusal, bellTap, foundSettlement, getCap, getSeen, makeFounder, moveBell, packBell, queueOrder, removeMember, renameSettlement, rosterLine, rosterOf, setCap, settlementOf } from "./settlement.js";
 import { show } from "./forms.js";
 import { openGuide } from "./guide.js";
+import { SIEVE, linkedSieve, pausedSieve, sieveStatusLine } from "./sift.js";
 import { DEFAULTS, MAX_SIDE, MAX_TRUNK_WIDTH } from "./catalog.js";
 
 /**
@@ -48,6 +49,7 @@ const ROLE_JOBS = {
   Miner: " (prospecting for ore is coming in the next version; it has no dig jobs until then)",
   Woodcutter: " (no jobs yet)",
   Farmer: " (no jobs yet)",
+  Sifter: " (sifts gravel, sand, dirt and soul sand)",
 };
 
 /** @param {Player} p @param {Entity} e */
@@ -56,7 +58,7 @@ export async function openMenu(p, e) {
   const by = whoIs(p);
   const m = meta(e);
   const can = canCommand(by, m), manage = canManage(by, m);
-  const body = `${roleOf(e)}${ROLE_JOBS[roleOf(e)] ?? ""}. Owner: ${m.ownerName}.\n${statusText(e)}${carriedLine(e)}`;
+  const body = `${roleOf(e)}${ROLE_JOBS[roleOf(e)] ?? ""}. Owner: ${m.ownerName}.\n${statusText(e)}${sieveStatusLine(e)}${carriedLine(e)}`;
   if (!can) return menu(p, m.name, `${body}\n\nOnly ${m.ownerName} and the players they allow can give ${m.name} orders.`, [["How workers work", () => openGuide(p)], ["Close", () => {}]]);
   /** @type {[string, () => any][]} */
   const b = [];
@@ -67,14 +69,17 @@ export async function openMenu(p, e) {
   const digging = /quarry|branch_mine/.test(String(getJSON(e, "crew:job", undefined)?.type));
   if (paused && !digging) {
     b.push([`Continue the ${paused.name} (${paused.pct}% done)`, () => say(p, dispatch(by, { worker: m.name, job: "resume", params: {} }))]);
+  } else if (pausedSieve(e) && !linkedSieve(e)) {
+    b.push(["Continue sifting", () => say(p, dispatch(by, { worker: m.name, job: "resume", params: {} }))]);
   }
   // decision 32: each role offers only its own jobs. The Miner's (prospecting) come in v0.6.
   if (roleOf(e) === "Digger") {
     b.push(["Quarry", () => digForm(p, by, e, "quarry")]);
     if (!hasStake(p)) b.push(["Get a Survey Stake", () => tell(p, giveStake(p))]);
   }
+  if (roleOf(e) === "Sifter") b.push(["Sift the sieve I'm looking at", () => siftLooking(p, by, e)]);
   b.push(["Come here", () => say(p, dispatch(by, { worker: m.name, job: "come", params: {} }))]);
-  if (isWorking(e) && !resting) b.push(["Stop", () => stopMenu(p, by, e)]);
+  if ((isWorking(e) || linkedSieve(e)) && !resting) b.push(["Stop", () => stopMenu(p, by, e)]);
   const n = carried(e).reduce((a, x) => a + x.item.amount, 0);
   if (n > 0) {
     b.push([`Take what it carries (${n})`, () => takeCarried(p, e)]);
@@ -95,6 +100,18 @@ export async function openMenu(p, e) {
 
 /** @param {Player} p @param {{ok: boolean, message: string}} r */
 const say = (p, r) => tell(p, r.ok ? r.message : `§c${r.message}`);
+
+/** Links this Sifter to the sieve the player is looking at. @param {Player} p @param {Commander} by @param {Entity} e */
+function siftLooking(p, by, e) {
+  const m = meta(e);
+  const hit = p.getBlockFromViewDirection?.({ maxDistance: 6 });
+  const block = hit?.block;
+  if (block?.typeId !== SIEVE) {
+    tell(p, `Look at a sieve, then try again. You can also type /crew:sift ${m.name}.`);
+    return;
+  }
+  say(p, dispatch(by, { worker: m.name, job: "sift", params: { at: block.location } }));
+}
 
 /**
  * Home: set it to the bed the player is standing by (the nearest chest within 8 becomes the home
@@ -342,13 +359,14 @@ async function roleForm(p, e) {
   const m = meta(e);
   if (isWorking(e)) return menu(p, m.name, `Stop ${m.name} before changing its role.`, [["OK", () => {}]]);
   const f = new ModalFormData().title(`${m.name}: role`)
-    .dropdown("Role: Digger digs quarries; Miner will prospect for ore (next version); Woodcutter and Farmer are coming", ROLE_LIST, { defaultValueIndex: Math.max(0, ROLE_LIST.indexOf(roleOf(e))) })
+    .dropdown("Role: Digger digs quarries; Miner will prospect (next version); Sifter runs a sieve; Woodcutter and Farmer are coming", ROLE_LIST, { defaultValueIndex: Math.max(0, ROLE_LIST.indexOf(roleOf(e))) })
     .submitButton("Save");
   const r = await show(p, f);
   if (!r?.formValues) return;
   const role = ROLE_LIST[Number(r.formValues[0])];
   setRole(e, role);
-  tell(p, `${m.name} is now a ${role}.${role === "Digger" ? " It digs quarries." : " It has no dig jobs yet in this version."}`);
+  const note = role === "Digger" ? " It digs quarries." : role === "Sifter" ? " It sifts at a sieve." : role === "Miner" ? " Prospecting is coming in the next version." : " It has no jobs yet in this version.";
+  tell(p, `${m.name} is now a ${role}.${note}`);
 }
 
 /** @param {Player} p @param {Entity} e */

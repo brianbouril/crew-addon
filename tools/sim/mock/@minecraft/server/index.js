@@ -2,6 +2,7 @@
 // Tests run workers 5x faster (runner.js testFast); a test that wants real speed sets it false.
 globalThis.crewTestFast = true;
 export const CommandPermissionLevel = { Any: 0, GameDirectors: 1, Admin: 2, Host: 3, Owner: 4 };
+export const GameMode = { survival: "survival", creative: "creative", adventure: "adventure", spectator: "spectator" };
 export const CustomCommandParamType = new Proxy({}, { get: (_, k) => k });
 export const CustomCommandSource = { Block: "Block", Entity: "Entity", NPCDialogue: "NPCDialogue", Server: "Server" };
 export const CustomCommandStatus = { Success: 0, Failure: 1 };
@@ -37,7 +38,7 @@ export const BlockPermutation = { resolve: (id, states) => perm(id, states) };
 const key = (p) => `${Math.floor(p.x)},${Math.floor(p.y)},${Math.floor(p.z)}`;
 export const log = { tele: 0, commands: [], spawnedItems: [] };
 class Dimension {
-  constructor(id) { this.id = id; this.blocks = new Map(); this.states = new Map(); this.containers = new Map(); this.entities = []; this.unloaded = new Set(); }
+  constructor(id) { this.id = id; this.blocks = new Map(); this.states = new Map(); this.containers = new Map(); this.power = new Map(); this.entities = []; this.unloaded = new Set(); }
   /** Tests: make a block read as unloaded (getBlock returns undefined), or loaded again. */
   setUnloaded(p, on = true) { if (on) this.unloaded.add(key(p)); else this.unloaded.delete(key(p)); }
   typeAt(p) { const k = key(p); if (this.blocks.has(k)) return this.blocks.get(k); return Math.floor(p.y) <= 64 ? "minecraft:stone" : "minecraft:air"; }
@@ -47,6 +48,7 @@ class Dimension {
     return { typeId: t, isAir: t.endsWith("air"), isLiquid: /water|lava/.test(t), location: loc, x: loc.x, y: loc.y, z: loc.z, dimension: dim,
       getComponent(n) { if (n === "minecraft:inventory" && /chest|barrel/.test(t)) { const k = key(loc); if (!dim.containers.has(k)) dim.containers.set(k, new Container(54)); return { container: dim.containers.get(k) }; } return undefined; },
       below() { return dim.getBlock({ x: loc.x, y: loc.y - 1, z: loc.z }); }, bottomCenter() { return { x: loc.x + 0.5, y: loc.y, z: loc.z + 0.5 }; },
+      getRedstonePower() { return dim.power.get(key(loc)) ?? 0; },
       get permutation() { return perm(t, dim.states.get(key(loc))); },
       setPermutation(p) { dim.setBlockType(loc, p.id); if (p.states && Object.keys(p.states).length) dim.states.set(key(loc), { ...p.states }); } };
   }
@@ -81,7 +83,9 @@ let players = [];
 /** The players world.getAllPlayers() returns. */
 export const setPlayers = (list) => { players = list; };
 // Item ids that aren't blocks (BlockTypes.get returns undefined for them).
-const NOT_BLOCKS = /_(pickaxe|shovel|axe|hoe|sword)$|^crew:|bread|apple|cooked|ingot|diamond$|^minecraft:coal$|stick/;
+const NOT_BLOCKS = /_(pickaxe|shovel|axe|hoe|sword)$|^crew:(?!sieve$)|bread|apple|cooked|ingot|diamond$|^minecraft:coal$|stick/;
+/** Tests: redstone power at a block (Block.getRedstonePower). @param {Dimension} dim @param {{x:number,y:number,z:number}} p @param {number} power */
+export function setRedstonePower(dim, p, power) { dim.power.set(key(p), power); }
 export const BlockTypes = { get: (id) => (NOT_BLOCKS.test(id) ? undefined : { id }) };
 const wprops = new Map();
 const LOOT = { "minecraft:stone": "minecraft:cobblestone", "minecraft:iron_ore": "minecraft:raw_iron", "minecraft:coal_ore": "minecraft:coal", "minecraft:diamond_ore": "minecraft:diamond", "minecraft:dirt": "minecraft:dirt", "minecraft:grass_block": "minecraft:dirt" };

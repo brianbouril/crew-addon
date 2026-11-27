@@ -13,6 +13,7 @@ import { VERSION, onlinePlayer, tell } from "./util.js";
 import { WORKER_TYPE, buildFromBarrel, loadedWorkers, workerDied } from "./workers.js";
 import { BELL, checkBells, forgetBell, getSettlements, isProtected, protectedKeys, pruneStock, recordBell, refreshStorage, syncOwners, takeQueued } from "./settlement.js";
 import { dispatch } from "./orders.js";
+import { startSifter } from "./sift.js";
 
 system.beforeEvents.startup.subscribe((ev) => {
   registerCommands(ev.customCommandRegistry);
@@ -22,6 +23,7 @@ startWelcome();
 
 world.afterEvents.worldLoad.subscribe(() => {
   startEngine();
+  startSifter();
   startOutlines();
   system.runInterval(settlementChores, 40);
   console.log(`[Crew] v${VERSION} loaded`);

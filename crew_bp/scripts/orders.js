@@ -5,7 +5,8 @@ import { JOBS, roleRefusal, roleTakes, validate } from "./catalog.js";
 import { fmt, getJSON, setJSON } from "./util.js";
 import { getRegistry, resolvePlace } from "./store.js";
 import { canCommand, findWorker, loadedWorkers, meta, roleOf } from "./workers.js";
-import { keepUp, pausedJob, resumeJob, startJob, stopJob, statusText } from "./runner.js";
+import { isResting, keepUp, pausedJob, resumeJob, startJob, stopJob, statusText } from "./runner.js";
+import { SIEVE, linkSieve, pauseSieve, resumeSieve, sieveStatusLine } from "./sift.js";
 import { bedAt, bedClaimedBy, bedSafety, bedside, chestNear, getHome, setHome } from "./life.js";
 import { getSeen, peopleOf, queueOrder, rosterOf } from "./settlement.js";
 
@@ -52,6 +53,7 @@ export function dispatch(by, order) {
   switch (v.job) {
     case "stop":
       e.setDynamicProperty("crew:autoResume", undefined); // a player's stop isn't picked back up in the morning
+      pauseSieve(e);
       stopJob(e, `stopped by ${by.name}.`);
       return { ok: true, message: `${m.name} stopped.` };
     case "set_home": {
@@ -74,7 +76,14 @@ export function dispatch(by, order) {
       setHome(e, undefined);
       return { ok: true, message: `${m.name} no longer has a home. It will sleep wherever it is at night.` };
     case "status":
-      return { ok: true, message: `${m.name} (${roleOf(e)}): ${statusText(e)}` };
+      return { ok: true, message: `${m.name} (${roleOf(e)}): ${statusText(e)}${sieveStatusLine(e)}` };
+    case "sift": {
+      const block = e.dimension.getBlock(p.at);
+      if (block?.typeId !== SIEVE) return { ok: false, message: `There's no sieve at ${fmt(p.at)}. Place one, put a chest of gravel, sand, dirt, or soul sand on top, and a chest underneath.` };
+      stopJob(e, undefined);
+      linkSieve(e, p.at);
+      return { ok: true, message: `${m.name} will keep sifting at ${fmt(p.at)} while it's on duty. Gravel, sand, dirt, and soul sand go in the chest on top; the finds come out in the chest underneath. It sleeps at night and picks this up in the morning. Redstone runs that sieve even while it sleeps.` };
+    }
     case "come": {
       if (p.at !== undefined) {
         const spot = depositFor(by, p.at, e.dimension.id);
@@ -100,9 +109,14 @@ export function dispatch(by, order) {
     }
     case "resume": {
       const paused = pausedJob(e);
-      if (!paused) return { ok: false, message: `${m.name} has no stopped dig to continue.` };
-      resumeJob(e); // any role finishes what it already started (workers converted to Diggers keep their old digs)
-      return { ok: true, message: `${m.name} is going back to the ${paused.name} (${paused.pct}% done).` };
+      const siftLine = resumeSieve(e);
+      if (!paused && !siftLine) return { ok: false, message: `${m.name} has no stopped dig or sieve to continue.` };
+      if (paused) {
+        resumeJob(e); // any role finishes what it already started (workers converted to Diggers keep their old digs)
+        return { ok: true, message: `${m.name} is going back to the ${paused.name} (${paused.pct}% done).${siftLine ? ` ${siftLine}` : ""}` };
+      }
+      if (isResting(e)) stopJob(e, undefined);
+      return { ok: true, message: siftLine };
     }
     case "drop_off": {
       const home = getHome(e);

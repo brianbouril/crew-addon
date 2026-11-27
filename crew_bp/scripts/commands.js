@@ -181,8 +181,21 @@ export function registerCommands(reg) {
   cmd(reg, { name: "crew:halt", description: "Stop a worker's job.", permissionLevel: ANY, mandatoryParameters: [{ name: "worker", type: T.String }] },
     (by, worker) => order(by, { worker, job: "stop", params: {} }));
 
-  cmd(reg, { name: "crew:continue", description: "Continue a worker's stopped quarry or branch mine where it left off.", permissionLevel: ANY, mandatoryParameters: [{ name: "worker", type: T.String }] },
+  cmd(reg, { name: "crew:continue", description: "Continue a worker's stopped dig or sifting where it left off.", permissionLevel: ANY, mandatoryParameters: [{ name: "worker", type: T.String }] },
     (by, worker) => order(by, { worker, job: "resume", params: {} }));
+
+  cmd(reg, { name: "crew:sift", description: "Have a Sifter work the sieve you are looking at.", permissionLevel: ANY,
+    mandatoryParameters: [{ name: "worker", type: T.String }],
+    optionalParameters: [{ name: "at", type: T.Location }] },
+    (by, worker, at) => {
+      let pos = at;
+      if (!pos && by.player?.getBlockFromViewDirection) {
+        const hit = by.player.getBlockFromViewDirection({ maxDistance: 6 });
+        if (hit?.block?.typeId === "crew:sieve") pos = hit.block.location;
+      }
+      if (!pos) return answer(by, false, "Look at a sieve, or give its coordinates: /crew:sift <worker> <x y z>.");
+      order(by, { worker, job: "sift", params: { at: pos } });
+    });
 
   cmd(reg, { name: "crew:status", description: "Show what a worker is doing.", permissionLevel: ANY, mandatoryParameters: [{ name: "worker", type: T.String }] },
     (by, worker) => order(by, { worker, job: "status", params: {} }));

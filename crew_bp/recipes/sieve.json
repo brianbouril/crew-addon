@@ -1,0 +1,14 @@
+{
+  "format_version": "1.20.10",
+  "minecraft:recipe_shaped": {
+    "description": { "identifier": "crew:sieve" },
+    "tags": ["crafting_table"],
+    "pattern": ["BBB", "BSB", "BBB"],
+    "key": {
+      "B": { "item": "minecraft:iron_bars" },
+      "S": { "item": "minecraft:stick" }
+    },
+    "unlock": [{ "item": "minecraft:iron_bars" }],
+    "result": { "item": "crew:sieve", "count": 1 }
+  }
+}

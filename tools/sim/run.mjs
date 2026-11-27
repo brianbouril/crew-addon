@@ -39,6 +39,7 @@ const steps = [
   ["Digger and Miner roles", ["roles_test.mjs"]],
   ["settlement (release 1)", ["settlement_test.mjs"]],
   ["settlement (release 2: storage, orders to everyone)", ["settlement2_test.mjs"]],
+  ["sifter", ["sifter_test.mjs"]],
   ["main.js loads", ["-e", 'import("./scripts/main.js").then(() => console.log("ok"))']],
   // A test written before its feature (test-writer subagent) goes in with { todo: true }: it runs,
   // but its failure doesn't fail the run. The builder removes the flag once it passes; a branch
