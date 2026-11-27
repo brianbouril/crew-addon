@@ -5,6 +5,7 @@ turns it into that version's section.
 
 ## Unreleased
 
+- **Survey Stake icon.** The item picture is larger: the same wooden stick and orange checkered flag, now with a black outline.
 - **Settlements.** Place a bell yourself and crouch-tap it to found a settlement and name it. Every
   worker you build belongs to it, including the ones you already have. Crouch-tap the bell for the
   settlement menu: **Workers** lists all of them with what each is doing and where, who's **Out of
