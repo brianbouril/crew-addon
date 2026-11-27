@@ -14,15 +14,19 @@ The template comment: status goes to `ready` only when Brian has answered every 
 
 `CLAUDE.md` step 1: after those answers, the status becomes `ready`. Rule 8: that is when a builder may start. A builder does not guess an open question.
 
+Brian, 2026-11-27 (art-director): `ready` means the open questions are answered. `CLAUDE.md` wins over the kickoff skill where they disagree.
+
 The kickoff skill, section 1, uses "Ready" for a spec whose status is `ready` and which has no branch yet.
 
 ## building
 
 `CLAUDE.md` step 2: the builder works on `feat/<name>`. The test-writer writes failing mock tests, then the code. The status is `building`.
 
+Brian, 2026-11-27 (art-director): `building` means the builder starts. Do not follow kickoff skill step 3 when it sets the status to `building` at the moment the open questions are answered. That moment is `ready`.
+
 The kickoff skill, section 1, counts `building` or `in review` as in progress. The plan caps builders at two (`CLAUDE.md` rule 9, and the kickoff guardrail).
 
-The kickoff skill, step 3, says: when no open questions are left, set the status to `building` and commit the spec to `main` with the message `spec: <feature> ready`.
+The kickoff skill, step 3, still says: when no open questions are left, set the status to `building` and commit the spec to `main` with the message `spec: <feature> ready`. Brian's decision above is the one to follow.
 
 ## in review
 
@@ -34,7 +38,9 @@ The kickoff skill, step 4: when the build is done, push `feat/<feature>`, open a
 
 ## shipped
 
-`CLAUDE.md` step 5: the lead rebases on `main`, runs the tests, merges, and deletes the worktree. The status is `shipped` once released. `specs/settlement-layer.md` on `main` at `6ef219c` still says **ready**.
+`CLAUDE.md` step 5: the lead rebases on `main`, runs the tests, merges, and deletes the worktree. The status is `shipped` once released.
+
+Brian, 2026-11-27 (art-director): `shipped` means the pull request is merged and then tagged. `specs/settlement-layer.md` on `main` at `6ef219c` still says **ready**. This file does not edit that spec.
 
 ## What is written about a pull request
 
