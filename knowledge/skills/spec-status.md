@@ -47,3 +47,5 @@ Brian, 2026-11-27 (art-director): `shipped` means the pull request is merged and
 - The kickoff skill, step 4, opens a pull request when the build on `feat/<feature>` is done, and sets the status to `in review` on the branch in that same step. It says not to merge.
 - `AGENTS.md` says a game feature uses branch `feat/<name>` and a pull request title `feat(pack):`. A fix uses `fix/<name>` and `fix(pack):`.
 - `CLAUDE.md` branch flow does not use the words "pull request". It says the lead merges after the reviewer, the mock tests, the changelog, and `docs/QA.md`.
+
+Brian, 2026-11-27 (art-director): a pull request may be opened while the spec status is `building`. The status stays `building` while that pull request is open. It moves to `shipped` only after the pull request is merged and then tagged. Do not follow kickoff skill step 4 when it sets the status to `in review` at the moment the pull request opens.
