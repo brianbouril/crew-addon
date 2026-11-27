@@ -9,7 +9,7 @@
 // Saved: on the settlement, the depot (settlement.js setDepot/saveDepotUnits); on the Hauler,
 // crew:pickups (stake pickup points), crew:rounds (rounds done today), crew:haulOff (stopped by a
 // player: no rounds by itself until Continue), and the round itself in crew:job / crew:state.
-import { world } from "@minecraft/server";
+import { BlockPermutation, world } from "@minecraft/server";
 import { CARGO_END, HAUL_SLOTS, KIT_SLOTS, SUPPLY_FIRST, isGear, isHaulerBuild, stash, toolInfo } from "./tools.js";
 import { DAWN, DRAIN_PER_BLOCK, DUSK, EXHAUSTED, FOOD, TIRED, eatOne, energy, isNight, setEnergy } from "./life.js";
 import { dist, floorV, fmt, getJSON, onlinePlayer, setJSON, tell } from "./util.js";
@@ -119,6 +119,27 @@ export function depotLayout(d) {
 }
 /** How many chests the depot holds (16 for the default size, more for a bigger area). @param {Depot} d */
 export const chestLimit = (d) => depotLayout(d).chestCells.length;
+/**
+ * Which way a depot chest faces. A slot's two chests face the same way, toward a walkway, so they
+ * join into one double chest. The row behind them faces the other way, so the two rows never join.
+ * Matches `depotLayout`: pairs run along the short side, rows along the long side.
+ * @param {{x0: number, z0: number, x1: number, z1: number}} d @param {V3} cell
+ */
+export function chestFacing(d, cell) {
+  const longX = d.x1 - d.x0 > d.z1 - d.z0;
+  const k = longX ? cell.x - d.x0 : cell.z - d.z0;
+  const towardNext = k % 3 === 2;
+  if (longX) return towardNext ? "east" : "west";
+  return towardNext ? "south" : "north";
+}
+/** Places one depot chest, faced so a pair joins and the row behind does not. @param {Depot} d @param {V3} place */
+function placeDepotChest(d, place) {
+  const dim = world.getDimension(d.dim);
+  const block = dim.getBlock(place);
+  const states = { "minecraft:cardinal_direction": chestFacing(d, place) };
+  if (block) block.setPermutation(BlockPermutation.resolve(CHEST, states));
+  else dim.setBlockType(place, CHEST);
+}
 /** Chests placed so far. @param {Depot} d */
 export const chestsPlaced = (d) => d.units.reduce((n, u) => n + u.cells.length, 0);
 /** Where it stands in the depot when it gets there (the aisle's first cell). @param {Depot} d */
@@ -823,7 +844,7 @@ function storeStep(rt, ctx, inv, d, done) {
           st.phase = "store";
           return;
         }
-        world.getDimension(d.dim).setBlockType(place, CHEST);
+        placeDepotChest(d, place);
         if (t.kind === "place") {
           d.units.push({ cells: [place], kind: t.item, group: groupOf(t.item) });
           unit = d.units.length - 1;
@@ -1228,7 +1249,7 @@ function splitOut(rt, d, t) {
   const inv = invOf(rt.e);
   const from = containerAt(d.dim, t.cell);
   if (!inv || !from || !isAir(d.dim, t.place) || chestsPlaced(d) >= chestLimit(d) || !useChest(inv)) return 0;
-  world.getDimension(d.dim).setBlockType(t.place, CHEST);
+  placeDepotChest(d, t.place);
   d.units.push({ cells: [t.place], kind: t.item, group: groupOf(t.item) });
   saveDepotUnits(rt.job.sid ?? settlementFor(rt.e)?.id ?? "", d.units);
   const to = containerAt(d.dim, t.place);

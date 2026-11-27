@@ -98,7 +98,8 @@ between chests."
 
 ## Out of scope
 - Digging of any kind; crafting (including chests); delivering supplies to workers (roadmap).
-- Home chests (never read or filled).
+- Home chests: never collected from and never filled. A Hauler still takes its own food from its
+  own home chest, the morning restock every worker does (Nov 19).
 - Mine entrance chests: they come with Miner prospecting (release 3); once they exist they're
   picked up like drop-off chests.
 - A carry filter in its menu (later if missed).

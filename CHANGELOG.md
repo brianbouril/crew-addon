@@ -47,7 +47,9 @@ turns it into that version's section.
   bigger area; a depot is at most 16 by 16 blocks). A drop-off chest that's about 3/4 full calls it for an extra trip. Between rounds
   it tidies the depot. It takes chests from settlement storage or from you (tap it holding chests),
   says "I need chests for the depot" when it has none and "The depot is full" when there's no room
-  left, and never touches home chests. It sleeps, tires from walking, finishes a delivery before
+  left. It never takes goods from home chests or puts anything in them, and it still restocks its
+  own food from its own home chest. Depot chests face the walkway, so a pair of the same kind joins
+  into one double chest and the row behind faces the other way. It sleeps, tires from walking, finishes a delivery before
   bed, and needs a free work area (ticking area) for a round, waiting for one if all are taken. Its
   menu: Do a round now, Come here, Stop, Continue, Drop off, Go home, Pickup points. The new
   `/crew:haul` command (the `haul` order) moves things from one chest to another, and `/crew:round`

@@ -169,10 +169,11 @@ a full server restart: `reload` refuses to re-register it.
 - [ ] H11. `/crew:haul <hauler> "blue base" "x y z" minecraft:coal` moves only
       the coal. Server log: no script errors over a 30 minute run; `tickingarea list` shows its
       area during a round and not after.
-- [ ] H13 (staging). Double chests: when it puts a second chest beside one of the same kind, do
-      they join into one double chest? And do chests in the two back-to-back rows (or two kinds
-      side by side) never join each other? If kinds join, the depot's bookkeeping breaks: tell the
-      lead. A torch or carpet in the area: marking the depot is refused (it never removes blocks).
+- [ ] H13 (staging). Double chests: when it puts a second chest beside one of the same kind, they
+      face the walkway and should join into one double chest. The row behind faces the other way,
+      so those two rows (and two different kinds side by side) should not join. If kinds join, the
+      depot's bookkeeping breaks: tell the lead. A torch or carpet in the area: marking the depot
+      is refused (it never removes blocks).
 - [ ] H14. `/crew:haul` from a chest that isn't the settlement's (or another settlement's) is
       refused; a haul to a nearly full chest puts the rest back where it came from.
 - [ ] H12 (Brian's playtest). One Hauler serving two Diggers over an in-game day: does it keep up,

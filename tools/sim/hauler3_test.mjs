@@ -19,7 +19,7 @@ import { setEnergy, energy } from "./scripts/life.js";
 import { setJSON } from "./scripts/util.js";
 
 const TITLE = "hauler part 3 (review fixes)";
-const A = await loadApi(["takeChests", "markDepot", "addPickup", "dueRound", "tidyPlan", "chestLimit", "DEPOT_MAX"]);
+const A = await loadApi(["takeChests", "markDepot", "addPickup", "dueRound", "tidyPlan", "chestLimit", "DEPOT_MAX", "depotLayout", "chestFacing"]);
 if (fails.length) finish(TITLE);
 const OW = "minecraft:overworld";
 const brian = mkPlayer("p1", "Brian", false, { x: 7002, y: 65, z: 6995 }), cal = mkPlayer("p3", "Cal", false, { x: 7200, y: 65, z: 7000 });
@@ -62,6 +62,20 @@ check("refusing it keeps the depot as it was", JSON.stringify(depot()) === s0);
 check("16 by 16 is the largest", A.chestLimit({ ...area(16, 16), x0: 7100, z0: 7100, x1: 7115, z1: 7115, y: 65, units: [] }) > 16);
 check("the sliders and the check use the same limit", A.DEPOT_MAX === 16);
 check("the depot is back where it was", A.markDepot(by, S(), DEP).ok);
+const OPP = { north: "south", south: "north", east: "west", west: "east" };
+/** A slot's two cells face the same way; the cell one row behind faces the opposite way. */
+function facingOk(d) {
+  const pair = A.depotLayout(d).slots.find((sl) => sl.length === 2);
+  if (!pair) return "no pair";
+  const a = A.chestFacing(d, pair[0]), b = A.chestFacing(d, pair[1]);
+  if (a !== b) return `pair ${a}/${b}`;
+  const longX = d.x1 - d.x0 > d.z1 - d.z0;
+  const back = longX ? { ...pair[0], x: pair[0].x + 1 } : { ...pair[0], z: pair[0].z + 1 };
+  const c = A.chestFacing(d, back);
+  return c === OPP[a] ? "" : `behind ${c} vs ${a}`;
+}
+check("Depot: a pair faces one way and the row behind faces the other (5 by 7)", facingOk({ x0: 0, z0: 0, x1: 4, z1: 6, y: 65 }) === "");
+check("Depot: same when the depot is longer east-west (7 by 5)", facingOk({ x0: 0, z0: 0, x1: 6, z1: 4, y: 65 }) === "");
 
 // ---- only the settlement's chests ----
 const haulStray = dispatch(by, { worker: "Fixer", job: "haul", params: { from: [7030, 65, 7020], to: [7020, 65, 7000] } });
@@ -82,6 +96,7 @@ check("totals hold", same(all(), before), { before, after: all() });
 const units = depot().units;
 check("12 kinds: 12 chests, one each", units.length === 12 && new Set(units.map((u) => u.kind)).size === 12, units.map((u) => [u.kind, u.cells.length]));
 check("every chest holds only its kind", units.every((u) => u.cells.every((c) => containerAt(c).items.every((i) => !i || i.typeId === u.kind))));
+check("placed chests face so a pair can join and the row behind cannot", units.every((u) => u.cells.every((c) => ow.getBlock(c).permutation.getState("minecraft:cardinal_direction") === A.chestFacing(depot(), c))));
 check("the stray chest and Cal's chest are untouched", countOf(stray.items, "minecraft:emerald") === 3 && countOf(otherChest.items, "minecraft:diamond") === 5);
 
 // ---- tidying: stacks that don't stack stay apart ----

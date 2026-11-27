@@ -160,7 +160,7 @@ Workers belong to the settlement (on paper, to its founder), so someone who leav
 
 **Mark a depot** first: tap the ground with the Survey Stake, pick **Make a depot here**, set the width and length, check the outline, then tap again and confirm. It needs a flat floor with 2 blocks of room. One per settlement, up to 16 by 16; 5 by 7 holds 16 chests, a bigger area more.
 
-**Three rounds a day** (morning, midday and evening) it walks the same loop of chests, nearest first: your settlement's Diggers' and Miners' drop-off chests, plus any chest you tap with the stake while it's linked (**Hauler pickup**). It carries 18 stacks at a time and brings everything back to the depot. A drop-off chest that gets about 3/4 full calls it for an extra trip. It never touches home chests.
+**Three rounds a day** (morning, midday and evening) it walks the same loop of chests, nearest first: your settlement's Diggers' and Miners' drop-off chests, plus any chest you tap with the stake while it's linked (**Hauler pickup**). It carries 18 stacks at a time and brings everything back to the depot. A drop-off chest that gets about 3/4 full calls it for an extra trip. It never takes goods from home chests or puts anything in them. It still takes its own food from its own home chest in the morning, like the other workers.
 
 **In the depot** it sets up chests in rows with walkways and sorts as it stores: one kind of item per chest, grouped (stone and dirt, ores and metals, wood, food, other). Between rounds it tidies: it merges half stacks and moves strays (never shulker boxes, named items or tools).
 
