@@ -37,7 +37,7 @@ export const BlockPermutation = { resolve: (id, states) => perm(id, states) };
 const key = (p) => `${Math.floor(p.x)},${Math.floor(p.y)},${Math.floor(p.z)}`;
 export const log = { tele: 0, commands: [], spawnedItems: [] };
 class Dimension {
-  constructor(id) { this.id = id; this.blocks = new Map(); this.states = new Map(); this.containers = new Map(); this.entities = []; this.unloaded = new Set(); }
+  constructor(id) { this.id = id; this.blocks = new Map(); this.states = new Map(); this.containers = new Map(); this.signs = new Map(); this.entities = []; this.unloaded = new Set(); }
   /** Tests: make a block read as unloaded (getBlock returns undefined), or loaded again. */
   setUnloaded(p, on = true) { if (on) this.unloaded.add(key(p)); else this.unloaded.delete(key(p)); }
   typeAt(p) { const k = key(p); if (this.blocks.has(k)) return this.blocks.get(k); return Math.floor(p.y) <= 64 ? "minecraft:stone" : "minecraft:air"; }
@@ -45,12 +45,16 @@ class Dimension {
     if (this.unloaded.has(key(p))) return undefined;
     const dim = this; const t = this.typeAt(p); const loc = { x: Math.floor(p.x), y: Math.floor(p.y), z: Math.floor(p.z) };
     return { typeId: t, isAir: t.endsWith("air"), isLiquid: /water|lava/.test(t), location: loc, x: loc.x, y: loc.y, z: loc.z, dimension: dim,
-      getComponent(n) { if (n === "minecraft:inventory" && /chest|barrel/.test(t)) { const k = key(loc); if (!dim.containers.has(k)) dim.containers.set(k, new Container(54)); return { container: dim.containers.get(k) }; } return undefined; },
+      getComponent(n) {
+        if (n === "minecraft:inventory" && /chest|barrel/.test(t)) { const k = key(loc); if (!dim.containers.has(k)) dim.containers.set(k, new Container(54)); return { container: dim.containers.get(k) }; }
+        if (n === "minecraft:sign" && /sign$/.test(t)) { const k = key(loc); return { getText: () => dim.signs.get(k) ?? "", setText: (text) => dim.signs.set(k, String(text ?? "")) }; }
+        return undefined;
+      },
       below() { return dim.getBlock({ x: loc.x, y: loc.y - 1, z: loc.z }); }, bottomCenter() { return { x: loc.x + 0.5, y: loc.y, z: loc.z + 0.5 }; },
       get permutation() { return perm(t, dim.states.get(key(loc))); },
       setPermutation(p) { dim.setBlockType(loc, p.id); if (p.states && Object.keys(p.states).length) dim.states.set(key(loc), { ...p.states }); } };
   }
-  setBlockType(p, t) { this.blocks.set(key(p), t); this.states.delete(key(p)); }
+  setBlockType(p, t) { this.blocks.set(key(p), t); this.states.delete(key(p)); this.signs.delete(key(p)); }
   getEntities(o) { if (o?.families) return this.entities.filter((e) => e.isValid && (e.families ?? []).some((f) => o.families.includes(f))); return this.entities.filter((e) => e.isValid && (!o?.type || e.typeId === o.type)); }
   spawnEntity(type, loc) { const e = new Entity(type, loc, this); this.entities.push(e); return e; }
   spawnItem(it, loc) { log.spawnedItems.push(it); }
@@ -84,7 +88,17 @@ export const setPlayers = (list) => { players = list; };
 const NOT_BLOCKS = /_(pickaxe|shovel|axe|hoe|sword)$|^crew:|bread|apple|cooked|ingot|diamond$|^minecraft:coal$|stick/;
 export const BlockTypes = { get: (id) => (NOT_BLOCKS.test(id) ? undefined : { id }) };
 const wprops = new Map();
-const LOOT = { "minecraft:stone": "minecraft:cobblestone", "minecraft:iron_ore": "minecraft:raw_iron", "minecraft:coal_ore": "minecraft:coal", "minecraft:diamond_ore": "minecraft:diamond", "minecraft:dirt": "minecraft:dirt", "minecraft:grass_block": "minecraft:dirt" };
+const LOOT = {
+  "minecraft:stone": "minecraft:cobblestone", "minecraft:iron_ore": "minecraft:raw_iron", "minecraft:deepslate_iron_ore": "minecraft:raw_iron",
+  "minecraft:coal_ore": "minecraft:coal", "minecraft:deepslate_coal_ore": "minecraft:coal",
+  "minecraft:diamond_ore": "minecraft:diamond", "minecraft:deepslate_diamond_ore": "minecraft:diamond",
+  "minecraft:gold_ore": "minecraft:raw_gold", "minecraft:deepslate_gold_ore": "minecraft:raw_gold",
+  "minecraft:copper_ore": "minecraft:raw_copper", "minecraft:deepslate_copper_ore": "minecraft:raw_copper",
+  "minecraft:redstone_ore": "minecraft:redstone", "minecraft:deepslate_redstone_ore": "minecraft:redstone",
+  "minecraft:lapis_ore": "minecraft:lapis_lazuli", "minecraft:deepslate_lapis_ore": "minecraft:lapis_lazuli",
+  "minecraft:emerald_ore": "minecraft:emerald", "minecraft:deepslate_emerald_ore": "minecraft:emerald",
+  "minecraft:gravel": "minecraft:gravel", "minecraft:sand": "minecraft:sand", "minecraft:dirt": "minecraft:dirt", "minecraft:grass_block": "minecraft:dirt",
+};
 export const lootCalls = [];
 let timeOfDay = 1000; // day by default; tests move the clock with setTimeOfDay
 export const setTimeOfDay = (t) => { timeOfDay = ((t % 24000) + 24000) % 24000; };

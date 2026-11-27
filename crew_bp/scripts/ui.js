@@ -3,7 +3,7 @@
 // Everyone else sees status only.
 import { CommandPermissionLevel, world } from "@minecraft/server";
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
-import { KEEP } from "./catalog.js";
+import { KEEP, QUOTA_ORES } from "./catalog.js";
 import { SETTLEMENT_ORDERS, dispatch, orderSettlement } from "./orders.js";
 import { depthLabel, getPlan, giveStake, hasStake, planOrder, planText, updatePlan } from "./marker.js";
 import { countItem, isResting, isWorking, pausedJob, statusText, stopJob, wakeUp } from "./runner.js";
@@ -45,7 +45,7 @@ async function menu(p, title, body, buttons) {
 /** What each role does, shown after its name in the menu. @type {Record<string, string>} */
 const ROLE_JOBS = {
   Digger: " (quarries)",
-  Miner: " (prospecting for ore is coming in the next version; it has no dig jobs until then)",
+  Miner: " (prospects for ore)",
   Woodcutter: " (no jobs yet)",
   Farmer: " (no jobs yet)",
 };
@@ -64,13 +64,17 @@ export async function openMenu(p, e) {
   const resting = isResting(e);
   if (resting) b.push(["Wake up", () => tell(p, wakeUp(e) ? `${m.name} is getting up.` : `${m.name} is already up.`)]);
   const paused = pausedJob(e);
-  const digging = /quarry|branch_mine/.test(String(getJSON(e, "crew:job", undefined)?.type));
+  const digging = /quarry|branch_mine|prospect/.test(String(getJSON(e, "crew:job", undefined)?.type));
   if (paused && !digging) {
     b.push([`Continue the ${paused.name} (${paused.pct}% done)`, () => say(p, dispatch(by, { worker: m.name, job: "resume", params: {} }))]);
   }
   // decision 32: each role offers only its own jobs. The Miner's (prospecting) come in v0.6.
   if (roleOf(e) === "Digger") {
     b.push(["Quarry", () => digForm(p, by, e, "quarry")]);
+    if (!hasStake(p)) b.push(["Get a Survey Stake", () => tell(p, giveStake(p))]);
+  }
+  if (roleOf(e) === "Miner") {
+    b.push(["Prospect", () => prospectForm(p, by, e)]);
     if (!hasStake(p)) b.push(["Get a Survey Stake", () => tell(p, giveStake(p))]);
   }
   b.push(["Come here", () => say(p, dispatch(by, { worker: m.name, job: "come", params: {} }))]);
@@ -221,6 +225,47 @@ function depositChoices(p, by, dim) {
   return out;
 }
 
+const ORE_LABEL = ["Coal", "Copper", "Iron", "Gold", "Redstone", "Lapis", "Emerald", "Diamond"];
+
+/** Start a Miner on a prospect: around its home, or the confirmed stake plan. @param {Player} p @param {Commander} by @param {Entity} e */
+export async function prospectForm(p, by, e) {
+  const m = meta(e);
+  const plan = getPlan(p);
+  const staked = plan?.mode === "prospect" && plan.confirmed && plan.dim === e.dimension.id;
+  const f = new ModalFormData().title(`${m.name}: prospect`)
+    .dropdown("Where", ["Around its home (the bed stays protected)", staked ? `The mine I staked at ${fmt(plan.anchor)}` : "A staked start (plan one with the Survey Stake first)"])
+    .dropdown("Quota", ["No quota: any valuables", ...ORE_LABEL])
+    .textField("How many of that ore (blank if no quota)", "10", { defaultValue: "" })
+    .textField("Mine name (blank for an automatic name)", "Digby's Diamond Mine No. 1", { defaultValue: "" })
+    .submitButton("Start");
+  const r = await show(p, f);
+  if (!r?.formValues) return;
+  const whereIdx = Number(r.formValues[0]);
+  const oreIdx = Number(r.formValues[1]);
+  const quota = Math.round(Number(r.formValues[2]));
+  const name = String(r.formValues[3] ?? "").trim();
+  const stake = whereIdx === 1;
+  if (stake && !staked) {
+    tell(p, "Plan a mine with the Survey Stake first: link this Miner, tap the ground where it should start, then confirm.");
+    return;
+  }
+  /** @type {Record<string, any>} */
+  const params = stake
+    ? { where: "stake", start: plan?.anchor, facing: plan?.facing }
+    : { where: "home" };
+  if (oreIdx > 0) {
+    if (!Number.isFinite(quota) || quota < 1) {
+      tell(p, "Enter how many of that ore to stop after, or pick No quota.");
+      return;
+    }
+    params.quota_ore = QUOTA_ORES[oreIdx - 1];
+    params.quota = quota;
+  }
+  if (name) params.name = name;
+  else if (stake && plan?.mineName) params.name = plan.mineName;
+  say(p, dispatch(by, { worker: m.name, job: "prospect", params }));
+}
+
 /** @param {Player} p @param {Commander} by @param {Entity} e @param {"quarry"|"branch"} mode */
 export async function digForm(p, by, e, mode) {
   const m = meta(e);
@@ -342,13 +387,14 @@ async function roleForm(p, e) {
   const m = meta(e);
   if (isWorking(e)) return menu(p, m.name, `Stop ${m.name} before changing its role.`, [["OK", () => {}]]);
   const f = new ModalFormData().title(`${m.name}: role`)
-    .dropdown("Role: Digger digs quarries; Miner will prospect for ore (next version); Woodcutter and Farmer are coming", ROLE_LIST, { defaultValueIndex: Math.max(0, ROLE_LIST.indexOf(roleOf(e))) })
+    .dropdown("Role: Digger digs quarries; Miner prospects for ore; Woodcutter and Farmer are coming", ROLE_LIST, { defaultValueIndex: Math.max(0, ROLE_LIST.indexOf(roleOf(e))) })
     .submitButton("Save");
   const r = await show(p, f);
   if (!r?.formValues) return;
   const role = ROLE_LIST[Number(r.formValues[0])];
   setRole(e, role);
-  tell(p, `${m.name} is now a ${role}.${role === "Digger" ? " It digs quarries." : " It has no dig jobs yet in this version."}`);
+  const does = role === "Digger" ? " It digs quarries." : role === "Miner" ? " It prospects for ore." : " It has no dig jobs yet in this version.";
+  tell(p, `${m.name} is now a ${role}.${does}`);
 }
 
 /** @param {Player} p @param {Entity} e */

@@ -7,7 +7,7 @@ or pick "How workers work" in any worker's menu.
 2. [Talk to your worker](#talk-to-your-worker)
 3. [The Survey Stake (your remote)](#the-survey-stake-your-remote)
 4. [Quarry](#quarry)
-5. [Miners (coming next)](#miners-coming-next)
+5. [Prospecting](#prospecting)
 6. [Tools and tough blocks](#tools-and-tough-blocks)
 7. [Torches](#torches)
 8. [Getting your stuff](#getting-your-stuff)
@@ -28,7 +28,7 @@ The barrel and pumpkin turn into a little worker in a hard hat. It's yours: you'
 
 The **first tool you put in the barrel decides its job**:
 - a **shovel** makes a **Digger**: it digs quarries. Give it pickaxes too, for stone.
-- a **pickaxe** makes a **Miner**: it will prospect for ore in the next version (no dig jobs until then).
+- a **pickaxe** makes a **Miner**: it prospects for ore, around its home or from a spot you stake.
 - axes and hoes are for jobs coming later.
 Each worker only takes its own jobs. Workers from before this update are Diggers now.
 
@@ -43,7 +43,7 @@ Its name tag shows its name, its job and its best tool.
 - **Tap it holding torches** to give it torches.
 - **Tap it holding the Survey Stake** to link the stake to it, so you can give it orders from anywhere.
 
-The menu has its jobs (a Digger's: Quarry), Come here, Stop, Continue, Drop off, Take what it carries, Home (its bed and chest), and Tools (see how worn each tool is).
+The menu has its jobs (a Digger's: Quarry, a Miner's: Prospect), Come here, Stop, Continue, Drop off, Take what it carries, Home (its bed and chest), and Tools (see how worn each tool is).
 
 Owners also get: Name, Role, Who can give orders, and Dismiss.
 
@@ -60,10 +60,10 @@ Get one: pick **Get a Survey Stake** in a worker's menu, type **/crew:stake**, o
 
 Plan a dig
 1. **Face the way you want to dig** and tap the ground block where it should start.
-2. Pick **Plan a quarry** and set the size with the sliders. **Clear above** also takes off the hill or trees on top of it.
+2. A Digger: pick **Plan a quarry** and set the size with the sliders. **Clear above** also takes off the hill or trees on top of it. A Miner: the tap plans a **mine** (name and quota are on the next tap).
 3. A **white outline** shows the plan while you hold the stake (flames point forward).
 4. Tap with the stake again (any block, or the air) and pick **Confirm**. The outline turns green.
-5. **Start it with** the linked Digger right there, or later from its orders. Choose where it drops off and what to bring back, then Start.
+5. **Start it with** the linked worker right there, or later from its orders. A quarry asks where it drops off and what to bring back. A mine uses a chest at the entrance.
 
 Done with the stake? Every stake menu has **Put the stake away**. Your plan and link are kept.
 
@@ -83,13 +83,21 @@ Otherwise it only digs inside the box. The one exception: if a block is in its w
 
 Up to 128 blocks on each side.
 
-## Miners (coming next)
+## Prospecting
 
-A worker built with a **pickaxe** first is a **Miner**. In the next version you'll tell a Miner what ore to find and roughly where, and it digs its own **branch mine**: stairs down to the best depth for that ore, a main tunnel and side branches with 2 solid blocks between them.
+A **Miner's** job, in the overworld. It hunts **any valuables** it uncovers (coal, copper, iron, gold, redstone, lapis, emerald, diamonds). It does not look through stone. You can add a quota, such as 10 diamonds, and it still digs the other ores on the way.
 
-It will mine **ore it finds in the tunnel walls** and fill the holes back in, light its tunnels, and report what it finds.
+Two ways to start it: **Around its home**, or **stake a start** with the Survey Stake (link the Miner, face the way the tunnels should run, tap the ground, then confirm). The claim is 64 blocks from the entrance. The bed, and the ground within 8 blocks of the bed and the home chest, is never dug.
 
-Until then a Miner has no dig jobs. Branch mines can't be ordered on their own any more; one a worker had already started can still be continued.
+It digs a stair down to Y -59, then a branch mine: a 2-wide tunnel and side branches with 2 solid blocks between them. Ore in the walls is dug out and the holes filled. Torches go in as it goes, close enough that monsters can't spawn.
+
+Before it digs, it builds a small wooden entrance (posts, a beam, a lantern if you have one, and a named sign) if the home chest or a deposit chest has wood: 8 planks, and a log counts as 4. It also needs a chest for the ore. If the wood or the chest is missing, it says so, skips the woodwork, and uses a chest you placed by the start. The sign defaults to a name like **Digby's Diamond Mine No. 1** (the ore is named when you set a quota). You can type your own.
+
+The ore chest is an ordinary chest. A Hauler will collect it like any other drop-off. Gravel, sand, dirt and ores in that chest are ordinary items, so a Sifter can use the chest as a material source.
+
+It stops for the night and starts again in the morning, when it runs out of pickaxes, when the quota is met, or when the claim is mined out. It says which. Out of pickaxes, with a crafting table within 8 blocks of its bed and the materials in the home chest, it makes a replacement no better than the one it lost.
+
+Branch mines still can't be ordered on their own. One a worker had already started can still be continued.
 
 ## Tools and tough blocks
 
@@ -105,7 +113,7 @@ If none of its tools can break a block (obsidian with an iron pickaxe), it **lea
 
 Give it torches (in the barrel when you build it, or tap it holding torches) and it places them on the **quarry staircase** as it goes down, so the stairs stay lit.
 
-Miners will light their tunnels too, close enough that monsters can't spawn, when prospecting arrives.
+Miners light their tunnels the same way, close enough that monsters can't spawn.
 
 It tells you when it runs out. Torches never go into the chest.
 

@@ -1,7 +1,7 @@
 // Slash commands. Each one turns its arguments into an order or a small admin action.
 // Callbacks run in a read-only "before" context, so all real work is deferred with later().
 import { CommandPermissionLevel, CustomCommandParamType as T, CustomCommandSource, CustomCommandStatus, ItemStack } from "@minecraft/server";
-import { KEEP, catalogText, toolSchemas } from "./catalog.js";
+import { KEEP, QUOTA_ORES, catalogText, toolSchemas } from "./catalog.js";
 import { b64decode, fmt, onlinePlayer, setJSON, tell } from "./util.js";
 import { getPlaces, canUsePlace, removePlace, savePlace, getRegistry } from "./store.js";
 import { canCommand, canManage, dismissWorker, findWorker, later, loadedWorkers, meta, renameWorker, spawnWorker } from "./workers.js";
@@ -67,6 +67,8 @@ function workerFor(by, name, manage = false) {
 /** @param {import("@minecraft/server").CustomCommandRegistry} reg */
 export function registerCommands(reg) {
   reg.registerEnum("crew:keep", KEEP);
+  reg.registerEnum("crew:where", ["home", "stake"]);
+  reg.registerEnum("crew:ore", QUOTA_ORES);
   const ANY = CommandPermissionLevel.Any;
 
   cmd(reg, { name: "crew:hire", description: "Debug: spawn a worker you own (operators only).", permissionLevel: CommandPermissionLevel.GameDirectors, optionalParameters: [{ name: "name", type: T.String }] },
@@ -173,6 +175,26 @@ export function registerCommands(reg) {
         if (typeof d === "object") dep = [d.x, d.y, d.z];
       }
       order(by, { worker, job: "quarry", params: { from, to, deposit: dep, keep } });
+    });
+
+  cmd(reg, { name: "crew:prospect", description: "Send a Miner prospecting for ore in the overworld.", permissionLevel: ANY,
+    mandatoryParameters: [{ name: "worker", type: T.String }],
+    optionalParameters: [{ name: "crew:where", type: T.Enum }, { name: "name", type: T.String }, { name: "crew:ore", type: T.Enum }, { name: "quota", type: T.Integer }] },
+    (by, worker, where, name, ore, quota) => {
+      /** @type {Record<string, any>} */
+      const params = { where: where || "home" };
+      if (name) params.name = String(name);
+      if (ore) params.quota_ore = ore;
+      if (quota) params.quota = quota;
+      if (params.where === "stake" && by.player) {
+        const plan = getPlan(by.player);
+        if (plan?.mode === "prospect" && plan.confirmed) {
+          params.start = plan.anchor;
+          params.facing = plan.facing;
+          if (!params.name && plan.mineName) params.name = plan.mineName;
+        }
+      }
+      order(by, { worker, job: "prospect", params });
     });
 
   cmd(reg, { name: "crew:come", description: "Call a worker to you.", permissionLevel: ANY, mandatoryParameters: [{ name: "worker", type: T.String }] },

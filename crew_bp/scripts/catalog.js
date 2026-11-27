@@ -3,6 +3,12 @@
 import { FACINGS, branchGeom, quarryFromBox } from "./plans.js";
 
 export const MAX_SIDE = 128;
+/** Prospect claim, in blocks from the entrance. Matches prospect.js CLAIM_RADIUS. */
+export const CLAIM_RADIUS = 64;
+/** Deep overworld tunnel floor (diamonds and the other deep ores). */
+export const PROSPECT_FLOOR = -59;
+/** Quota ores. Nether ores are not in this list. */
+export const QUOTA_ORES = ["coal", "copper", "iron", "gold", "redstone", "lapis", "emerald", "diamond"];
 /** What to bring back. "all" (the default) keeps everything it digs, like a player picking up drops. */
 export const KEEP = ["all", "valuables", "nothing"];
 export const DEFAULTS = { trunk: 32, branch: 32, spacing: 2, targetY: -54, width: 2 };
@@ -43,6 +49,21 @@ export const JOBS = {
       spacing: { type: "int", min: 1, max: 16, default: DEFAULTS.spacing, description: "Solid blocks left between neighbouring branches." },
       deposit: { type: "place", required: true, description: "A saved place name or the coordinates of a chest or barrel." },
       keep: { type: "enum", values: KEEP, default: "all", description: "What to bring back: all (default), valuables, or nothing." },
+    },
+  },
+  prospect: {
+    roles: ["Miner"],
+    description:
+      "Miner only. Overworld only. Hunt any valuables from a branch mine at diamond depth, either around the worker's home (the home column is never dug) or from a Survey Stake start. Optional quota on one ore. Stops at night, when pickaxes run out, when the quota is met, or when the claim is mined out. Ore goes to a chest at the entrance.",
+    params: {
+      where: { type: "enum", values: ["home", "stake"], required: true, description: "home: the ground around the worker's bed. stake: the block in start." },
+      start: { type: "vec3", description: "Ground block where a staked mine begins. Required when where is stake." },
+      facing: { type: "enum", values: FACINGS, default: "east", description: "Direction the trunk runs, and (for home) which way from the bed the entrance sits." },
+      quota_ore: { type: "enum", values: QUOTA_ORES, description: "Optional. Also stop after `quota` blocks of this ore. The miner still digs every other valuable." },
+      quota: { type: "int", min: 1, max: 999, description: "How many quota_ore blocks to stop after. Requires quota_ore." },
+      name: { type: "string", description: "Sign text. Blank uses an automatic name such as Digby's Diamond Mine No. 1." },
+      range: { type: "int", min: 4, max: CLAIM_RADIUS, default: CLAIM_RADIUS, description: "How far from the entrance the tunnels may go. The menu and the stake use 64." },
+      deposit: { type: "place", description: "A chest to take wood and a chest item from, after the home chest. Also used as the ore chest when the miner does not place one." },
     },
   },
   come: {
@@ -86,7 +107,7 @@ export const roleTakes = (jobName, role) => !JOBS[jobName]?.roles || /** @type {
 export function roleRefusal(name, role, jobName) {
   const who = JOBS[jobName]?.roles?.[0] ?? "other";
   const tool = { Digger: "a shovel", Miner: "a pickaxe", Woodcutter: "an axe", Farmer: "a hoe" }[who] ?? "the right tool";
-  const what = jobName === "quarry" ? "Quarries are" : jobName === "branch_mine" ? "Branch mines are" : `'${jobName}' is`;
+  const what = jobName === "quarry" ? "Quarries are" : jobName === "branch_mine" ? "Branch mines are" : jobName === "prospect" ? "Prospecting is" : `'${jobName}' is`;
   return `${name} is a ${role}. ${what} a ${who}'s job: build a ${who} (put ${tool} in the barrel first), or change ${name}'s role in its menu.`;
 }
 
@@ -131,6 +152,9 @@ export function validate(jobName, params) {
   jobName = /** @type {Record<string,string>} */ (ALIASES)[jobName] ?? jobName;
   const job = JOBS[jobName];
   if (!job) return { ok: false, error: `Unknown job '${jobName}'. Jobs: ${offered().map(([n]) => n).join(", ")}.` };
+  if (jobName === "prospect" && params?.quota_ore && /ancient|debris/.test(String(params.quota_ore).toLowerCase())) {
+    return { ok: false, error: "Ancient debris waits. Prospecting stays in the overworld for now, and it hunts the ores it uncovers there." };
+  }
   /** @type {Record<string, any>} */
   const out = {};
   for (const [p, spec] of Object.entries(job.params)) {
@@ -175,6 +199,11 @@ export function validate(jobName, params) {
   if (jobName === "branch_mine") {
     if (out.target_y > out.start.y + 1) return { ok: false, error: `target_y (${out.target_y}) must be at or below the start (${out.start.y + 1}).` };
     out.geom = branchGeom(out.start, out.facing, { trunk: out.trunk_length, branch: out.branch_length, spacing: out.spacing, targetY: out.target_y, width: out.trunk_width });
+  }
+  if (jobName === "prospect") {
+    if (out.where === "stake" && !out.start) return { ok: false, error: "prospect needs 'start' when where is stake." };
+    if (out.quota_ore && out.quota === undefined) return { ok: false, error: "prospect needs 'quota' (how many) with quota_ore." };
+    if (out.quota !== undefined && !out.quota_ore) return { ok: false, error: "prospect needs 'quota_ore' with quota." };
   }
   return { ok: true, job: jobName, params: out };
 }

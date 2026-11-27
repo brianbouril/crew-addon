@@ -4,7 +4,7 @@
 // Use it on a chest or barrel to mark where workers drop things off.
 import { ItemStack, system, world } from "@minecraft/server";
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
-import { DEFAULTS, MAX_SIDE, MAX_TRUNK_WIDTH } from "./catalog.js";
+import { CLAIM_RADIUS, DEFAULTS, MAX_SIDE, MAX_TRUNK_WIDTH, QUOTA_ORES } from "./catalog.js";
 import { arrow, branchGeom, facingFromYaw, outline, quarryGeom } from "./plans.js";
 import { CLEAR_ABOVE_MAX, layersAbove } from "./blocks.js";
 import { dist, fmt, getJSON, sameV, setJSON, tell } from "./util.js";
@@ -23,9 +23,9 @@ export const STAKE = "crew:survey_stake";
 
 /**
  * @typedef {{x:number,y:number,z:number}} V3
- * @typedef {{mode: "quarry"|"branch", dim: string, anchor: V3, facing: string, confirmed: boolean,
+ * @typedef {{mode: "quarry"|"branch"|"prospect", dim: string, anchor: V3, facing: string, confirmed: boolean,
  *   length: number, width: number, depth: number, trunk: number, trunkWidth?: number, branch: number, spacing: number, targetY: number,
- *   clearAbove?: boolean, above?: number, aboveTooHigh?: boolean}} Plan
+ *   clearAbove?: boolean, above?: number, aboveTooHigh?: boolean, mineName?: string, quotaOre?: string, quota?: number, range?: number}} Plan
  */
 
 /**
@@ -35,7 +35,7 @@ export const STAKE = "crew:survey_stake";
  */
 export const getPlan = (p) => {
   const plan = getJSON(p, "crew:plan", undefined);
-  return plan?.mode === "quarry" ? plan : undefined;
+  return plan?.mode === "quarry" || plan?.mode === "prospect" ? plan : undefined;
 };
 /** @param {import("@minecraft/server").Player} p @param {Plan | undefined} plan */
 const savePlan = (p, plan) => setJSON(p, "crew:plan", plan && measureAbove(plan));
@@ -59,7 +59,14 @@ function measureAbove(plan) {
 export const depthLabel = (topY) => `Depth: how many blocks down (top layer is Y ${topY}, so 10 digs down to Y ${topY - 9})`;
 
 /** One line describing a plan. @param {Plan} plan */
+const ORE_LABEL = { coal: "Coal", copper: "Copper", iron: "Iron", gold: "Gold", redstone: "Redstone", lapis: "Lapis", emerald: "Emerald", diamond: "Diamond" };
+
 export function planText(plan) {
+  if (plan.mode === "prospect") {
+    const quota = plan.quotaOre && plan.quota ? ` Stops after ${plan.quota} ${plan.quotaOre}.` : " It hunts any valuables.";
+    const named = plan.mineName ? ` Sign: ${plan.mineName}.` : " The sign name is automatic.";
+    return `Mine from ${fmt(plan.anchor)} heading ${plan.facing}, down to Y -59, within ${plan.range ?? CLAIM_RADIUS} blocks.${quota}${named} The home, if it is inside that ground, stays undug.`;
+  }
   if (plan.mode === "quarry") {
     const above = !plan.clearAbove ? "" : plan.aboveTooHigh ? `\n§cClear above is on, but there's more than ${CLEAR_ABOVE_MAX} blocks over it (underground?): turn it off or plan at the surface.§r`
       : plan.above ? `\nFirst it clears the ${plan.above} layer${plan.above === 1 ? "" : "s"} above it (hills, trees), so nothing is left floating.` : "\nNothing above it to clear.";
@@ -71,6 +78,16 @@ export function planText(plan) {
 
 /** The order a confirmed plan turns into (without deposit, keep and pace). @param {Plan} plan */
 export function planOrder(plan) {
+  if (plan.mode === "prospect") {
+    /** @type {Record<string, any>} */
+    const params = { where: "stake", start: plan.anchor, facing: plan.facing, range: plan.range ?? CLAIM_RADIUS };
+    if (plan.mineName) params.name = plan.mineName;
+    if (plan.quotaOre && plan.quota) {
+      params.quota_ore = plan.quotaOre;
+      params.quota = plan.quota;
+    }
+    return { job: "prospect", params };
+  }
   if (plan.mode === "quarry") {
     const g = quarryGeom(plan.anchor, plan.facing, plan.length, plan.width, plan.depth);
     return { job: "quarry", params: { from: g.min, to: g.max, facing: plan.facing, clear_above: !!plan.clearAbove } };
@@ -203,6 +220,22 @@ export async function stakeTap(p, block) {
  */
 async function newPlan(p, block, plan) {
   const facing = facingFromYaw(p.getRotation().y);
+  const linked = linkedWorker(p);
+  if (linked && roleOf(linked) === "Miner") {
+    if (block.dimension.id !== "minecraft:overworld") {
+      tell(p, "Prospecting stays in the overworld for now.");
+      return;
+    }
+    /** @type {Plan} */
+    const mine = {
+      mode: "prospect", dim: block.dimension.id, anchor: { ...block.location }, facing, confirmed: false,
+      length: 16, width: 16, depth: 16, trunk: DEFAULTS.trunk, branch: DEFAULTS.branch, spacing: DEFAULTS.spacing, targetY: DEFAULTS.targetY,
+      range: CLAIM_RADIUS, mineName: "", quotaOre: "", quota: 0,
+    };
+    savePlan(p, mine);
+    tell(p, `${planText(mine)}\nCheck the outline, then tap with the stake again to name it, set a quota, or confirm.`);
+    return;
+  }
   const base = plan ?? { mode: "quarry", length: 16, width: 16, depth: 16, trunk: DEFAULTS.trunk, trunkWidth: DEFAULTS.width, branch: DEFAULTS.branch, spacing: DEFAULTS.spacing, targetY: DEFAULTS.targetY, clearAbove: true };
   /** @type {Plan} */
   const next = { ...base, dim: block.dimension.id, anchor: { ...block.location }, facing, confirmed: false };
@@ -293,7 +326,7 @@ async function planActions(p, tapped) {
   const facing = facingFromYaw(p.getRotation().y);
   const elsewhere = tapped && !sameV(plan.anchor, tapped.location) ? tapped : undefined;
   const f = new ActionFormData().title(plan.confirmed ? "Plan (confirmed)" : "Plan (not confirmed yet)").body(planText(plan))
-    .button(plan.confirmed ? "Keep it" : "Confirm").button("Change the size").button(`Point it ${facing}`).button("Clear the plan").button("Put the stake away");
+    .button(plan.confirmed ? "Keep it" : "Confirm").button(plan.mode === "prospect" ? "Name and quota" : "Change the size").button(`Point it ${facing}`).button("Clear the plan").button("Put the stake away");
   if (elsewhere) f.button(`Plan a new quarry at ${fmt(elsewhere.location)} instead`);
   const r = await show(p, f);
   if (!r || r.selection === undefined) return;
@@ -305,6 +338,21 @@ async function planActions(p, tapped) {
     case 0: {
       savePlan(p, { ...plan, confirmed: true });
       const e = linkedWorker(p);
+      if (plan.mode === "prospect") {
+        if (e && roleOf(e) !== "Miner") {
+          tell(p, `Plan confirmed. ${roleRefusal(meta(e).name, roleOf(e), "prospect")}`);
+          return;
+        }
+        if (e) {
+          const m = meta(e);
+          const go = await show(p, new ActionFormData().title("Plan confirmed").body(`Start this mine with ${m.name} now?`).button(`Start it with ${m.name}`).button("Not yet"));
+          if (go?.selection === 0) {
+            const o = planOrder(/** @type {Plan} */ (getPlan(p)));
+            say(p, dispatch(whoIs(p), { worker: m.name, job: o.job, params: o.params }));
+          }
+        } else tell(p, "Plan confirmed. Link a Miner with the stake, then confirm again to start it.");
+        return;
+      }
       if (e && roleOf(e) !== "Digger") {
         tell(p, `Plan confirmed. ${roleRefusal(meta(e).name, roleOf(e), "quarry")}`);
         return;
@@ -337,6 +385,24 @@ async function planActions(p, tapped) {
 
 /** Asks for the sizes of a plan; edits it in place. @param {import("@minecraft/server").Player} p @param {Plan} plan */
 async function sizeForm(p, plan) {
+  if (plan.mode === "prospect") {
+    const ores = ["No quota", ...QUOTA_ORES.map((id) => ORE_LABEL[/** @type {keyof typeof ORE_LABEL} */ (id)] ?? id)];
+    const idx = Math.max(0, QUOTA_ORES.indexOf(plan.quotaOre ?? ""));
+    const f = new ModalFormData().title("Mine name")
+      .textField("Name on the sign (blank for an automatic name)", "Digby's Mine No. 1", { defaultValue: plan.mineName ?? "" })
+      .dropdown("Stop after one ore", ores, { defaultValueIndex: plan.quotaOre ? idx + 1 : 0 })
+      .textField("How many of that ore", "10", { defaultValue: plan.quota ? String(plan.quota) : "" })
+      .submitButton("Show outline");
+    const r = await show(p, f);
+    if (!r?.formValues) return false;
+    plan.mineName = String(r.formValues[0] ?? "").trim();
+    const oreIdx = Number(r.formValues[1]);
+    plan.quotaOre = oreIdx > 0 ? QUOTA_ORES[oreIdx - 1] : "";
+    const n = Math.round(Number(r.formValues[2]));
+    plan.quota = plan.quotaOre && Number.isFinite(n) && n > 0 ? n : 0;
+    plan.range = CLAIM_RADIUS;
+    return true;
+  }
   if (plan.mode === "quarry") {
     const f = new ModalFormData().title("Quarry size")
       .slider("Length (forward)", 2, MAX_SIDE, { defaultValue: clamp(plan.length, 2, MAX_SIDE), valueStep: 1 })

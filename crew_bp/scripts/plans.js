@@ -208,6 +208,101 @@ export function torchAt(i, n, every = TORCH_EVERY) {
 /** Torch spacing along a trunk `w` lanes wide, so its far lane is also within 6 of a torch: 12, 10, 8, 6. @param {number} w */
 export const trunkTorchEvery = (w) => Math.max(4, 2 * (7 - w));
 
+// ---------------- prospect (a branch mine under a compact stair) ----------------
+/**
+ * The home column: every block within `r` of the bed, its foot, or the home chest, at any
+ * depth, so a tunnel cannot dig the house or the ground under it.
+ * @param {{r?: number, spots?: V3[]} | undefined} guard @param {V3} c
+ */
+export function inGuard(guard, c) {
+  if (!guard?.spots || !c) return false;
+  const r = guard.r ?? 8;
+  return guard.spots.some((s) => Math.max(Math.abs(c.x - s.x), Math.abs(c.z - s.z)) <= r);
+}
+
+/**
+ * A prospect step must not dig this block: outside the claim square, inside the home column,
+ * or one of the entrance blocks (chest, posts, sign).
+ * @param {any} job @param {V3} c
+ */
+export function prospectBlocked(job, c) {
+  if (job?.type !== "prospect" || !c || !job.geom?.anchor) return false;
+  const a = job.geom.anchor;
+  if (Math.max(Math.abs(c.x - a.x), Math.abs(c.z - a.z)) > (job.geom.range ?? 64)) return true;
+  if (inGuard(job.guard, c)) return true;
+  return !!job.safe?.some((s) => s.x === c.x && s.y === c.y && s.z === c.z);
+}
+
+/**
+ * Prospect geometry. The descent is a shaft at the start with treads on alternating sides, so
+ * the whole stair stays next to the entrance. A straight branch-mine stair would walk out of a
+ * 64-block claim before it reached diamond level. At `floorY` the hidden branch mine runs:
+ * 2-wide trunk, branches, 2 solid blocks between them.
+ * @param {V3} anchor @param {string} facing @param {number} range @param {number} [floorY]
+ */
+export function prospectGeom(anchor, facing, range, floorY = -59) {
+  const ty = Math.min(floorY, anchor.y);
+  const nStairs = anchor.y === ty ? 0 : anchor.y - ty + 1;
+  const bAnchor = { x: anchor.x, y: ty - 1, z: anchor.z };
+  const branch = branchGeom(bAnchor, facing, { trunk: range, branch: range, spacing: 2, targetY: ty, width: 2 });
+  return {
+    anchor: { x: anchor.x, y: anchor.y, z: anchor.z }, facing, ty, range, nStairs, branch,
+    total: nStairs + branch.total,
+  };
+}
+
+/** One step down the shaft. The tread is cobblestone placed after the dig, so the way out stays walkable. @param {any} g @param {number} k */
+function descentStep(g, k) {
+  const d = DIRS[g.facing] ?? DIRS.east;
+  const r = rightOf(d);
+  const side = k % 2 === 0 ? 1 : -1;
+  const y = g.anchor.y - k;
+  const shaft = { x: g.anchor.x, y, z: g.anchor.z };
+  const tread = { x: g.anchor.x + r.x * side, y, z: g.anchor.z + r.z * side };
+  const stand = { x: tread.x, y: y + 1, z: tread.z };
+  return {
+    stand, treadAt: tread, fwd: d,
+    mine: [shaft, { x: shaft.x, y: y + 1, z: shaft.z }, tread, stand, { x: stand.x, y: stand.y + 1, z: stand.z }],
+    torch: g.nStairs > 0 && torchAt(k, g.nStairs),
+  };
+}
+
+/** Drop mine cells and stands the prospect is not allowed to touch. @param {any} job @param {any} step */
+function filterProspect(job, step) {
+  if (!step) return {};
+  const mine = (step.mine ?? []).filter((/** @type {V3} */ c) => !prospectBlocked(job, c));
+  /** @type {any} */
+  const out = { ...step };
+  if (mine.length) out.mine = mine;
+  else delete out.mine;
+  if (!step.treadAt || prospectBlocked(job, step.treadAt)) delete out.treadAt;
+  if (!step.stand || prospectBlocked(job, step.stand)) delete out.stand;
+  return out;
+}
+
+/** @param {any} job @param {number} i */
+export function prospectStep(job, i) {
+  const g = job.geom;
+  if (i < g.nStairs) return filterProspect(job, descentStep(g, i));
+  let k = i - g.nStairs;
+  for (const s of segments(g.branch)) {
+    if (k < s.n) return filterProspect(job, s.at(k));
+    k -= s.n;
+  }
+  return {};
+}
+
+/**
+ * Cells the prospect pattern will dig (shaft, treads, trunk, branches), so ore in those cells
+ * is not also queued as a wall vein.
+ * @param {any} g @param {V3} c
+ */
+export function inProspectPlan(g, c) {
+  if (!g?.anchor) return false;
+  if (Math.max(Math.abs(c.x - g.anchor.x), Math.abs(c.z - g.anchor.z)) <= 1 && c.y <= g.anchor.y + 2 && c.y >= g.ty) return true;
+  return inBranchPlan(g.branch, c);
+}
+
 // ---------------- shared ----------------
 /** @param {any} job @param {number} i */
 export function stepAt(job, i) {
@@ -222,6 +317,7 @@ export function stepAt(job, i) {
     // torches go on top of stair steps, so the way in and out is lit
     return isStairBlock(g, c) ? { keep: c, torch: torchAt(g.max.y - 1 - c.y, g.D - 1) } : { stand: c, mine: [c] };
   }
+  if (job.type === "prospect") return prospectStep(job, i);
   let k = i;
   for (const s of segments(job.geom)) {
     if (k < s.n) return s.at(k);
@@ -233,6 +329,10 @@ export function stepAt(job, i) {
 /** Where the worker should walk to before the first step. @param {any} job */
 export function startCell(job) {
   if (job.type === "quarry") return { ...job.geom.anchor };
+  if (job.type === "prospect") {
+    const s = prospectStep(job, 0);
+    return s.stand ? { ...s.stand } : { ...job.geom.anchor };
+  }
   const g = job.geom;
   return g.n > 0 ? { ...g.anchor } : { ...g.O };
 }
@@ -246,6 +346,15 @@ export function startCell(job) {
 export function outline(plan) {
   /** @type {[V3, V3][]} */
   const segs = [];
+  if (plan.mode === "prospect") {
+    const r = plan.range ?? 64;
+    const y = plan.anchor.y + 1.05;
+    const x0 = plan.anchor.x - r, x1 = plan.anchor.x + r + 1;
+    const z0 = plan.anchor.z - r, z1 = plan.anchor.z + r + 1;
+    segs.push([{ x: x0, y, z: z0 }, { x: x1, y, z: z0 }], [{ x: x1, y, z: z0 }, { x: x1, y, z: z1 }],
+      [{ x: x1, y, z: z1 }, { x: x0, y, z: z1 }], [{ x: x0, y, z: z1 }, { x: x0, y, z: z0 }]);
+    return segs;
+  }
   if (plan.mode === "quarry") {
     const g = quarryGeom(plan.anchor, plan.facing, plan.length, plan.width, plan.depth);
     // with Clear above, the outline goes up to the top of what will be cleared

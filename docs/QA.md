@@ -21,6 +21,17 @@ server, which runs as SYSTEM: `C:\Windows\System32\config\systemprofile\AppData\
 
 ## Next release (0.4.1, unreleased)
 
+**Miner prospecting** (mock-tested; needs a playtest)
+
+- [ ] Build a Miner (pickaxe first). Its menu has Prospect, not Quarry. A Digger refuses Prospect and names the Miner.
+- [ ] Around its home: the bed, the home chest, and the ground within 8 blocks of them are still there after it has been digging. It does not start if it has no home and no staked start.
+- [ ] Survey Stake, linked to the Miner: tap the ground, confirm, start. The outline is the claim. Tunnels stay within 64 blocks of that start.
+- [ ] It digs a stair down toward Y -59, then a 2-wide trunk and branches with 2 solid blocks between them. Ore in a wall is taken and the hole filled. A diamond buried off the tunnel, with stone between, is still there (no x-ray).
+- [ ] Home chest has 2 logs and a chest: a wooden entrance, a sign (automatic name, or the name you typed), and an entrance chest. Ore is in that chest, not the home chest. Take the wood away and place a chest yourself: it says the wood is missing, skips the posts, and uses your chest.
+- [ ] Quota 5 diamonds: it stops and says so, and it has been keeping other ores too. It also stops at night and continues in the morning, and when the pickaxe breaks. With a crafting table within 8 blocks of the bed and cobblestone plus sticks in the home chest, it makes a stone pickaxe (not a diamond one, if the broken pick was stone) and says what it used.
+- [ ] Nether: it refuses. A lava block in the tunnel becomes cobblestone if it is carrying cobblestone. Water stays.
+- [ ] The entrance chest is a normal chest. Its spot is the worker's drop-off.
+
 Built Nov 14 2026 and mock-tested. Nov 15 (Brian's OK) the server got all of it, through the
 Depth wording (3d), as scripts under 0.4.0 (backup in `C:\MinecraftServer-backups\`), so 5, 7, 8
 and 9 go out to friends before their local test. Nov 15 9:12 PM (Brian's OK) it also got the
