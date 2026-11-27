@@ -38,6 +38,8 @@ export const FILL = /^minecraft:(cobblestone|cobbled_deepslate|stone|deepslate|d
 export const TORCH = "minecraft:torch";
 /** Non-solid blocks the worker can move through. */
 export const SOFT = /(grass$|fern$|flower|tulip|dandelion|poppy|orchid|allium|bluet|daisy|cornflower|lily_of_the_valley|wither_rose|torch|snow_layer|vine|sapling|mushroom$|deadbush|dead_bush|carpet|rail$|sign$|button$|lever$|pressure_plate$|seagrass|kelp|sugar_cane|sweet_berry|bush$|light$)/;
+/** Crops and farmland. The pathfinder can step through them but would rather go around, so a walk doesn't trample a field when there's another way. */
+export const CROP_SPACE = /^minecraft:(farmland|wheat|carrots|potatoes|beetroot|beetroots|nether_wart|torchflower_crop|pitcher_crop|melon_stem|pumpkin_stem|sweet_berry_bush)$/;
 /** Blocks that fall when what's under them is removed. */
 export const GRAVITY = /(^minecraft:(sand|red_sand|gravel|suspicious_sand|suspicious_gravel)$|concrete_powder$|^minecraft:(anvil|chipped_anvil|damaged_anvil|pointed_dripstone|scaffolding)$)/;
 
@@ -125,7 +127,12 @@ export function setOpen(b, open) {
 export function passable(dim, p) {
   const b = dim.getBlock(p);
   if (!b) return false;
-  return b.isAir || b.isLiquid || SOFT.test(b.typeId) || LIGHT.test(b.typeId) || isDoorway(b);
+  return b.isAir || b.isLiquid || SOFT.test(b.typeId) || CROP_SPACE.test(b.typeId) || LIGHT.test(b.typeId) || isDoorway(b);
+}
+/** Extra path cost for standing in a crop, so a route around the field wins when one exists. @param {import("@minecraft/server").Dimension} dim @param {{x:number,y:number,z:number}} p */
+export function footCost(dim, p) {
+  const id = dim.getBlock(p)?.typeId ?? "";
+  return CROP_SPACE.test(id) ? 24 : 1;
 }
 
 /**

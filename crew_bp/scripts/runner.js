@@ -5,6 +5,7 @@ import { world, system, BlockPermutation } from "@minecraft/server";
 import { AIR, FILL, GRAVITY, ORE, SIGNS, TORCH, VALUABLE, bestKind, blockName, canSee, keepIntact, needsOpening, passable, setOpen } from "./blocks.js";
 import { off, column, inBranchPlan, isStairBlock, startCell, stepAt } from "./plans.js";
 import { advance, atGoal, near, newSearch } from "./path.js";
+import { plotStatus, stepPlot } from "./plots.js";
 import { KIT_SLOTS, addToKit, chooseTool, freeHaulSlots, kit, kitText, roleKinds, stash, ticksFor, toolInfo, toolPref, wear } from "./tools.js";
 import { center, dist, floorV, fmt, getJSON, lerp, setJSON, onlinePlayer, sameV, up } from "./util.js";
 import { emit, holdTool, loadedWorkers, meta, migrateRole, roleOf, syncRole, updateTag } from "./workers.js";
@@ -116,11 +117,17 @@ export function startJob(e, job) {
     const g = job.geom;
     emit(e, "job_started", { mode: "branch_mine", start: fmt(g.anchor), facing: g.facing, target_y: g.ty, trunk: g.L, trunk_width: g.w ?? 2, branch: g.B, spacing: g.s, deposit: job.deposit.label },
       `starting a branch mine at ${fmt(g.anchor)} heading ${g.facing}: ${g.n > 0 ? `stairs down to Y ${g.ty}, ` : ""}a ${g.L}-block trunk ${g.w ?? 2} wide, then ${g.branchAt.length * 2} branches ${g.B} long with ${g.s} blocks between. Depositing at ${job.deposit.label}.`);
+  } else if (job.type === "forest" || job.type === "field") {
+    const b = job.box;
+    emit(e, "job_started", { mode: job.type, corner: fmt(b.min), size: [b.max.x - b.min.x + 1, b.max.z - b.min.z + 1], deposit: job.deposit.label },
+      `starting a ${job.type} at ${fmt(b.min)}, ${b.max.x - b.min.x + 1} by ${b.max.z - b.min.z + 1}. Depositing at ${job.deposit.label}.`);
   }
 }
 
 const isDig = (/** @type {any} */ job) => job?.type === "quarry" || job?.type === "branch_mine";
-const digName = (/** @type {any} */ job) => (job.type === "quarry" ? "quarry" : "branch mine");
+const isPlot = (/** @type {any} */ job) => job?.type === "forest" || job?.type === "field";
+const isWork = (/** @type {any} */ job) => isDig(job) || isPlot(job);
+const digName = (/** @type {any} */ job) => (job.type === "quarry" ? "quarry" : job.type === "branch_mine" ? "branch mine" : job.type);
 
 /**
  * Stops whatever the worker is doing. An unfinished quarry or branch mine is kept as the paused
@@ -139,6 +146,9 @@ export function stopJob(e, why) {
   if (isDig(job)) {
     const st = active.get(e.id)?.st ?? getJSON(e, "crew:state", undefined);
     if (st && st.i < job.geom.total) setJSON(e, "crew:paused", { job: { ...job, tickingArea: false }, st });
+  } else if (isPlot(job)) {
+    const st = active.get(e.id)?.st ?? getJSON(e, "crew:state", undefined);
+    if (st) setJSON(e, "crew:paused", { job: { ...job, tickingArea: false }, st });
   }
   if (job && why) emit(e, "stopped", { reason: why }, isDig(job) ? `${why} Pick Continue in my menu to pick the ${digName(job)} up where I left off.` : why);
   if (job?.type === "rest") {
@@ -170,6 +180,7 @@ export function stopJob(e, why) {
 export function pausedJob(e) {
   const saved = getJSON(e, "crew:paused", undefined);
   if (!saved?.job || !saved?.st) return undefined;
+  if (isPlot(saved.job)) return { name: saved.job.type === "forest" ? "forest" : "field" };
   return { name: digName(saved.job), pct: Math.floor((100 * saved.st.i) / saved.job.geom.total) };
 }
 
@@ -185,13 +196,13 @@ export function resumeJob(e) {
   setJSON(e, "crew:paused", undefined);
   const job = { ...saved.job, tickingArea: false };
   const st = { ...saved.st, cool: 0, move: undefined, walkAfter: false, needTool: undefined, wait: undefined, blinks: 0 };
-  st.phase = st.i === 0 && !st.stand ? "travel_in" : "return";
+  st.phase = isPlot(job) ? "scan" : st.i === 0 && !st.stand ? "travel_in" : "return";
   setJSON(e, "crew:job", job);
   setJSON(e, "crew:state", st);
   e.triggerEvent("crew:start_work");
   active.set(e.id, { e, job, st, saveIn: 20, areaIn: 0 });
-  const pct = Math.floor((100 * st.i) / job.geom.total);
-  emit(e, "job_resumed", { mode: job.type, step: st.i, total: job.geom.total }, `picking the ${digName(job)} back up at ${pct}% (step ${st.i} of ${job.geom.total}).`);
+  const pct = job.geom?.total ? Math.floor((100 * (st.i ?? 0)) / job.geom.total) : 0;
+  emit(e, "job_resumed", { mode: job.type, step: st.i, total: job.geom?.total }, isPlot(job) ? `picking the ${digName(job)} back up.` : `picking the ${digName(job)} back up at ${pct}% (step ${st.i} of ${job.geom.total}).`);
   return job;
 }
 
@@ -218,7 +229,9 @@ export function statusText(e) {
     const where = st.quality ? REST[/** @type {"safe"|"unsafe"|"rough"} */ (st.quality)].label : "";
     line = st.phase === "asleep" ? `Asleep on ${where}.` : st.phase === "to_bed" ? "Walking home to sleep." : "Getting ready to sleep.";
     line += job.reason === "night" ? " Gets up at dawn (or pick Wake up)." : " Gets up once rested (or pick Wake up).";
-    if (paused) line += ` Its ${paused.name} (${paused.pct}%) is paused until it wakes.`;
+    if (paused) line += paused.pct == null ? ` Its ${paused.name} is paused until it wakes.` : ` Its ${paused.name} (${paused.pct}%) is paused until it wakes.`;
+  } else if (isPlot(job)) {
+    line = `${plotStatus(job, st)}`;
   } else {
     const total = job.geom.total;
     const pct = Math.floor((100 * Math.min(st.i ?? 0, total)) / total);
@@ -257,6 +270,7 @@ export function startEngine() {
         if (rt.job.type === "come") stepCome(rt);
         else if (rt.job.type === "drop_off") stepDropOff(rt);
         else if (rt.job.type === "rest") stepRest(rt);
+        else if (isPlot(rt.job)) stepPlot(rt, { walkTo });
         else stepDig(rt);
         // twice a second: never inside a block (not while lying on its bed, which is meant to overlap)
         if (rt.job.type !== "rest" && active.get(rt.e.id) === rt && (rt.unstickIn = (rt.unstickIn ?? 10) - 1) <= 0) {
@@ -321,7 +335,7 @@ function routine() {
         }
         e.setDynamicProperty("crew:stayUp", undefined);
       }
-      if (isDig(job) || !job) startRest(e, "night");
+      if (isWork(job) || !job) startRest(e, "night");
     } catch (err) {
       console.warn(`[Crew] routine: ${err}`);
     }
@@ -362,7 +376,7 @@ export function wakeUp(e) {
  */
 export function startRest(e, reason) {
   const job = active.get(e.id)?.job ?? getJSON(e, "crew:job", undefined);
-  const resume = isDig(job);
+  const resume = isWork(job);
   const home = getHome(e);
   startJob(e, { type: "rest", id: `rest${Date.now().toString(36)}`, by: { name: "routine", console: true }, reason });
   if (resume) e.setDynamicProperty("crew:autoResume", true);
@@ -499,11 +513,12 @@ function noteSeen() {
 function shortStatus(e, job, st) {
   if (!job) {
     const paused = pausedJob(e);
-    return paused ? `Idle (${paused.name} paused at ${paused.pct}%)` : "Idle";
+    return paused ? `Idle (${paused.name} paused${paused.pct == null ? "" : ` at ${paused.pct}%`})` : "Idle";
   }
   if (job.type === "rest") return st?.phase === "asleep" ? (getHome(e) ? "Asleep at home" : "Asleep") : "Going to bed";
   if (job.type === "come") return `Walking to ${job.target?.name ?? job.label}`;
   if (job.type === "drop_off") return `Dropping off at ${job.deposit.label}`;
+  if (isPlot(job)) return job.type === "forest" ? "Forest" : "Field";
   const total = job.geom?.total ?? 1;
   const pct = Math.floor((100 * Math.min(st?.i ?? 0, total)) / total);
   return `${job.type === "quarry" ? "Quarry" : "Branch mine"} ${pct}%${st?.needTool ? ", waiting for a tool" : ""}`;

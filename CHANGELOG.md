@@ -5,6 +5,16 @@ turns it into that version's section.
 
 ## Unreleased
 
+- **Woodcutter and Farmer.** An axe in the barrel makes a Woodcutter, a hoe makes a Farmer. With
+  the Survey Stake, Plan a forest or Plan a field (width and length, up to 64 by 64, outline,
+  confirm), or use `/crew:forest` and `/crew:field`. The plot keeps going: the worker sleeps at
+  night and starts again in the morning. A Woodcutter cuts trees whose logs or stems connect to
+  leaves, strips the leaves, and replants the same tree on the stump (four saplings on a 2 by 2).
+  Planks, fences, chests and bare logs stay. Beehives stay, and it tells you. A Farmer hoes empty
+  dirt, plants seeds you provide, harvests ripe crops and replants them, and uses bonemeal you
+  give it one stage at a time. Nether wart also needs soul sand from you. It does not place water
+  and it does not cook. Both need a deposit chest; the home chest restocks tools, saplings and
+  seeds. They walk around crops when another way is open.
 - **Settlements.** Place a bell yourself and crouch-tap it to found a settlement and name it. Every
   worker you build belongs to it, including the ones you already have. Crouch-tap the bell for the
   settlement menu: **Workers** lists all of them with what each is doing and where, who's **Out of

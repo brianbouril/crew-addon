@@ -175,6 +175,20 @@ export function registerCommands(reg) {
       order(by, { worker, job: "quarry", params: { from, to, deposit: dep, keep } });
     });
 
+  const plotCmd = (name, job) => cmd(reg, { name, description: job === "forest" ? "A Woodcutter keeps a forest between two ground corners." : "A Farmer keeps a field between two ground corners.", permissionLevel: ANY,
+    mandatoryParameters: [{ name: "worker", type: T.String }, { name: "from", type: T.Location }, { name: "to", type: T.Location }],
+    optionalParameters: [{ name: "deposit", type: T.String }, { name: "crew:keep", type: T.Enum }] },
+    (by, worker, from, to, deposit, keep) => {
+      let dep = deposit;
+      if (!dep && by.player) {
+        const d = by.player.getDynamicProperty("crew:deposit");
+        if (typeof d === "object") dep = [d.x, d.y, d.z];
+      }
+      order(by, { worker, job, params: { from, to, deposit: dep, keep } });
+    });
+  plotCmd("crew:forest", "forest");
+  plotCmd("crew:field", "field");
+
   cmd(reg, { name: "crew:come", description: "Call a worker to you.", permissionLevel: ANY, mandatoryParameters: [{ name: "worker", type: T.String }] },
     (by, worker) => order(by, { worker, job: "come", params: {} }));
 

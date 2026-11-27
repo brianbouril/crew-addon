@@ -4,7 +4,7 @@
 // Use it on a chest or barrel to mark where workers drop things off.
 import { ItemStack, system, world } from "@minecraft/server";
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
-import { DEFAULTS, MAX_SIDE, MAX_TRUNK_WIDTH } from "./catalog.js";
+import { DEFAULTS, MAX_SIDE, MAX_TRUNK_WIDTH, PLOT_HEIGHT, PLOT_MAX } from "./catalog.js";
 import { arrow, branchGeom, facingFromYaw, outline, quarryGeom } from "./plans.js";
 import { CLEAR_ABOVE_MAX, layersAbove } from "./blocks.js";
 import { dist, fmt, getJSON, sameV, setJSON, tell } from "./util.js";
@@ -23,7 +23,7 @@ export const STAKE = "crew:survey_stake";
 
 /**
  * @typedef {{x:number,y:number,z:number}} V3
- * @typedef {{mode: "quarry"|"branch", dim: string, anchor: V3, facing: string, confirmed: boolean,
+ * @typedef {{mode: "quarry"|"branch"|"forest"|"field", dim: string, anchor: V3, facing: string, confirmed: boolean,
  *   length: number, width: number, depth: number, trunk: number, trunkWidth?: number, branch: number, spacing: number, targetY: number,
  *   clearAbove?: boolean, above?: number, aboveTooHigh?: boolean}} Plan
  */
@@ -35,7 +35,7 @@ export const STAKE = "crew:survey_stake";
  */
 export const getPlan = (p) => {
   const plan = getJSON(p, "crew:plan", undefined);
-  return plan?.mode === "quarry" ? plan : undefined;
+  return plan?.mode === "quarry" || plan?.mode === "forest" || plan?.mode === "field" ? plan : undefined;
 };
 /** @param {import("@minecraft/server").Player} p @param {Plan | undefined} plan */
 const savePlan = (p, plan) => setJSON(p, "crew:plan", plan && measureAbove(plan));
@@ -65,6 +65,10 @@ export function planText(plan) {
       : plan.above ? `\nFirst it clears the ${plan.above} layer${plan.above === 1 ? "" : "s"} above it (hills, trees), so nothing is left floating.` : "\nNothing above it to clear.";
     return `Quarry ${plan.length} forward x ${plan.width} to the right x ${plan.depth} deep (down to Y ${plan.anchor.y - plan.depth + 1}) from the corner at ${fmt(plan.anchor)}, heading ${plan.facing} (${plan.length * plan.width * plan.depth} blocks).${above}`;
   }
+  if (plan.mode === "forest" || plan.mode === "field") {
+    const name = plan.mode === "forest" ? "Forest" : "Field";
+    return `${name} ${plan.length} forward x ${plan.width} to the right from the corner at ${fmt(plan.anchor)}, heading ${plan.facing}. It works up to ${PLOT_HEIGHT} blocks above that ground, and it keeps going day after day.`;
+  }
   const g = branchGeom(plan.anchor, plan.facing, { ...plan, width: plan.trunkWidth ?? DEFAULTS.width });
   return `Branch mine from ${fmt(plan.anchor)} heading ${plan.facing}: ${g.n > 0 ? `stairs down to Y ${plan.targetY}, ` : ""}a ${plan.trunk}-block trunk ${g.w} wide, ${g.branchAt.length * 2} branches ${plan.branch} long with ${plan.spacing} solid blocks between.`;
 }
@@ -74,6 +78,11 @@ export function planOrder(plan) {
   if (plan.mode === "quarry") {
     const g = quarryGeom(plan.anchor, plan.facing, plan.length, plan.width, plan.depth);
     return { job: "quarry", params: { from: g.min, to: g.max, facing: plan.facing, clear_above: !!plan.clearAbove } };
+  }
+  if (plan.mode === "forest" || plan.mode === "field") {
+    const g = quarryGeom(plan.anchor, plan.facing, plan.length, plan.width, 1);
+    const y = plan.anchor.y;
+    return { job: plan.mode, params: { from: { x: g.min.x, y, z: g.min.z }, to: { x: g.max.x, y, z: g.max.z } } };
   }
   return { job: "branch_mine", params: { start: plan.anchor, facing: plan.facing, target_y: plan.targetY, trunk_length: plan.trunk, trunk_width: plan.trunkWidth ?? DEFAULTS.width, branch_length: plan.branch, spacing: plan.spacing } };
 }
@@ -207,13 +216,17 @@ async function newPlan(p, block, plan) {
   /** @type {Plan} */
   const next = { ...base, dim: block.dimension.id, anchor: { ...block.location }, facing, confirmed: false };
   if (next.targetY > next.anchor.y + 1) next.targetY = next.anchor.y + 1;
-  const f = new ActionFormData().title("Plan a quarry here")
-    .body(`Start: the block at ${fmt(block.location)}, heading ${facing} (the way you're facing).\n\nThis is the quarry's top corner. It digs forward and to your right, and leaves a staircase down the walls. A Digger digs it.`)
-    .button("Plan a quarry").button("Cancel").button("Put the stake away");
+  const f = new ActionFormData().title("Plan here")
+    .body(`Start: the block at ${fmt(block.location)}, heading ${facing} (the way you're facing).\n\nA quarry digs forward and to your right. A forest or a field keeps working that ground, up to ${PLOT_HEIGHT} blocks above it.`)
+    .button("Plan a quarry").button("Plan a forest").button("Plan a field").button("Cancel").button("Put the stake away");
   const r = await show(p, f);
-  if (r?.selection === 2) return putAway(p);
-  if (!r || r.selection !== 0) return;
-  next.mode = "quarry";
+  if (r?.selection === 4) return putAway(p);
+  if (r?.selection === undefined || r.selection > 2) return;
+  next.mode = /** @type {Plan["mode"]} */ (["quarry", "forest", "field"][r.selection]);
+  if (next.mode !== "quarry") {
+    next.length = clamp(next.length || 8, 1, PLOT_MAX);
+    next.width = clamp(next.width || 8, 1, PLOT_MAX);
+  }
   if (!(await sizeForm(p, next))) return;
   savePlan(p, next);
   tell(p, `${planText(getPlan(p) ?? next)}\nCheck the white outline, then tap any block (or the air) with the stake to confirm or change it.`);
@@ -305,8 +318,10 @@ async function planActions(p, tapped) {
     case 0: {
       savePlan(p, { ...plan, confirmed: true });
       const e = linkedWorker(p);
-      if (e && roleOf(e) !== "Digger") {
-        tell(p, `Plan confirmed. ${roleRefusal(meta(e).name, roleOf(e), "quarry")}`);
+      const need = plan.mode === "forest" ? "Woodcutter" : plan.mode === "field" ? "Farmer" : "Digger";
+      const jobName = plan.mode === "branch" ? "branch_mine" : plan.mode;
+      if (e && roleOf(e) !== need) {
+        tell(p, `Plan confirmed. ${roleRefusal(meta(e).name, roleOf(e), jobName)}`);
         return;
       }
       if (e) {
@@ -349,6 +364,18 @@ async function sizeForm(p, plan) {
     const [l, w, d, ca] = r.formValues;
     [plan.length, plan.width, plan.depth] = [l, w, d].map(Number);
     plan.clearAbove = !!ca;
+    return true;
+  }
+  if (plan.mode === "forest" || plan.mode === "field") {
+    const name = plan.mode === "forest" ? "Forest" : "Field";
+    const f = new ModalFormData().title(`${name} size`)
+      .slider("Length (forward)", 1, PLOT_MAX, { defaultValue: clamp(plan.length, 1, PLOT_MAX), valueStep: 1 })
+      .slider("Width (to the right)", 1, PLOT_MAX, { defaultValue: clamp(plan.width, 1, PLOT_MAX), valueStep: 1 })
+      .submitButton("Show outline");
+    const r = await show(p, f);
+    if (!r?.formValues) return false;
+    plan.length = Number(r.formValues[0]);
+    plan.width = Number(r.formValues[1]);
     return true;
   }
   const maxY = plan.anchor.y + 1;

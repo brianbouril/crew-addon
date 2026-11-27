@@ -3,7 +3,7 @@
 // Everyone else sees status only.
 import { CommandPermissionLevel, world } from "@minecraft/server";
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
-import { KEEP } from "./catalog.js";
+import { KEEP, PLOT_MAX } from "./catalog.js";
 import { SETTLEMENT_ORDERS, dispatch, orderSettlement } from "./orders.js";
 import { depthLabel, getPlan, giveStake, hasStake, planOrder, planText, updatePlan } from "./marker.js";
 import { countItem, isResting, isWorking, pausedJob, statusText, stopJob, wakeUp } from "./runner.js";
@@ -46,8 +46,8 @@ async function menu(p, title, body, buttons) {
 const ROLE_JOBS = {
   Digger: " (quarries)",
   Miner: " (prospecting for ore is coming in the next version; it has no dig jobs until then)",
-  Woodcutter: " (no jobs yet)",
-  Farmer: " (no jobs yet)",
+  Woodcutter: " (keeps a forest)",
+  Farmer: " (keeps a field)",
 };
 
 /** @param {Player} p @param {Entity} e */
@@ -66,13 +66,16 @@ export async function openMenu(p, e) {
   const paused = pausedJob(e);
   const digging = /quarry|branch_mine/.test(String(getJSON(e, "crew:job", undefined)?.type));
   if (paused && !digging) {
-    b.push([`Continue the ${paused.name} (${paused.pct}% done)`, () => say(p, dispatch(by, { worker: m.name, job: "resume", params: {} }))]);
+    b.push([`Continue the ${paused.name}${paused.pct == null ? "" : ` (${paused.pct}% done)`}`, () => say(p, dispatch(by, { worker: m.name, job: "resume", params: {} }))]);
   }
   // decision 32: each role offers only its own jobs. The Miner's (prospecting) come in v0.6.
   if (roleOf(e) === "Digger") {
     b.push(["Quarry", () => digForm(p, by, e, "quarry")]);
     if (!hasStake(p)) b.push(["Get a Survey Stake", () => tell(p, giveStake(p))]);
   }
+  if (roleOf(e) === "Woodcutter") b.push(["Forest", () => digForm(p, by, e, "forest")]);
+  if (roleOf(e) === "Farmer") b.push(["Field", () => digForm(p, by, e, "field")]);
+  if ((roleOf(e) === "Woodcutter" || roleOf(e) === "Farmer") && !hasStake(p)) b.push(["Get a Survey Stake", () => tell(p, giveStake(p))]);
   b.push(["Come here", () => say(p, dispatch(by, { worker: m.name, job: "come", params: {} }))]);
   if (isWorking(e) && !resting) b.push(["Stop", () => stopMenu(p, by, e)]);
   const n = carried(e).reduce((a, x) => a + x.item.amount, 0);
@@ -221,18 +224,18 @@ function depositChoices(p, by, dim) {
   return out;
 }
 
-/** @param {Player} p @param {Commander} by @param {Entity} e @param {"quarry"|"branch"} mode */
+/** @param {Player} p @param {Commander} by @param {Entity} e @param {"quarry"|"branch"|"forest"|"field"} mode */
 export async function digForm(p, by, e, mode) {
   const m = meta(e);
   const plan = getPlan(p);
-  const label = mode === "quarry" ? "quarry" : "branch mine";
+  const label = mode === "quarry" ? "quarry" : mode === "forest" ? "forest" : mode === "field" ? "field" : "branch mine";
   if (!plan || plan.mode !== mode || !plan.confirmed) {
     if (plan && plan.mode === mode) {
       // planned but not confirmed: confirm it right here instead of sending them back to the stake
       return menu(p, `${m.name}: ${label}`, `${planText(plan)}\n\nThis plan isn't confirmed yet. Did you check its outline?`,
         [["Confirm it and go on", () => { updatePlan(p, { confirmed: true }); return digForm(p, by, e, mode); }], ["Not yet", () => {}]]);
     }
-    const why = `No ${label} planned yet. With a Survey Stake, tap the ground block where the ${label} should start while facing the way it should go, pick ${mode === "quarry" ? "Plan a quarry" : "Branch mine"}, check the outline, then tap with the stake again and pick Confirm.`;
+    const why = `No ${label} planned yet. With a Survey Stake, tap the ground block where it should start while facing the way it should go, pick ${mode === "forest" ? "Plan a forest" : mode === "field" ? "Plan a field" : mode === "quarry" ? "Plan a quarry" : "Branch mine"}, check the outline, then tap with the stake again and pick Confirm.`;
     /** @type {[string, () => any][]} */
     const buttons = hasStake(p) ? [["OK", () => {}]] : [["Give me a Survey Stake", () => tell(p, giveStake(p))], ["OK", () => {}]];
     return menu(p, `${m.name}: ${label}`, why, buttons);
@@ -249,6 +252,9 @@ export async function digForm(p, by, e, mode) {
       .slider("Width (to the right)", 2, MAX_SIDE, { defaultValue: plan.width, valueStep: 1 })
       .slider(depthLabel(plan.anchor.y), 1, MAX_SIDE, { defaultValue: plan.depth, valueStep: 1 })
       .toggle("Clear above first (hills, trees: nothing left floating)", { defaultValue: plan.clearAbove ?? true });
+  } else if (mode === "forest" || mode === "field") {
+    f.slider("Length (forward)", 1, PLOT_MAX, { defaultValue: plan.length, valueStep: 1 })
+      .slider("Width (to the right)", 1, PLOT_MAX, { defaultValue: plan.width, valueStep: 1 });
   } else {
     f.slider("Trunk length", 1, MAX_SIDE, { defaultValue: plan.trunk, valueStep: 1 })
       .slider("Trunk width (extra lanes to the right)", 1, MAX_TRUNK_WIDTH, { defaultValue: plan.trunkWidth ?? DEFAULTS.width, valueStep: 1 })
@@ -263,11 +269,12 @@ export async function digForm(p, by, e, mode) {
   if (!r?.formValues) return;
   const v = r.formValues;
   if (mode === "quarry") updatePlan(p, { length: Number(v[0]), width: Number(v[1]), depth: Number(v[2]), clearAbove: !!v[3], confirmed: true });
+  else if (mode === "forest" || mode === "field") updatePlan(p, { length: Number(v[0]), width: Number(v[1]), confirmed: true });
   else {
     const ty = Math.round(Number(v[4]));
     updatePlan(p, { trunk: Number(v[0]), trunkWidth: Number(v[1]), branch: Number(v[2]), spacing: Number(v[3]), targetY: Number.isFinite(ty) ? ty : plan.targetY, confirmed: true });
   }
-  const tail = v.slice(mode === "quarry" ? 4 : 5);
+  const tail = v.slice(mode === "quarry" ? 4 : mode === "forest" || mode === "field" ? 2 : 5);
   const now = /** @type {import("./marker.js").Plan} */ (getPlan(p));
   const o = planOrder(now);
   const res = dispatch(by, { worker: m.name, job: o.job, params: { ...o.params, deposit: deps[Number(tail[0])].value, keep: KEEP[Number(tail[1])] } });
