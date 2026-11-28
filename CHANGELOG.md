@@ -5,6 +5,15 @@ turns it into that version's section.
 
 ## Unreleased
 
+- **The Smith.** An anvil in a barrel, with a carved pumpkin on top, builds a Smith. Craft a forge
+  (iron around a furnace, coal along the bottom). Put fuel in a chest on top and a chest underneath
+  for what it makes. It smelts raw iron, gold, and copper ore from your depot and settlement chests
+  into ingots, using coal, charcoal, lava, wood, or planks. It makes tools, swords, player armor,
+  and horse armor, and it repairs them. On its own it leaves two wooden tools for each Digger,
+  Miner, Woodcutter, and Farmer. Order anything else from its menu or `/crew:smith`. A worker whose
+  tool breaks walks to the Smith's chest for a replacement no better than the one it lost. With no
+  Smith, or no tool it may take, it waits and says so. It does not craft a replacement at home.
+  The worker limit is 8.
 - **Survey Stake icon.** The item picture is larger: the same wooden stick and orange checkered flag, now with a black outline.
 - **Woodcutter and Farmer.** An axe in the barrel makes a Woodcutter, a hoe makes a Farmer. With
   the Survey Stake, Plan a forest or Plan a field (width and length, up to 64 by 64, outline,
@@ -25,11 +34,11 @@ turns it into that version's section.
   nothing; gravel sometimes gives flint, and a gem is rare. Soul sand only sifts if you supply
   it. Ore in the input chest is left alone. A sieve in the barrel builds a Sifter, which counts
   toward your worker limit and can mind one sieve during the day.
-- **Miner prospecting.** A Miner hunts any valuables in the overworld, either in the ground around its home or from a start you mark with the Survey Stake. One entrance and one shaft, with a branch level at the best depth for each ore the shaft can reach (from a start near Y 64: copper at Y 48, iron at Y 16, lapis at Y 0, gold at Y -16, diamonds and redstone together at Y -59). A quota uses only that ore's level. The levels are saved on the mine. The bed and the ground within 8 blocks of the home stay undug. Each level is a 2-wide trunk with branches and 2 solid blocks between them. It lights the tunnels and puts everything it keeps in a chest at the entrance. Optional: stop after a number of one ore, and type a mine name (otherwise the sign reads like "Digby's Diamond Mine No. 1"). The entrance is wood from the home or deposit chest (8 planks; a log counts as 4) plus that chest. Missing wood or a missing chest skips the woodwork, and it uses a chest you placed. It stops at night, when it runs out of pickaxes, when the quota is met, or when the claim is mined out. With a crafting table by the bed and materials in the home chest, it makes a replacement pickaxe no better than the one it lost. The entrance chest is an ordinary drop-off (a Hauler can collect it; a Sifter can read gravel, sand, dirt and ores from it).
+- **Miner prospecting.** A Miner hunts any valuables in the overworld, either in the ground around its home or from a start you mark with the Survey Stake. One entrance and one shaft, with a branch level at the best depth for each ore the shaft can reach (from a start near Y 64: copper at Y 48, iron at Y 16, lapis at Y 0, gold at Y -16, diamonds and redstone together at Y -59). A quota uses only that ore's level. The levels are saved on the mine. The bed and the ground within 8 blocks of the home stay undug. Each level is a 2-wide trunk with branches and 2 solid blocks between them. It lights the tunnels and puts everything it keeps in a chest at the entrance. Optional: stop after a number of one ore, and type a mine name (otherwise the sign reads like "Digby's Diamond Mine No. 1"). The entrance is wood from the home or deposit chest (8 planks; a log counts as 4) plus that chest. Missing wood or a missing chest skips the woodwork, and it uses a chest you placed. It stops at night, when it runs out of pickaxes, when the quota is met, or when the claim is mined out. Out of pickaxes, it takes a replacement from the Smith's chest, no better than the one it lost, or waits and says so. The entrance chest is an ordinary drop-off (a Hauler can collect it; a Sifter can read gravel, sand, dirt and ores from it).
 - **Dev mode.** For operators, and off unless you turn it on. `/crew:dev on` turns it on and
   `/crew:dev off` turns it off. `/crew:dev` opens a menu labelled Dev mode: it gives a Survey Stake,
-  sieves, and the tools and supplies for each job, and it spawns a Digger, Miner, Hauler,
-  Woodcutter, Farmer, or Sifter beside you with a home chest (pickaxes, seeds, wood, gravel,
+  sieves, forges, and the tools and supplies for each job, and it spawns a Digger, Miner, Hauler,
+  Woodcutter, Farmer, Sifter, or Smith beside you with a home chest (pickaxes, seeds, wood, gravel,
   torches, and the rest of that job). While it is on, the worker limit is lifted. It can skip to
   morning or night. While it is off, nothing here runs, and the worker limit applies again.
   Turning it off does not rewind the clock. Workers it already spawned stay.
@@ -54,8 +63,8 @@ turns it into that version's section.
 - **Orders to everyone.** From the bell: Stop, Continue, Drop off, Go home or Come to the bell, for
   all your settlement's workers or one kind (All Diggers). Far-away workers do it when they load.
   Workers also understand "go home" and "come to a place" as orders on their own.
-- **Worker limit.** A settlement can have 6 workers for each person in it, and a player on their
-  own 6, so the server keeps running smoothly.
+- **Worker limit.** A settlement can have 8 workers for each person in it, and a player on their
+  own 8, so the server keeps running smoothly.
   Building one more is refused and leaves the barrel and tools as they were; workers you already
   have past the limit keep working. Operators change it in the settlement menu or with
   `/crew:cap <number>`.

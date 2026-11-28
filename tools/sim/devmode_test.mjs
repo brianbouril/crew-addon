@@ -40,7 +40,7 @@ const tally = (container) => {
 };
 
 check("off by default", devModeOn() === false && world.getDynamicProperty("crew:devMode") === undefined);
-check("default cap is 6 and unset", getCap() === 6 && world.getDynamicProperty("crew:cap") === undefined);
+check("default cap is 8 and unset", getCap() === 8 && world.getDynamicProperty("crew:cap") === undefined);
 const clock = world.getTimeOfDay();
 check("spawn refused while off", spawnAll(op)[0].ok === false && !devModeOn());
 check("items refused while off", giveTestItems(op).ok === false && tally(op.inv)["crew:survey_stake"] === undefined);
@@ -73,6 +73,11 @@ check("stored cap is 1", getCap() === 1);
 const want = {
   "crew:survey_stake": 1,
   "crew:sieve": 4,
+  "crew:forge": 2,
+  "minecraft:anvil": 1,
+  "minecraft:coal": 16,
+  "minecraft:raw_iron": 16,
+  "minecraft:iron_ingot": 16,
   "minecraft:iron_pickaxe": 1,
   "minecraft:diamond_pickaxe": 1,
   "minecraft:iron_shovel": 1,
@@ -157,6 +162,12 @@ for (const role of DEV_ROLES) {
     check("sifter sieve item", (stock["crew:sieve"] ?? 0) + (have["crew:sieve"] ?? 0) >= 1, { stock: stock["crew:sieve"], held: have["crew:sieve"] });
     if (BlockTypes.get("crew:sieve")) check("sieve block placed", r.sieve && ow.getBlock(r.sieve)?.typeId === "crew:sieve", r.sieve);
     else check("sieve block waits for the block", r.sieve === undefined);
+  }
+  if (role === "Smith") {
+    check("smith skin index", e.getProperty("crew:role") === 6, e.getProperty("crew:role"));
+    if (BlockTypes.get("crew:forge")) check("forge block placed", r.forge && ow.getBlock(r.forge)?.typeId === "crew:forge", r.forge);
+    else check("forge block waits for the block", r.forge === undefined);
+    check("smith coal stocked", stock["minecraft:coal"] >= 16 && stock["minecraft:raw_iron"] >= 16, stock);
   }
 }
 

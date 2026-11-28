@@ -138,12 +138,22 @@ export function buildFromBarrel(player, head) {
     if (it) items.push(it);
   }
   const tools = items.filter((it) => toolInfo(it));
-  // one sieve is the build kit (used up). A stack keeps the rest. Tools in the same barrel do not change the role.
+  // one anvil hires a Smith, else one sieve hires a Sifter (the kit is used up). A stack keeps the rest.
+  let anvil = false;
   let sieve = false;
   /** @type {import("@minecraft/server").ItemStack[]} */
   const kept = [];
   for (const it of items) {
-    if (it.typeId === "crew:sieve" && !sieve) {
+    if (it.typeId === "minecraft:anvil" && !anvil) {
+      anvil = true;
+      if (it.amount > 1) {
+        const extra = it.clone();
+        extra.amount = it.amount - 1;
+        kept.push(extra);
+      }
+      continue;
+    }
+    if (it.typeId === "crew:sieve" && !sieve && !anvil) {
       sieve = true;
       if (it.amount > 1) {
         const extra = it.clone();
@@ -154,8 +164,8 @@ export function buildFromBarrel(player, head) {
     }
     kept.push(it);
   }
-  if (!tools.length && !sieve && !isHaulerBuild(items)) {
-    tell(player, "To build a worker, put at least one tool (pickaxe, shovel, axe or hoe) or a sieve in the barrel, or a bundle and leather boots for a Hauler, then place the pumpkin again.");
+  if (!tools.length && !sieve && !anvil && !isHaulerBuild(items)) {
+    tell(player, "To build a worker, put at least one tool (pickaxe, shovel, axe or hoe), an anvil, or a sieve in the barrel, or a bundle and leather boots for a Hauler, then place the pumpkin again.");
     return;
   }
   const cap = capCheck(player.id);
@@ -171,7 +181,7 @@ export function buildFromBarrel(player, head) {
   // tools first, so the kit gets them before anything else
   const ordered = [...kept.filter((it) => toolInfo(it)), ...kept.filter((it) => !toolInfo(it))];
   // in a settlement, the worker is the founder's, like every worker there
-  const { e, spill } = spawnWorker(dim, at, ownerFor({ id: player.id, name: player.name }), undefined, ordered, sieve ? "Sifter" : undefined);
+  const { e, spill } = spawnWorker(dim, at, ownerFor({ id: player.id, name: player.name }), undefined, ordered, anvil ? "Smith" : sieve ? "Sifter" : undefined);
   for (const it of spill) dim.spawnItem(it, at);
   const extra = tools.length > KIT_SLOTS ? ` Only ${KIT_SLOTS} tools fit in the kit; the other ${tools.length - KIT_SLOTS} are carried and will go in the deposit chest.` : "";
   tell(player, `Crouch and use ${e.getDynamicProperty("crew:name")} to give it orders. New to workers? Type /crew:guide.${extra}`);
@@ -224,7 +234,7 @@ export function holdTool(e, id) {
   }
 }
 
-/** Keeps the entity property the skin is picked by (0 Miner, 1 Digger, 2 Woodcutter, 3 Farmer, 4 Hauler, 5 Sifter) in step with the role. @param {import("@minecraft/server").Entity} e */
+/** Keeps the entity property the skin is picked by (0 Miner through 6 Smith) in step with the role. @param {import("@minecraft/server").Entity} e */
 export function syncRole(e) {
   try {
     const want = Math.max(0, ROLE_LIST.indexOf(roleOf(e)));
@@ -240,6 +250,11 @@ export function updateTag(e) {
   if (roleOf(e) === "Hauler") {
     holdTool(e, undefined);
     e.nameTag = `${meta(e).name}\n§7Hauler`;
+    return;
+  }
+  if (roleOf(e) === "Smith") {
+    holdTool(e, undefined);
+    e.nameTag = `${meta(e).name}\n§7Smith`;
     return;
   }
   const inv = e.getComponent("minecraft:inventory")?.container;

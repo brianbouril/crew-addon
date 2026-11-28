@@ -3,6 +3,7 @@
   "texture_name": "atlas.items",
   "texture_data": {
     "crew_survey_stake": { "textures": "textures/items/crew_survey_stake" },
-    "crew_sieve": { "textures": "textures/items/crew_sieve" }
+    "crew_sieve": { "textures": "textures/items/crew_sieve" },
+    "crew_forge": { "textures": "textures/items/crew_forge" }
   }
 }

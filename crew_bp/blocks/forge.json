@@ -1,0 +1,19 @@
+{
+  "format_version": "1.21.0",
+  "minecraft:block": {
+    "description": {
+      "identifier": "crew:forge",
+      "menu_category": { "category": "equipment" }
+    },
+    "components": {
+      "minecraft:destructible_by_mining": { "seconds_to_destroy": 2.5 },
+      "minecraft:destructible_by_explosion": { "explosion_resistance": 6 },
+      "minecraft:unit_cube": {},
+      "minecraft:material_instances": {
+        "*": { "texture": "crew_forge", "render_method": "alpha_test" }
+      },
+      "minecraft:collision_box": true,
+      "minecraft:selection_box": true
+    }
+  }
+}

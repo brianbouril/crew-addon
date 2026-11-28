@@ -11,7 +11,8 @@ import { center, dist, floorV, fmt, getJSON, lerp, setJSON, onlinePlayer, sameV,
 import { emit, holdTool, loadedWorkers, meta, migrateRole, roleOf, syncRole, updateTag } from "./workers.js";
 import { isProtected, noteChestUse, saveSeen } from "./settlement.js";
 import { DRAIN_PER_BLOCK, EXHAUSTED, REST, TIRED, TIRED_SLOWDOWN, bedPose, bedSafety, bedside, eatOne, energy, energyWord, getHome, isNight, isSupply, restock, setEnergy } from "./life.js";
-import { buildEntrance, craftPickaxe, whyNoCraft } from "./prospect.js";
+import { buildEntrance } from "./prospect.js";
+import { pullCappedTool, smithIdle, smithStatus, smithToolSpot, smithWaitLine, stepSmith } from "./smith.js";
 import { CARGO_END, HAUL_SLOTS, SLOT_WORDS, haulStatus, haulerIdle, haulerIdleStatus, isHaulJob, keepsItem, newDay, showLoad, stepHaul } from "./hauler.js";
 
 /**
@@ -106,7 +107,7 @@ function glideAt(m, t) {
 /** @param {Entity} e @param {any} job */
 export function startJob(e, job) {
   stopJob(e, undefined);
-  const st = { phase: job.type === "come" ? "walking" : job.type === "prospect" ? "entrance" : "travel_in", i: 0, pct: 0, finds: [], hazards: {}, blinks: 0, uses: {}, skipped: [], skipCount: {}, skipTotal: 0 };
+  const st = { phase: job.type === "come" ? "walking" : job.type === "smith" ? "to_forge" : job.type === "prospect" ? "entrance" : "travel_in", i: 0, pct: 0, finds: [], hazards: {}, blinks: 0, uses: {}, skipped: [], skipCount: {}, skipTotal: 0 };
   setJSON(e, "crew:job", job);
   setJSON(e, "crew:state", st);
   e.triggerEvent("crew:start_work");
@@ -124,6 +125,9 @@ export function startJob(e, job) {
     const levels = (g.levels ?? []).map((/** @type {{y:number, ores:string[]}} */ l) => `${l.y}:${l.ores.join("+")}`).join(", ");
     emit(e, "job_started", { mode: "prospect", start: fmt(g.anchor), facing: g.facing, target_y: g.ty, range: g.range, levels, name: job.mineName, quota: job.quota ?? null, quota_ore: job.quotaOre ?? null },
       `starting ${job.mineName} at ${fmt(g.anchor)} heading ${g.facing}: one shaft, branch levels ${levels || "none"}, within ${g.range} blocks. Home ground stays undug.`);
+  } else if (job.type === "smith") {
+    emit(e, "job_started", { mode: "smith", action: job.action ?? "stock", at: fmt(job.at) },
+      `starting at the forge at ${fmt(job.at)}.`);
   } else if (job.type === "forest" || job.type === "field") {
     const b = job.box;
     emit(e, "job_started", { mode: job.type, corner: fmt(b.min), size: [b.max.x - b.min.x + 1, b.max.z - b.min.z + 1], deposit: job.deposit.label },
@@ -133,8 +137,8 @@ export function startJob(e, job) {
 
 const isDig = (/** @type {any} */ job) => job?.type === "quarry" || job?.type === "branch_mine" || job?.type === "prospect";
 const isPlot = (/** @type {any} */ job) => job?.type === "forest" || job?.type === "field";
-const isWork = (/** @type {any} */ job) => isDig(job) || isPlot(job);
-const digName = (/** @type {any} */ job) => (job.type === "quarry" ? "quarry" : job.type === "prospect" ? "mine" : job.type === "branch_mine" ? "branch mine" : job.type === "round" ? (/** @type {Record<string, string>} */ (SLOT_WORDS)[job.slot] ?? "round") : job.type);
+const isWork = (/** @type {any} */ job) => isDig(job) || isPlot(job) || job?.type === "smith";
+const digName = (/** @type {any} */ job) => (job.type === "quarry" ? "quarry" : job.type === "prospect" ? "mine" : job.type === "branch_mine" ? "branch mine" : job.type === "smith" ? "forge" : job.type === "round" ? (/** @type {Record<string, string>} */ (SLOT_WORDS)[job.slot] ?? "round") : job.type);
 /** How far along a job is (0..1): dig or plot steps, or chests on a round. @param {any} job @param {any} st */
 const doneShare = (job, st) => (job.type === "round" ? (job.route?.length ? Math.min(1, (st.idx ?? 0) / job.route.length) : 0) : job.geom?.total ? (st.i ?? 0) / job.geom.total : 0);
 
@@ -158,7 +162,9 @@ export function stopJob(e, why, done = false) {
   if (keepDig) setJSON(e, "crew:paused", { job: { ...job, tickingArea: false }, st: stNow });
   else if (isPlot(job) && stNow) setJSON(e, "crew:paused", { job: { ...job, tickingArea: false }, st: stNow });
   if (job?.type === "round" && !done && stNow) setJSON(e, "crew:paused", { job: { ...job, tickingArea: false }, st: stNow });
-  if (job && why) emit(e, "stopped", { reason: why }, keepDig || (job.type === "round" && !done) ? `${why} Pick Continue in my menu to pick the ${digName(job)} up where I left off.` : why);
+  if (job?.type === "smith" && !done && stNow) setJSON(e, "crew:paused", { job: { ...job, tickingArea: false }, st: stNow });
+  const keepOn = keepDig || (job?.type === "round" && !done) || (job?.type === "smith" && !done);
+  if (job && why) emit(e, "stopped", { reason: why }, keepOn ? `${why} Pick Continue in my menu to pick the ${digName(job)} up where I left off.` : why);
   if (job?.type === "rest") {
     // an order while it's lying in bed: get up beside the bed first
     const rst = active.get(e.id)?.st ?? getJSON(e, "crew:state", undefined);
@@ -188,6 +194,7 @@ export function stopJob(e, why, done = false) {
 export function pausedJob(e) {
   const saved = getJSON(e, "crew:paused", undefined);
   if (!saved?.job || !saved?.st) return undefined;
+  if (saved.job.type === "smith") return { name: "forge" };
   if (isPlot(saved.job)) return { name: saved.job.type === "forest" ? "forest" : "field" };
   return { name: digName(saved.job), pct: Math.floor(100 * doneShare(saved.job, saved.st)) };
 }
@@ -204,13 +211,14 @@ export function resumeJob(e) {
   setJSON(e, "crew:paused", undefined);
   const job = { ...saved.job, tickingArea: false };
   const st = { ...saved.st, cool: 0, move: undefined, walkAfter: false, needTool: undefined, wait: undefined, blinks: 0, pause: 0, lastPos: undefined };
-  st.phase = isPlot(job) ? "scan" : job.type === "round" ? "area" : job.type === "prospect" && !st.entranceDone ? "entrance" : st.i === 0 && !st.stand ? "travel_in" : "return";
+  st.phase = job.type === "smith" ? "to_forge" : isPlot(job) ? "scan" : job.type === "round" ? "area" : job.type === "prospect" && !st.entranceDone ? "entrance" : st.i === 0 && !st.stand ? "travel_in" : "return";
   setJSON(e, "crew:job", job);
   setJSON(e, "crew:state", st);
   e.triggerEvent("crew:start_work");
   active.set(e.id, { e, job, st, saveIn: 20, areaIn: 0 });
   const pct = Math.floor(100 * doneShare(job, st));
   if (job.type === "round") emit(e, "job_resumed", { mode: "round", chest: st.idx ?? 0, chests: job.route?.length ?? 0 }, `picking the ${digName(job)} back up (${Math.min(job.route?.length ?? 0, (st.idx ?? 0) + 1)} of ${job.route?.length ?? 0} chests).`);
+  else if (job.type === "smith") emit(e, "job_resumed", { mode: "smith" }, `picking the forge back up.`);
   else if (isPlot(job)) emit(e, "job_resumed", { mode: job.type, step: st.i, total: job.geom?.total }, `picking the ${digName(job)} back up.`);
   else emit(e, "job_resumed", { mode: job.type, step: st.i, total: job.geom.total }, `picking the ${digName(job)} back up at ${pct}% (step ${st.i} of ${job.geom.total}).`);
   return job;
@@ -290,6 +298,7 @@ export function startEngine() {
         else if (rt.job.type === "rest") stepRest(rt);
         else if (isPlot(rt.job)) stepPlot(rt, { walkTo });
         else if (isHaulJob(rt.job)) stepHaul(rt, haulCtx);
+        else if (rt.job.type === "smith") stepSmith(rt, smithCtx);
         else stepDig(rt);
         // twice a second: never inside a block (not while lying on its bed, which is meant to overlap)
         if (rt.job.type !== "rest" && active.get(rt.e.id) === rt && (rt.unstickIn = (rt.unstickIn ?? 10) - 1) <= 0) {
@@ -347,6 +356,7 @@ function routine() {
       if (!night) {
         // an idle Hauler starts its rounds, extra trips and tidying by itself
         if (hauler && !job) haulerIdle(e, haulCtx);
+        if (roleOf(e) === "Smith" && !job) smithIdle(e, { startJob });
         continue;
       }
       const up = e.getDynamicProperty("crew:stayUp");
@@ -542,6 +552,7 @@ function shortStatus(e, job, st) {
     if (roleOf(e) === "Hauler" && !paused) return haulerIdleStatus(e);
     return paused ? `Idle (${paused.name} paused${paused.pct == null ? "" : ` at ${paused.pct}%`})` : "Idle";
   }
+  if (job.type === "smith") return smithStatus(job, st);
   if (isHaulJob(job)) return haulStatus(e, job, st);
   if (job.type === "rest") return st?.phase === "asleep" ? (getHome(e) ? "Asleep at home" : "Asleep") : "Going to bed";
   if (job.type === "come") return `Walking to ${job.target?.name ?? job.label}`;
@@ -666,22 +677,20 @@ function stepDig(rt) {
       st.phase = "travel_in";
       return;
     }
-    case "craft_home": {
-      const home = getHome(e);
-      if (!home?.chest || home.dim !== e.dimension.id) {
-        st.phase = "to_deposit";
-        return needTool(rt, "pickaxe");
-      }
-      e.setProperty("crew:anim", rt.walk?.path ? 1 : 0);
-      if (walkTo(rt, home.chest, 2.6, true) !== "arrived") return;
-      const made = craftPickaxe(e.dimension, home, inv, st.lostTier ?? job.pickCap ?? 0);
-      emit(e, made.ok ? "crafted" : "craft_failed", { tool: made.tool ?? null }, made.message);
-      if (made.ok) {
-        st.triedCraft = false;
-        return backToWork(rt, inv, "", "home");
-      }
-      st.phase = "to_deposit";
+    case "craft_home":
+      // Saves from before the Smith still say craft_home. The Smith makes tools now.
+      st.triedSmith = false;
       return needTool(rt, "pickaxe");
+    case "fetch_smith": {
+      const at = st.smithChest;
+      if (!at) return needTool(rt, st.needTool ?? "pickaxe");
+      e.setProperty("crew:anim", rt.walk?.path ? 1 : 0);
+      if (walkTo(rt, at, 2.6, true) !== "arrived") return;
+      const kinds = st.smithKinds ?? (st.needTool === "pickaxe" ? ["pickaxe"] : toolKinds(rt));
+      const took = pullCappedTool(e, at, inv, kinds, st.lostTier);
+      if (hasNeededTool(rt, inv)) return backToWork(rt, inv, took, "the Smith's chest");
+      st.triedSmith = true;
+      return needTool(rt, st.needTool ?? "pickaxe");
     }
     case "travel_in": {
       e.setProperty("crew:anim", rt.walk?.path ? 1 : 0);
@@ -730,6 +739,14 @@ function stepDig(rt) {
       const took = hasNeededTool(rt, inv) ? "" : takeTools(rt, job.deposit, inv);
       if (hasNeededTool(rt, inv)) return backToWork(rt, inv, took, job.deposit.label);
       // none here: its home chest may have one (it checks every 5 seconds or so)
+      const kinds = st.needTool === "pickaxe" ? ["pickaxe"] : toolKinds(rt);
+      const smithAt = smithToolSpot(e, kinds, st.lostTier);
+      if (smithAt) {
+        st.smithChest = smithAt;
+        st.smithKinds = kinds;
+        st.phase = "fetch_smith";
+        return;
+      }
       const home = getHome(e);
       if (home?.chest && home.dim === e.dimension.id && !sameV(home.chest, job.deposit) && chestHasTool(rt, home.chest)) {
         st.phase = "fetch_tool";
@@ -1344,7 +1361,8 @@ function mineCell(rt, c, inv, k, dry) {
   const w = wear(inv, tool, st.uses);
   if (w === "low") emit(e, "tool_low", { tool: label }, `my ${label} is nearly worn out (10% left).`);
   if (w === "broke") {
-    if (tool.info.kind === "pickaxe") st.lostTier = tool.info.tier;
+    st.lostTier = tool.info.tier;
+    st.lostKind = tool.info.kind;
     const rest = kit(inv);
     const next = rest.filter((t) => t.info.kind === tool.info.kind);
     emit(e, "tool_broke", { tool: label, left: kitText(rest) },
@@ -1392,19 +1410,21 @@ function logSkip(rt, id, c, need) {
 /** @param {Runtime} rt @param {"pickaxe"|"tool"} what */
 function needTool(rt, what) {
   const st = rt.st;
-  const outOfPick = what === "pickaxe" || (what === "tool" && st.lostTier !== undefined);
-  if (rt.job.type === "prospect" && outOfPick && !st.triedCraft) {
-    st.triedCraft = true;
-    const home = getHome(rt.e);
-    if (home?.chest && home.dim === rt.e.dimension.id && !whyNoCraft(rt.e.dimension, home)) {
-      st.phase = "craft_home";
+  const kinds = what === "pickaxe" ? ["pickaxe"] : st.lostKind ? [st.lostKind] : toolKinds(rt);
+  if (!st.triedSmith) {
+    st.triedSmith = true;
+    const spot = smithToolSpot(rt.e, kinds, st.lostTier);
+    if (spot) {
+      st.smithChest = spot;
+      st.smithKinds = kinds;
+      st.phase = "fetch_smith";
       return;
     }
   }
   if (!st.needTool) {
     st.needTool = what;
-    const craft = rt.job.type === "prospect" && outOfPick ? ` ${whyNoCraft(rt.e.dimension, getHome(rt.e))}` : "";
-    emit(rt.e, "tool_needed", { needs: what }, `I need ${what === "pickaxe" ? "a pickaxe" : "a tool"} to keep going.${craft} Taking what I have to ${rt.job.deposit.label} and waiting there. Put one in that chest or my home chest, or tap me holding one.`);
+    const because = smithWaitLine(rt.e, kinds);
+    emit(rt.e, "tool_needed", { needs: what, message: because }, `I need ${what === "pickaxe" ? "a pickaxe" : "a tool"} to keep going. ${because} Taking what I have to ${rt.job.deposit.label} and waiting there. Put one in that chest or my home chest, or tap me holding one.`);
   }
   st.phase = "to_deposit";
 }
@@ -1774,6 +1794,7 @@ function blink(rt, target) {
 
 /** What hauler.js needs from the engine (passed in, so hauler.js doesn't import this module). */
 const haulCtx = { walkTo, stopJob, startRest, startJob, resumeJob };
+const smithCtx = { walkTo, stopJob, startRest };
 
 export const isWorking = (/** @type {Entity} */ e) => active.has(e.id) || !!e.getDynamicProperty("crew:job");
 export { meta };

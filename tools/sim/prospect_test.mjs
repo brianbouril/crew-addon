@@ -233,10 +233,14 @@ const pick = () => new ItemStack("minecraft:iron_pickaxe");
   const { e } = spawnWorker(ow, { x: 2010.5, y: 66, z: 2000.5 }, owner, "Woody", [worn]);
   setHome(e, { dim: ow.id, head, foot: { x: 2001, y: 64, z: 2000 }, chest });
   dispatch(by, { worker: "Woody", job: "prospect", params: { where: "home", facing: "east", range: 6 } });
-  until(() => said('"type":"crafted"') && said("minecraft:wooden_pickaxe"), 20000);
+  const woodySaid = (bit) => logs.some((l) => l.includes('"worker":"Woody"') && l.includes(bit));
+  until(() => woodySaid("tool_needed"), 20000);
   const picks = [];
   for (let i = 0; i < 5; i++) { const it = e.inv.getItem(i); if (it?.typeId?.endsWith("pickaxe")) picks.push(it.typeId); }
-  check("a broken wooden pick is replaced and not upgraded", said("minecraft:wooden_pickaxe") && picks.includes("minecraft:wooden_pickaxe") && !picks.includes("minecraft:iron_pickaxe") && !picks.includes("minecraft:diamond_pickaxe"));
+  const planks = count(ow.getBlock(chest).getComponent("minecraft:inventory").container, "minecraft:oak_planks");
+  check("a broken wooden pick is not crafted at home", !woodySaid('"type":"crafted"') && picks.length === 0, picks);
+  check("it waits on a Smith", woodySaid("no Smith"), logs.filter((l) => l.includes('"worker":"Woody"')).slice(-2));
+  check("home planks were not spent on a pick", planks >= 8, planks);
   stopJob(e, undefined);
 }
 

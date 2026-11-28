@@ -11,7 +11,8 @@
         "woodcutter": "textures/entity/worker_woodcutter",
         "farmer": "textures/entity/worker_farmer",
         "hauler": "textures/entity/worker_hauler",
-        "sifter": "textures/entity/worker_sifter"
+        "sifter": "textures/entity/worker_sifter",
+        "smith": "textures/entity/worker_smith"
       },
       "geometry": { "default": "geometry.crew_worker" },
       "scripts": {

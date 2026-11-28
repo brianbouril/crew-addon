@@ -6,17 +6,20 @@ export const GameMode = { survival: "survival", creative: "creative", adventure:
 export const CustomCommandParamType = new Proxy({}, { get: (_, k) => k });
 export const CustomCommandSource = { Block: "Block", Entity: "Entity", NPCDialogue: "NPCDialogue", Server: "Server" };
 export const CustomCommandStatus = { Success: 0, Failure: 1 };
-const MAXDUR = { wooden: 59, golden: 32, stone: 131, copper: 190, iron: 250, diamond: 1561, netherite: 2031 };
+const MAXDUR = { wooden: 59, golden: 32, stone: 131, copper: 190, iron: 250, diamond: 1561, netherite: 2031, leather: 80, chainmail: 240 };
+const ARMOR_MAX = { leather: 80, golden: 112, chainmail: 240, iron: 240, diamond: 528, netherite: 592, copper: 240 };
 // `data` (tests only) stands for item data such as banner patterns or firework flights: stacks with different data never stack.
 export class ItemStack {
   constructor(typeId, amount = 1) { this.typeId = typeId; this.amount = amount; this.damage = 0; this.enchants = {}; }
-  get maxAmount() { return /_(pickaxe|shovel|axe|hoe|sword)$|bundle|leather_boots|shulker_box/.test(this.typeId) ? 1 : 64; }
+  get maxAmount() { return /_(pickaxe|shovel|axe|hoe|sword|helmet|chestplate|leggings|boots|horse_armor)$|bundle|leather_boots|shulker_box/.test(this.typeId) ? 1 : 64; }
   isStackableWith(o) { return o.typeId === this.typeId && this.maxAmount > 1 && (o.nameTag ?? "") === (this.nameTag ?? "") && (o.data ?? "") === (this.data ?? ""); }
   clone() { const c = new ItemStack(this.typeId, this.amount); c.damage = this.damage; c.enchants = { ...this.enchants }; if (this.nameTag !== undefined) c.nameTag = this.nameTag; if (this.data !== undefined) c.data = this.data; return c; }
   getComponent(n) {
-    const m = /^minecraft:(\w+?)_(pickaxe|shovel|axe|hoe)$/.exec(this.typeId);
+    const m = /^minecraft:(wooden|golden|stone|copper|iron|diamond|netherite)_(pickaxe|shovel|axe|hoe|sword)$/.exec(this.typeId);
+    const armor = /^minecraft:(leather|golden|chainmail|iron|diamond|netherite|copper)_(helmet|chestplate|leggings|boots)$/.exec(this.typeId);
     if (n === "minecraft:durability" && m) { const it = this; return { get damage() { return it.damage; }, set damage(v) { it.damage = v; }, maxDurability: MAXDUR[m[1]] }; }
-    if (n === "minecraft:enchantable" && m) { const it = this; return { getEnchantment: (k) => (it.enchants[k] ? { level: it.enchants[k] } : undefined) }; }
+    if (n === "minecraft:durability" && armor) { const it = this; return { get damage() { return it.damage; }, set damage(v) { it.damage = v; }, maxDurability: ARMOR_MAX[armor[1]] }; }
+    if (n === "minecraft:enchantable" && (m || armor)) { const it = this; return { getEnchantment: (k) => (it.enchants[k] ? { level: it.enchants[k] } : undefined) }; }
     return undefined;
   }
 }
@@ -92,7 +95,7 @@ let players = [];
 /** The players world.getAllPlayers() returns. */
 export const setPlayers = (list) => { players = list; };
 // Item ids that aren't blocks (BlockTypes.get returns undefined for them).
-const NOT_BLOCKS = /_(pickaxe|shovel|axe|hoe|sword)$|^crew:(?!sieve$)|bread|apple|cooked|ingot|diamond$|^minecraft:coal$|stick/;
+const NOT_BLOCKS = /_(pickaxe|shovel|axe|hoe|sword|helmet|chestplate|leggings|boots|horse_armor)$|^crew:(?!sieve$|forge$)|bread|apple|cooked|ingot|diamond$|^minecraft:coal$|stick|leather$|nugget|template/;
 /** Tests: redstone power at a block (Block.getRedstonePower). @param {Dimension} dim @param {{x:number,y:number,z:number}} p @param {number} power */
 export function setRedstonePower(dim, p, power) { dim.power.set(key(p), power); }
 export const BlockTypes = { get: (id) => (NOT_BLOCKS.test(id) ? undefined : { id }) };

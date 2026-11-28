@@ -4,6 +4,7 @@
   "padding": 8,
   "num_mip_levels": 4,
   "texture_data": {
-    "crew_sieve": { "textures": "textures/blocks/crew_sieve" }
+    "crew_sieve": { "textures": "textures/blocks/crew_sieve" },
+    "crew_forge": { "textures": "textures/blocks/crew_forge" }
   }
 }
