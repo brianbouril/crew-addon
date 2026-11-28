@@ -122,6 +122,12 @@ let day = 0; // world.getDay(); tests move it with setDay
 export const setDay = (n) => { day = n; };
 export const world = {
   getDimension: (id) => dims[id], getAllPlayers: () => players, getTimeOfDay: () => timeOfDay, getDay: () => day,
+  /** @param {number} t 0 inclusive to 24000 exclusive, matching @minecraft/server 2.2.0 */
+  setTimeOfDay(t) {
+    const n = Number(t);
+    if (!Number.isFinite(n) || n < 0 || n >= 24000) throw new RangeError("time of day");
+    timeOfDay = n;
+  },
   getDynamicProperty: (k) => wprops.get(k), setDynamicProperty: (k, v) => (v === undefined ? wprops.delete(k) : wprops.set(k, v)), getDynamicPropertyIds: () => [...wprops.keys()],
   getLootTableManager: () => ({ generateLootFromBlock: (b, tool) => {
     lootCalls.push([b.typeId, tool?.typeId ?? "hand"]);

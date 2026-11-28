@@ -340,6 +340,9 @@ export function setCap(by, n) {
  * @param {string} playerId
  */
 export function capCheck(playerId) {
+  // crew:devMode is set only by an operator (devmode.js). While it is true the limit is lifted.
+  // The stored crew:cap number is not changed, so turning dev mode off restores this check.
+  if (world.getDynamicProperty("crew:devMode") === true) return { ok: true, message: "" };
   const s = settlementOf({ id: playerId, name: "" });
   if (s) {
     const have = workerCount(s.ownerId), cap = getCap() * peopleOf(s).length;

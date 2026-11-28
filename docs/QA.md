@@ -149,6 +149,26 @@ a full server restart: `reload` refuses to re-register it.
       (only Diggers stop), Go home (workers with a bed walk home, the rest stay), Drop off, and
       Continue after a Stop (paused digs pick up). A worker far away does it when you come near.
 
+**Dev mode (operators; mock-tested; staging first)**
+- [ ] D1. As someone who is not an operator, `/crew:dev` does not turn anything on. The worker limit
+      still stops a build past the limit.
+- [ ] D2. As an operator, `/crew:dev` before turning it on says dev mode is off. `/crew:dev on`
+      says Dev mode is ON. `/crew:dev` opens a menu titled Dev mode. `/crew:dev off` says it is off.
+- [ ] D3. From that menu, give every test item. You get one Survey Stake (a second time does not
+      give another), sieves, a pickaxe, shovel, axe and hoe, a bundle, leather boots, torches,
+      planks, seeds, wood, gravel, and a water bucket.
+- [ ] D4. Spawn one of each: Digger, Miner, Hauler, Woodcutter, Farmer, and Sifter stand beside you.
+      Each has the tool or gear for that job and a home chest with torches plus that job's supplies
+      (pickaxes, seeds, wood, gravel, and the rest). A Sifter has a sieve.
+- [ ] D5. Set the limit to 1 with `/crew:cap 1` while dev mode is on and spawn more than one: they
+      spawn, and `/crew:cap` still shows 1. Turn dev mode off: a barrel build past the limit is
+      refused and the barrel keeps its tool. The extra workers stay. `/crew:cap` still shows 1.
+- [ ] D6. With dev mode on, `/crew:dev night`: workers that have a home head to bed. `/crew:dev morning`:
+      daytime returns. Turn dev mode off: the clock stays where you left it, and `/crew:dev night`
+      no longer changes it.
+- [ ] D7. The server log shows no new script errors from the menu. After `/crew:dev off` there is
+      no dev-mode world property left.
+
 **Diggers and Miners (built Nov 15, mock-tested; not on the server yet)**
 - [ ] 11. Existing workers turn into Diggers the first time they load: the name tag says Digger, the
       skin changes, and the owner gets one "I'm a Digger now" message. A quarry it was digging (or
