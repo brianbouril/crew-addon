@@ -37,6 +37,7 @@ const steps = [
   ["restart a half-dug quarry", ["restart_test.mjs"]],
   ["reaching a chest (inside a house; light blocks)", ["chest_test.mjs"]],
   ["Digger and Miner roles", ["roles_test.mjs"]],
+  ["miner prospecting", ["prospect_test.mjs"]],
   ["settlement (release 1)", ["settlement_test.mjs"]],
   ["settlement (release 2: storage, orders to everyone)", ["settlement2_test.mjs"]],
   ["hauler (build, roles, depot, sorting, counts, what it touches, haul)", ["hauler_test.mjs"]],

@@ -3,7 +3,7 @@
 // pathfinder in path.js. Tools come from the worker's kit (tools.js).
 import { world, system, BlockPermutation } from "@minecraft/server";
 import { AIR, FILL, GRAVITY, ORE, SIGNS, TORCH, VALUABLE, bestKind, blockName, canSee, keepIntact, needsOpening, passable, setOpen } from "./blocks.js";
-import { off, column, inBranchPlan, isStairBlock, startCell, stepAt } from "./plans.js";
+import { off, column, inBranchPlan, inProspectPlan, isStairBlock, prospectBlocked, startCell, stepAt } from "./plans.js";
 import { advance, atGoal, near, newSearch } from "./path.js";
 import { plotStatus, stepPlot } from "./plots.js";
 import { KIT_SLOTS, addToKit, chooseTool, freeHaulSlots, kit, kitText, roleKinds, stash, ticksFor, toolInfo, toolPref, wear } from "./tools.js";
@@ -11,6 +11,7 @@ import { center, dist, floorV, fmt, getJSON, lerp, setJSON, onlinePlayer, sameV,
 import { emit, holdTool, loadedWorkers, meta, migrateRole, roleOf, syncRole, updateTag } from "./workers.js";
 import { isProtected, noteChestUse, saveSeen } from "./settlement.js";
 import { DRAIN_PER_BLOCK, EXHAUSTED, REST, TIRED, TIRED_SLOWDOWN, bedPose, bedSafety, bedside, eatOne, energy, energyWord, getHome, isNight, isSupply, restock, setEnergy } from "./life.js";
+import { buildEntrance, craftPickaxe, whyNoCraft } from "./prospect.js";
 import { CARGO_END, HAUL_SLOTS, SLOT_WORDS, haulStatus, haulerIdle, haulerIdleStatus, isHaulJob, keepsItem, newDay, showLoad, stepHaul } from "./hauler.js";
 
 /**
@@ -105,7 +106,7 @@ function glideAt(m, t) {
 /** @param {Entity} e @param {any} job */
 export function startJob(e, job) {
   stopJob(e, undefined);
-  const st = { phase: job.type === "come" ? "walking" : "travel_in", i: 0, pct: 0, finds: [], hazards: {}, blinks: 0, uses: {}, skipped: [], skipCount: {}, skipTotal: 0 };
+  const st = { phase: job.type === "come" ? "walking" : job.type === "prospect" ? "entrance" : "travel_in", i: 0, pct: 0, finds: [], hazards: {}, blinks: 0, uses: {}, skipped: [], skipCount: {}, skipTotal: 0 };
   setJSON(e, "crew:job", job);
   setJSON(e, "crew:state", st);
   e.triggerEvent("crew:start_work");
@@ -118,6 +119,11 @@ export function startJob(e, job) {
     const g = job.geom;
     emit(e, "job_started", { mode: "branch_mine", start: fmt(g.anchor), facing: g.facing, target_y: g.ty, trunk: g.L, trunk_width: g.w ?? 2, branch: g.B, spacing: g.s, deposit: job.deposit.label },
       `starting a branch mine at ${fmt(g.anchor)} heading ${g.facing}: ${g.n > 0 ? `stairs down to Y ${g.ty}, ` : ""}a ${g.L}-block trunk ${g.w ?? 2} wide, then ${g.branchAt.length * 2} branches ${g.B} long with ${g.s} blocks between. Depositing at ${job.deposit.label}.`);
+  } else if (job.type === "prospect") {
+    const g = job.geom;
+    const levels = (g.levels ?? []).map((/** @type {{y:number, ores:string[]}} */ l) => `${l.y}:${l.ores.join("+")}`).join(", ");
+    emit(e, "job_started", { mode: "prospect", start: fmt(g.anchor), facing: g.facing, target_y: g.ty, range: g.range, levels, name: job.mineName, quota: job.quota ?? null, quota_ore: job.quotaOre ?? null },
+      `starting ${job.mineName} at ${fmt(g.anchor)} heading ${g.facing}: one shaft, branch levels ${levels || "none"}, within ${g.range} blocks. Home ground stays undug.`);
   } else if (job.type === "forest" || job.type === "field") {
     const b = job.box;
     emit(e, "job_started", { mode: job.type, corner: fmt(b.min), size: [b.max.x - b.min.x + 1, b.max.z - b.min.z + 1], deposit: job.deposit.label },
@@ -125,10 +131,10 @@ export function startJob(e, job) {
   }
 }
 
-const isDig = (/** @type {any} */ job) => job?.type === "quarry" || job?.type === "branch_mine";
+const isDig = (/** @type {any} */ job) => job?.type === "quarry" || job?.type === "branch_mine" || job?.type === "prospect";
 const isPlot = (/** @type {any} */ job) => job?.type === "forest" || job?.type === "field";
 const isWork = (/** @type {any} */ job) => isDig(job) || isPlot(job);
-const digName = (/** @type {any} */ job) => (job.type === "quarry" ? "quarry" : job.type === "branch_mine" ? "branch mine" : job.type === "round" ? (/** @type {Record<string, string>} */ (SLOT_WORDS)[job.slot] ?? "round") : job.type);
+const digName = (/** @type {any} */ job) => (job.type === "quarry" ? "quarry" : job.type === "prospect" ? "mine" : job.type === "branch_mine" ? "branch mine" : job.type === "round" ? (/** @type {Record<string, string>} */ (SLOT_WORDS)[job.slot] ?? "round") : job.type);
 /** How far along a job is (0..1): dig or plot steps, or chests on a round. @param {any} job @param {any} st */
 const doneShare = (job, st) => (job.type === "round" ? (job.route?.length ? Math.min(1, (st.idx ?? 0) / job.route.length) : 0) : job.geom?.total ? (st.i ?? 0) / job.geom.total : 0);
 
@@ -147,18 +153,12 @@ export function stopJob(e, why, done = false) {
       /* already gone */
     }
   }
-  if (isDig(job)) {
-    const st = active.get(e.id)?.st ?? getJSON(e, "crew:state", undefined);
-    if (st && st.i < job.geom.total) setJSON(e, "crew:paused", { job: { ...job, tickingArea: false }, st });
-  } else if (isPlot(job)) {
-    const st = active.get(e.id)?.st ?? getJSON(e, "crew:state", undefined);
-    if (st) setJSON(e, "crew:paused", { job: { ...job, tickingArea: false }, st });
-  }
-  if (job?.type === "round" && !done) {
-    const st = active.get(e.id)?.st ?? getJSON(e, "crew:state", undefined);
-    if (st) setJSON(e, "crew:paused", { job: { ...job, tickingArea: false }, st });
-  }
-  if (job && why) emit(e, "stopped", { reason: why }, isDig(job) || (job.type === "round" && !done) ? `${why} Pick Continue in my menu to pick the ${digName(job)} up where I left off.` : why);
+  const stNow = active.get(e.id)?.st ?? getJSON(e, "crew:state", undefined);
+  const keepDig = isDig(job) && stNow && !stNow.failed && stNow.i < job.geom.total;
+  if (keepDig) setJSON(e, "crew:paused", { job: { ...job, tickingArea: false }, st: stNow });
+  else if (isPlot(job) && stNow) setJSON(e, "crew:paused", { job: { ...job, tickingArea: false }, st: stNow });
+  if (job?.type === "round" && !done && stNow) setJSON(e, "crew:paused", { job: { ...job, tickingArea: false }, st: stNow });
+  if (job && why) emit(e, "stopped", { reason: why }, keepDig || (job.type === "round" && !done) ? `${why} Pick Continue in my menu to pick the ${digName(job)} up where I left off.` : why);
   if (job?.type === "rest") {
     // an order while it's lying in bed: get up beside the bed first
     const rst = active.get(e.id)?.st ?? getJSON(e, "crew:state", undefined);
@@ -204,7 +204,7 @@ export function resumeJob(e) {
   setJSON(e, "crew:paused", undefined);
   const job = { ...saved.job, tickingArea: false };
   const st = { ...saved.st, cool: 0, move: undefined, walkAfter: false, needTool: undefined, wait: undefined, blinks: 0, pause: 0, lastPos: undefined };
-  st.phase = isPlot(job) ? "scan" : job.type === "round" ? "area" : st.i === 0 && !st.stand ? "travel_in" : "return";
+  st.phase = isPlot(job) ? "scan" : job.type === "round" ? "area" : job.type === "prospect" && !st.entranceDone ? "entrance" : st.i === 0 && !st.stand ? "travel_in" : "return";
   setJSON(e, "crew:job", job);
   setJSON(e, "crew:state", st);
   e.triggerEvent("crew:start_work");
@@ -252,8 +252,8 @@ export function statusText(e) {
   } else {
     const total = job.geom.total;
     const pct = Math.floor((100 * Math.min(st.i ?? 0, total)) / total);
-    const what = job.type === "quarry" ? "Quarry" : "Branch mine";
-    const doing = { travel_in: "heading to the site", working: "digging", to_deposit: "taking a load to the deposit", wait_deposit: "waiting for deposit space", wait_tool: `waiting at the deposit for ${st.needTool === "pickaxe" ? "a pickaxe" : "a tool"} (put one in that chest or its home chest, or tap it holding one)`, fetch_tool: "fetching a tool from its home chest", return: "heading back to the dig" }[/** @type {string} */ (st.phase)] ?? st.phase;
+    const what = job.type === "quarry" ? "Quarry" : job.type === "prospect" ? "Prospect" : "Branch mine";
+    const doing = { entrance: "building the entrance", craft_home: "making a pickaxe at home", travel_in: "heading to the site", working: "digging", to_deposit: "taking a load to the deposit", wait_deposit: "waiting for deposit space", wait_tool: `waiting at the deposit for ${st.needTool === "pickaxe" ? "a pickaxe" : "a tool"} (put one in that chest or its home chest, or tap it holding one)`, fetch_tool: "fetching a tool from its home chest", return: "heading back to the dig" }[/** @type {string} */ (st.phase)] ?? st.phase;
     line = `${what} ${pct}% (step ${st.i ?? 0} of ${total}), ${doing}${st.wait ? ` (${st.wait})` : ""}, at ${where}.`;
     if (st.skipTotal) line += ` Left ${st.skipTotal} block${st.skipTotal === 1 ? "" : "s"} it couldn't harvest (${Object.entries(st.skipCount).map(([t, n]) => `${n} ${blockName(t)}`).join(", ")}).`;
   }
@@ -549,7 +549,8 @@ function shortStatus(e, job, st) {
   if (isPlot(job)) return job.type === "forest" ? "Forest" : "Field";
   const total = job.geom?.total ?? 1;
   const pct = Math.floor((100 * Math.min(st?.i ?? 0, total)) / total);
-  return `${job.type === "quarry" ? "Quarry" : "Branch mine"} ${pct}%${st?.needTool ? ", waiting for a tool" : ""}`;
+  const label = job.type === "quarry" ? "Quarry" : job.type === "prospect" ? "Prospect" : "Branch mine";
+  return `${label} ${pct}%${st?.needTool ? ", waiting for a tool" : ""}`;
 }
 
 /** Resumes saved jobs on workers that just loaded (after a restart or when a player comes back). */
@@ -650,6 +651,38 @@ function stepDig(rt) {
   const inv = /** @type {Container} */ (e.getComponent("minecraft:inventory")?.container);
   if (!inv) throw new Error("worker has no inventory");
   switch (st.phase) {
+    case "entrance": {
+      const home = getHome(e);
+      const built = buildEntrance(e.dimension, e, job, home, true);
+      if (!built.ok) {
+        st.failed = true;
+        st.i = job.geom.total;
+        stopJob(e, built.message);
+        return;
+      }
+      st.entranceDone = true;
+      setJSON(e, "crew:job", job);
+      emit(e, "entrance", { name: job.mineName, decorative: !!job.decorative, chest: fmt(job.deposit), note: built.message }, built.message);
+      st.phase = "travel_in";
+      return;
+    }
+    case "craft_home": {
+      const home = getHome(e);
+      if (!home?.chest || home.dim !== e.dimension.id) {
+        st.phase = "to_deposit";
+        return needTool(rt, "pickaxe");
+      }
+      e.setProperty("crew:anim", rt.walk?.path ? 1 : 0);
+      if (walkTo(rt, home.chest, 2.6, true) !== "arrived") return;
+      const made = craftPickaxe(e.dimension, home, inv, st.lostTier ?? job.pickCap ?? 0);
+      emit(e, made.ok ? "crafted" : "craft_failed", { tool: made.tool ?? null }, made.message);
+      if (made.ok) {
+        st.triedCraft = false;
+        return backToWork(rt, inv, "", "home");
+      }
+      st.phase = "to_deposit";
+      return needTool(rt, "pickaxe");
+    }
     case "travel_in": {
       e.setProperty("crew:anim", rt.walk?.path ? 1 : 0);
       // clearing above first: the corner may be buried under the hill, so head for the ground on top of it
@@ -782,6 +815,16 @@ function work(rt, inv) {
   }
 
   if (!st.stage) {
+    if (job.type === "prospect") {
+      let n = 0;
+      while (n < 64 && st.i < job.geom.total) {
+        const s0 = stepAt(job, st.i);
+        if ((s0.mine && s0.mine.length) || s0.treadAt) break;
+        st.i++;
+        n++;
+      }
+      if (n) progress(rt);
+    }
     if (st.i >= job.geom.total) {
       st.final = true;
       if (job.keep === "nothing" || freeHaulSlots(inv) === inv.size - KIT_SLOTS) finish(rt);
@@ -894,6 +937,14 @@ function work(rt, inv) {
     st.wait = undefined;
     if (r.res === "air" || r.res === "left") continue; // changed while it swung: on to the next
     st.grav ||= r.grav;
+    if (job.type === "prospect" && (r.res === "mined" || r.res === "broke") && !c.v && !c.cave) queueCaveOre(rt, c);
+    if (st.quotaHit) {
+      st.final = true;
+      st.q.length = 0;
+      if (freeHaulSlots(inv) === inv.size - KIT_SLOTS) finish(rt);
+      else st.phase = "to_deposit";
+      return;
+    }
     if (c.v) {
       // ore from the wall: fill the hole back in and follow the vein
       const fill = takeFiller(rt, inv);
@@ -909,7 +960,7 @@ function work(rt, inv) {
   if (st.stage === 1) {
     // the step's blocks are out: look for ore in the walls around them
     st.stage = 2;
-    if (job.type === "branch_mine" && s.mine?.length) {
+    if ((job.type === "branch_mine" || job.type === "prospect") && s.mine?.length) {
       for (const c of s.mine) lookForOre(rt, c);
       if (st.q.length) return;
     }
@@ -925,8 +976,12 @@ function work(rt, inv) {
   }
 
   if (st.stage === 2) {
-    // where to stand next: somewhere with a floor and headroom, never inside a block
-    if (!s.stand) {
+    // prospect stair: stand on the air block above the tread. Settling would drop through
+    // the hole and the cobble tread would then be placed in the worker.
+    if (job.type === "prospect" && s.treadAt && s.stand) {
+      st.next = { x: s.stand.x, y: s.stand.y, z: s.stand.z };
+      st.stage = 4;
+    } else if (!s.stand) {
       st.next = undefined;
       st.stage = 4;
     } else if (standOk(rt, s.stand, s.stand)) {
@@ -972,7 +1027,11 @@ function work(rt, inv) {
     }
   }
 
-  // stage 4: torch, then move to the next spot
+  // stage 4: a prospect stair tread, a torch, then move to the next spot
+  if (job.type === "prospect" && s.treadAt) {
+    const tread = dim.getBlock(s.treadAt);
+    if (tread && AIR.has(tread.typeId)) dim.setBlockType(s.treadAt, "minecraft:cobblestone");
+  }
   if (s.torch && s.stand) placeTorch(rt, inv, s.stand);
   /** @type {V3 | undefined} */
   const stand = st.next;
@@ -1111,7 +1170,8 @@ function lookForOre(rt, c) {
     const kq = `${q.x},${q.y},${q.z}`;
     if (seen.includes(kq)) continue;
     seen.push(kq);
-    if (inBranchPlan(job.geom, q)) continue;
+    if (job.type === "branch_mine" && inBranchPlan(job.geom, q)) continue;
+    if (job.type === "prospect" && (inProspectPlan(job.geom, q) || prospectBlocked(job, q))) continue;
     if ((st.vn ?? 0) + st.q.filter((/** @type {any} */ x) => x.v).length >= VEIN_MAX) return;
     const b = dim.getBlock(q);
     if (b && ORE.test(b.typeId)) st.q.push({ ...q, v: 1 });
@@ -1208,6 +1268,20 @@ function mineCell(rt, c, inv, k, dry) {
   const id = block.typeId;
   const no = { ticks: 0, grav: false };
   if (AIR.has(id)) return { res: "air", ...no };
+  if (job.type === "prospect" && prospectBlocked(job, c)) return { res: "left", ...no };
+  if (job.type === "prospect" && id.includes("lava")) {
+    if (!dry && !st.hazards.lava) {
+      st.hazards.lava = true;
+      emit(e, "hazard", { kind: "lava", at: fmt(c) }, `hit lava at ${fmt(c)}. I'll seal it with cobblestone if I have some.`);
+    }
+    if (dry) return { res: "mined", ticks: 1, grav: false, id };
+    const fill = takeCobble(rt, inv);
+    if (fill) {
+      dim.setBlockType(c, fill);
+      return { res: "mined", ticks: 1, grav: false, id };
+    }
+    return { res: "air", ...no };
+  }
   if (block.isLiquid || id.endsWith("water") || id.endsWith("lava")) {
     if (id.includes("lava") && !st.hazards.lava) {
       st.hazards.lava = true;
@@ -1246,6 +1320,10 @@ function mineCell(rt, c, inv, k, dry) {
   const above = dim.getBlock({ x: c.x, y: c.y + 1, z: c.z });
   const grav = !!above && GRAVITY.test(above.typeId);
   dim.setBlockType(c, "minecraft:air");
+  if (job.type === "prospect" && job.quotaOre && oreMatches(job.quotaOre, id)) {
+    st.quotaGot = (st.quotaGot ?? 0) + 1;
+    if (job.quota && st.quotaGot >= job.quota) st.quotaHit = true;
+  }
   for (const drop of drops) {
     const keep = job.keep === "all" || (job.keep === "valuables" && VALUABLE.test(drop.typeId));
     if (!keep) {
@@ -1266,6 +1344,7 @@ function mineCell(rt, c, inv, k, dry) {
   const w = wear(inv, tool, st.uses);
   if (w === "low") emit(e, "tool_low", { tool: label }, `my ${label} is nearly worn out (10% left).`);
   if (w === "broke") {
+    if (tool.info.kind === "pickaxe") st.lostTier = tool.info.tier;
     const rest = kit(inv);
     const next = rest.filter((t) => t.info.kind === tool.info.kind);
     emit(e, "tool_broke", { tool: label, left: kitText(rest) },
@@ -1313,11 +1392,87 @@ function logSkip(rt, id, c, need) {
 /** @param {Runtime} rt @param {"pickaxe"|"tool"} what */
 function needTool(rt, what) {
   const st = rt.st;
+  const outOfPick = what === "pickaxe" || (what === "tool" && st.lostTier !== undefined);
+  if (rt.job.type === "prospect" && outOfPick && !st.triedCraft) {
+    st.triedCraft = true;
+    const home = getHome(rt.e);
+    if (home?.chest && home.dim === rt.e.dimension.id && !whyNoCraft(rt.e.dimension, home)) {
+      st.phase = "craft_home";
+      return;
+    }
+  }
   if (!st.needTool) {
     st.needTool = what;
-    emit(rt.e, "tool_needed", { needs: what }, `I need ${what === "pickaxe" ? "a pickaxe" : "a tool"} to keep going. Taking what I have to ${rt.job.deposit.label} and waiting there. Put one in that chest or my home chest, or tap me holding one.`);
+    const craft = rt.job.type === "prospect" && outOfPick ? ` ${whyNoCraft(rt.e.dimension, getHome(rt.e))}` : "";
+    emit(rt.e, "tool_needed", { needs: what }, `I need ${what === "pickaxe" ? "a pickaxe" : "a tool"} to keep going.${craft} Taking what I have to ${rt.job.deposit.label} and waiting there. Put one in that chest or my home chest, or tap me holding one.`);
   }
   st.phase = "to_deposit";
+}
+
+/** Cobblestone (or cobbled deepslate) to seal lava. @param {Runtime} rt @param {Container} inv */
+function takeCobble(rt, inv) {
+  const sp = rt.st.spare;
+  if (sp) {
+    for (const id of ["minecraft:cobblestone", "minecraft:cobbled_deepslate"]) {
+      if (!sp[id]) continue;
+      if (sp[id] > 1) sp[id]--;
+      else delete sp[id];
+      return id;
+    }
+  }
+  for (let i = KIT_SLOTS; i < inv.size; i++) {
+    const it = inv.getItem(i);
+    if (!it || (it.typeId !== "minecraft:cobblestone" && it.typeId !== "minecraft:cobbled_deepslate")) continue;
+    if (it.amount > 1) {
+      it.amount--;
+      inv.setItem(i, it);
+    } else inv.setItem(i, undefined);
+    return it.typeId;
+  }
+  return undefined;
+}
+
+/** Ore sitting in air the tunnel just opened, close enough to see. Not a scan through stone. @param {Runtime} rt @param {V3} opened */
+function queueCaveOre(rt, opened) {
+  if ((rt.st.caveOre ?? 0) >= 8) return;
+  const dim = rt.e.dimension;
+  const cur = floorV(rt.e.location);
+  /** @type {V3[]} */
+  const airQ = [];
+  for (const [dx, dy, dz] of DIR6) {
+    const p = { x: opened.x + dx, y: opened.y + dy, z: opened.z + dz };
+    const b = dim.getBlock(p);
+    if (b && AIR.has(b.typeId)) airQ.push(p);
+  }
+  const seen = new Set();
+  let n = 0;
+  while (airQ.length && n < 16 && (rt.st.caveOre ?? 0) < 8) {
+    const a = /** @type {V3} */ (airQ.shift());
+    const k = `${a.x},${a.y},${a.z}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    n++;
+    if (Math.max(Math.abs(a.x - rt.job.geom.anchor.x), Math.abs(a.z - rt.job.geom.anchor.z)) > rt.job.geom.range + 8) continue;
+    for (const [dx, dy, dz] of DIR6) {
+      const q = { x: a.x + dx, y: a.y + dy, z: a.z + dz };
+      if (inProspectPlan(rt.job.geom, q) || prospectBlocked(rt.job, q)) continue;
+      const b = dim.getBlock(q);
+      if (!b) continue;
+      if (AIR.has(b.typeId)) airQ.push(q);
+      else if (ORE.test(b.typeId) && canSee(dim, cur, q)) {
+        const qk = `${q.x},${q.y},${q.z}`;
+        if (seen.has(qk)) continue;
+        seen.add(qk);
+        rt.st.q.push({ ...q, cave: 1 });
+        rt.st.caveOre = (rt.st.caveOre ?? 0) + 1;
+      }
+    }
+  }
+}
+
+/** @param {string} ore @param {string} blockId */
+function oreMatches(ore, blockId) {
+  return new RegExp(`(?:deepslate_)?${ore}_ore$`).test(blockId);
 }
 
 /** The kinds of tool that would get it working again. @param {Runtime} rt */
@@ -1441,13 +1596,26 @@ function afterDeposit(rt) {
 /** @param {Runtime} rt */
 function finish(rt) {
   const { e, job, st } = rt;
-  const what = job.type === "quarry" ? `the quarry at ${fmt(job.geom.anchor)}` : `the branch mine at ${fmt(job.geom.anchor)}`;
+  let what = job.type === "quarry" ? `the quarry at ${fmt(job.geom.anchor)}` : job.type === "prospect" ? `${job.mineName} at ${fmt(job.geom.anchor)}` : `the branch mine at ${fmt(job.geom.anchor)}`;
+  let why = "";
+  if (job.type === "prospect") {
+    why = st.quotaHit ? ` Quota of ${job.quota} ${job.quotaOre} met.` : " The area is mined out.";
+    if (job.signAt) {
+      try {
+        const sign = e.dimension.getBlock(job.signAt)?.getComponent("minecraft:sign");
+        const got = st.quotaGot ? `${job.quotaOre ?? "ore"}: ${st.quotaGot}` : "";
+        sign?.setText(`${job.mineName}\n${why.trim()}${got ? `\n${got}` : ""}`);
+      } catch {
+        /* the name is already on the sign */
+      }
+    }
+  }
   const skipped = st.skipTotal ? ` Left ${st.skipTotal} block${st.skipTotal === 1 ? "" : "s"} my tools couldn't harvest; their spots are logged.` : "";
   if (st.skipTotal) setJSON(e, "crew:skipped", { job: job.id, total: st.skipTotal, counts: st.skipCount, blocks: st.skipped });
   const veins = st.veins ? ` Dug ${st.veins} ore block${st.veins === 1 ? "" : "s"} out of the walls.` : "";
   const torches = st.torches ? ` Placed ${st.torches} torch${st.torches === 1 ? "" : "es"}.` : "";
-  emit(e, "job_done", { mode: job.type, steps: job.geom.total, finds: st.finds.length, skipped: st.skipTotal ?? 0, ore_from_walls: st.veins ?? 0, torches: st.torches ?? 0 },
-    `finished ${what}. ${st.finds.length} finds reported.${veins}${torches}${skipped}`);
+  emit(e, "job_done", { mode: job.type, steps: job.geom.total, finds: st.finds.length, skipped: st.skipTotal ?? 0, ore_from_walls: st.veins ?? 0, torches: st.torches ?? 0, stop: job.type === "prospect" ? (st.quotaHit ? "quota" : "mined_out") : undefined },
+    `finished ${what}.${why} ${st.finds.length} finds reported.${veins}${torches}${skipped}`);
   stopJob(e, undefined);
 }
 

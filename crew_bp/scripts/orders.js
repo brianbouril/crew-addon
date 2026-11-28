@@ -15,6 +15,8 @@ const loadedWorkersById = (id) => loadedWorkers().find((w) => w.id === id);
 /** Is this id a worker the registry still knows (loaded or not)? @param {string} id */
 const isKnownWorker = (id) => Object.values(getRegistry()).some((r) => r.id === id);
 import { kit } from "./tools.js";
+import { inGuard, prospectGeom } from "./plans.js";
+import { branchLevels, buildEntrance, guardOf, homeEntrance, levelText, mineTitle } from "./prospect.js";
 import { CLEAR_ABOVE_MAX, layersAbove } from "./blocks.js";
 import { quarryGeom } from "./plans.js";
 import { HOLD_AFTER_ORDER, isHomeChest, isSettlementChest, roundJob } from "./hauler.js";
@@ -60,7 +62,7 @@ function dispatchOne(by, order) {
   const byRef = { id: by.id, name: by.name, console: !!by.console };
   // an order that gives it something to do wakes it, and at night it stays up to do it
   // (go_home isn't here on purpose: sent at night, the worker walks home and the routine puts it to bed)
-  if (["come", "drop_off", "resume", "quarry", "branch_mine", "forest", "field", "haul", "haul_now"].includes(v.job)) keepUp(e);
+  if (["come", "drop_off", "resume", "quarry", "branch_mine", "prospect", "forest", "field", "haul", "haul_now"].includes(v.job)) keepUp(e);
   const hauler = roleOf(e) === "Hauler";
   if (hauler && ["resume", "haul_now", "round"].includes(v.job)) e.setDynamicProperty("crew:hold", undefined);
 
@@ -182,6 +184,58 @@ function dispatchOne(by, order) {
         ? `${g.L}x${g.W} quarry, ${g.D} deep, from ${fmt(g.anchor)} heading ${g.facing}${g.up ? `, first clearing ${g.up} layer${g.up === 1 ? "" : "s"} above it` : ""}`
         : `branch mine from ${fmt(g.anchor)} heading ${g.facing} at Y ${g.ty}: ${g.L}-block trunk ${g.w ?? 2} wide, ${g.branchAt.length * 2} branches of ${g.B}`;
       return { ok: true, message: `${m.name} is on it: ${what}. Depositing at ${dep.label}.` };
+    }
+    case "prospect": {
+      if (e.dimension.id !== "minecraft:overworld") {
+        return { ok: false, message: `${m.name} only prospects in the overworld. Nether ores wait.` };
+      }
+      const inv = e.getComponent("minecraft:inventory")?.container;
+      const picks = inv ? kit(inv).filter((t) => t.info.kind === "pickaxe") : [];
+      if (!picks.length) return { ok: false, message: `${m.name} needs a pickaxe to prospect.` };
+      const home = getHome(e);
+      if (home && home.dim !== "minecraft:overworld") return { ok: false, message: `${m.name}'s home is not in the overworld, so it can't prospect from there.` };
+      /** @type {{x:number,y:number,z:number}} */
+      let anchor;
+      if (p.where === "home") {
+        if (!home) return { ok: false, message: `${m.name} has no home. Set a bed, or stake a mine start with the Survey Stake.` };
+        anchor = homeEntrance(home, p.facing);
+      } else {
+        anchor = p.start;
+      }
+      const guard = guardOf(home);
+      if (guard && inGuard(guard, anchor)) {
+        return { ok: false, message: `That start is in the home. The bed and the ground within 8 blocks of it stay undug. Stake a spot outside that.` };
+      }
+      /** @type {{x:number,y:number,z:number}[]} */
+      const supplies = [];
+      if (home?.chest) supplies.push(home.chest);
+      /** @type {any} */
+      let deposit;
+      if (p.deposit !== undefined) {
+        const dep = depositFor(by, p.deposit, e.dimension.id);
+        if (typeof dep === "string") return { ok: false, message: dep };
+        if (dep.dim !== e.dimension.id) return { ok: false, message: `${dep.label} is in another dimension from ${m.name}.` };
+        deposit = dep;
+        if (!home?.chest || dep.x !== home.chest.x || dep.y !== home.chest.y || dep.z !== home.chest.z) supplies.push(dep);
+      }
+      const count = Number(e.getDynamicProperty("crew:mineCount") ?? 0) + 1;
+      const mineName = mineTitle(m.name, count, p.quota_ore, p.name);
+      const levels = branchLevels(anchor.y, p.quota_ore);
+      if (!levels.length) return { ok: false, message: `${p.quota_ore ?? "That ore"} doesn't generate at or below this start, so ${m.name} has nowhere to branch.` };
+      const geom = prospectGeom(anchor, p.facing, p.range, levels);
+      const job = {
+        type: "prospect", id: newId(), by: byRef, geom, keep: "all", where: p.where,
+        guard, supplies, quotaOre: p.quota_ore, quota: p.quota, mineName, mineNumber: count,
+        who: m.name, pickCap: Math.max(...picks.map((t) => t.info.tier)),
+        deposit: deposit ?? { x: anchor.x, y: anchor.y, z: anchor.z, dim: e.dimension.id, label: "the mine chest" },
+      };
+      const look = buildEntrance(e.dimension, e, job, home, false);
+      if (!look.ok) return { ok: false, message: look.message };
+      e.setDynamicProperty("crew:mineCount", count);
+      startJob(e, job);
+      setJSON(e, "crew:paused", undefined);
+      const quota = p.quota_ore ? ` It stops after ${p.quota} ${p.quota_ore}, or sooner if the claim is mined out.` : "";
+      return { ok: true, message: `${m.name} is prospecting from ${fmt(anchor)} heading ${p.facing}, within ${p.range} blocks. One shaft, branch levels ${levelText(geom.levels)}. ${mineName}. The home stays undug.${quota}` };
     }
     case "forest":
     case "field": {
