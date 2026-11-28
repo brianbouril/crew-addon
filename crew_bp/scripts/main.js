@@ -5,12 +5,13 @@ import { isResting, startEngine } from "./runner.js";
 import { bedAt, getHome, sameBed } from "./life.js";
 import { toolSchemas } from "./catalog.js";
 import { STAKE, linkWorker, stakeTap, stakeUse, startOutlines } from "./marker.js";
-import { bellMenu, giveHeldTool, giveHeldTorches, openMenu } from "./ui.js";
+import { bellMenu, giveHeldChests, giveHeldTool, giveHeldTorches, openMenu } from "./ui.js";
+import { CHEST } from "./hauler.js";
 import { TORCH } from "./blocks.js";
 import { startWelcome } from "./guide.js";
 import { toolInfo } from "./tools.js";
 import { VERSION, onlinePlayer, tell } from "./util.js";
-import { WORKER_TYPE, buildFromBarrel, loadedWorkers, workerDied } from "./workers.js";
+import { WORKER_TYPE, buildFromBarrel, loadedWorkers, roleOf, workerDied } from "./workers.js";
 import { BELL, checkBells, forgetBell, getSettlements, isProtected, protectedKeys, pruneStock, recordBell, refreshStorage, syncOwners, takeQueued } from "./settlement.js";
 import { dispatch } from "./orders.js";
 
@@ -125,6 +126,10 @@ world.beforeEvents.playerInteractWithEntity.subscribe((ev) => {
   } else if (toolInfo(ev.itemStack)) {
     ev.cancel = true;
     system.run(() => { giveHeldTool(player, target); });
+  } else if (ev.itemStack?.typeId === CHEST && roleOf(target) === "Hauler") {
+    // chests for the depot
+    ev.cancel = true;
+    system.run(() => giveHeldChests(player, target));
   }
 });
 

@@ -6,11 +6,12 @@ export const CustomCommandParamType = new Proxy({}, { get: (_, k) => k });
 export const CustomCommandSource = { Block: "Block", Entity: "Entity", NPCDialogue: "NPCDialogue", Server: "Server" };
 export const CustomCommandStatus = { Success: 0, Failure: 1 };
 const MAXDUR = { wooden: 59, golden: 32, stone: 131, copper: 190, iron: 250, diamond: 1561, netherite: 2031 };
+// `data` (tests only) stands for item data such as banner patterns or firework flights: stacks with different data never stack.
 export class ItemStack {
   constructor(typeId, amount = 1) { this.typeId = typeId; this.amount = amount; this.damage = 0; this.enchants = {}; }
-  get maxAmount() { return /_(pickaxe|shovel|axe|hoe)$/.test(this.typeId) ? 1 : 64; }
-  isStackableWith(o) { return o.typeId === this.typeId && this.maxAmount > 1; }
-  clone() { const c = new ItemStack(this.typeId, this.amount); c.damage = this.damage; c.enchants = { ...this.enchants }; return c; }
+  get maxAmount() { return /_(pickaxe|shovel|axe|hoe|sword)$|bundle|leather_boots|shulker_box/.test(this.typeId) ? 1 : 64; }
+  isStackableWith(o) { return o.typeId === this.typeId && this.maxAmount > 1 && (o.nameTag ?? "") === (this.nameTag ?? "") && (o.data ?? "") === (this.data ?? ""); }
+  clone() { const c = new ItemStack(this.typeId, this.amount); c.damage = this.damage; c.enchants = { ...this.enchants }; if (this.nameTag !== undefined) c.nameTag = this.nameTag; if (this.data !== undefined) c.data = this.data; return c; }
   getComponent(n) {
     const m = /^minecraft:(\w+?)_(pickaxe|shovel|axe|hoe)$/.exec(this.typeId);
     if (n === "minecraft:durability" && m) { const it = this; return { get damage() { return it.damage; }, set damage(v) { it.damage = v; }, maxDurability: MAXDUR[m[1]] }; }
@@ -26,9 +27,9 @@ export class Container {
   clearAll() { this.items.fill(undefined); }
   addItem(it) {
     let left = it.amount;
-    for (const s of this.items) if (s && s.isStackableWith(it) && s.amount < 64 && left) { const n = Math.min(64 - s.amount, left); s.amount += n; left -= n; }
+    for (const s of this.items) if (s && s.isStackableWith(it) && s.amount < s.maxAmount && left) { const n = Math.min(s.maxAmount - s.amount, left); s.amount += n; left -= n; }
     for (let i = 0; i < this.size && left; i++) if (!this.items[i]) { const n = Math.min(it.maxAmount, left); const c = it.clone(); c.amount = n; this.items[i] = c; left -= n; }
-    return left ? new ItemStack(it.typeId, left) : undefined;
+    if (!left) return undefined; const r = it.clone(); r.amount = left; return r;
   }
 }
 /** @param {string} id @param {Record<string, any>} [states] */
@@ -36,6 +37,10 @@ const perm = (id, states = {}) => ({ id, states, type: { id }, getState: (n) => 
 export const BlockPermutation = { resolve: (id, states) => perm(id, states) };
 const key = (p) => `${Math.floor(p.x)},${Math.floor(p.y)},${Math.floor(p.z)}`;
 export const log = { tele: 0, commands: [], spawnedItems: [] };
+let tickingFull = false;
+/** Tests: while on, `tickingarea add` fails (throws), as when the world's 10 ticking areas are taken. */
+export const setTickingFull = (on) => { tickingFull = !!on; };
+function command(c) { log.commands.push(c); if (tickingFull && /^tickingarea add/.test(c)) throw new Error("Too many ticking areas"); return { successCount: 1 }; }
 class Dimension {
   constructor(id) { this.id = id; this.blocks = new Map(); this.states = new Map(); this.containers = new Map(); this.entities = []; this.unloaded = new Set(); }
   /** Tests: make a block read as unloaded (getBlock returns undefined), or loaded again. */
@@ -55,7 +60,7 @@ class Dimension {
   spawnEntity(type, loc) { const e = new Entity(type, loc, this); this.entities.push(e); return e; }
   spawnItem(it, loc) { log.spawnedItems.push(it); }
   spawnParticle() {} playSound() {}
-  runCommand(c) { log.commands.push(c); return { successCount: 1 }; }
+  runCommand(c) { return command(c); }
 }
 let nextId = 1;
 class Entity {
@@ -65,7 +70,7 @@ class Entity {
   getComponent(n) { return n === "minecraft:inventory" ? { container: this.inv } : undefined; }
   teleport(loc) { this.location = { ...loc }; log.tele++; }
   triggerEvent(e) { this.events.push(e); }
-  runCommand(c) { log.commands.push(c); return { successCount: 1 }; }
+  runCommand(c) { return command(c); }
   setProperty(k, v) { (this.eprops ??= new Map()).set(k, v); if (k === "crew:anim") this.anim = v; }
   getProperty(k) { return this.eprops?.get(k); }
   remove() { this.isValid = false; }
@@ -88,8 +93,10 @@ const LOOT = { "minecraft:stone": "minecraft:cobblestone", "minecraft:iron_ore":
 export const lootCalls = [];
 let timeOfDay = 1000; // day by default; tests move the clock with setTimeOfDay
 export const setTimeOfDay = (t) => { timeOfDay = ((t % 24000) + 24000) % 24000; };
+let day = 0; // world.getDay(); tests move it with setDay
+export const setDay = (n) => { day = n; };
 export const world = {
-  getDimension: (id) => dims[id], getAllPlayers: () => players, getTimeOfDay: () => timeOfDay,
+  getDimension: (id) => dims[id], getAllPlayers: () => players, getTimeOfDay: () => timeOfDay, getDay: () => day,
   getDynamicProperty: (k) => wprops.get(k), setDynamicProperty: (k, v) => (v === undefined ? wprops.delete(k) : wprops.set(k, v)), getDynamicPropertyIds: () => [...wprops.keys()],
   getLootTableManager: () => ({ generateLootFromBlock: (b, tool) => { lootCalls.push([b.typeId, tool?.typeId ?? "hand"]); return [new ItemStack(LOOT[b.typeId] ?? b.typeId, 1)]; } }),
   afterEvents: new Proxy({}, { get: sub("world.afterEvents") }), beforeEvents: new Proxy({}, { get: sub("world.beforeEvents") }),

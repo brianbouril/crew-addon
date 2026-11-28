@@ -39,6 +39,23 @@ turns it into that version's section.
   whatever they were digging.
 - **Branch mine is no longer a job you can order** (menu, Survey Stake, commands): it comes back
   inside the Miner's prospecting. A branch mine already started can still be continued.
+- **The Hauler.** Build one from a barrel holding a bundle and leather boots (no tools) with a
+  carved pumpkin on top: a worker in a leather cap with a backpack that carries, never digs. Mark
+  your settlement's **depot** with the Survey Stake (tap the ground, Make a depot here, size,
+  outline, confirm). Three times a day (morning, midday, evening) it walks the same loop of your
+  Diggers' and Miners' drop-off chests and any chest you mark as a **Hauler pickup**, carries up to
+  18 stacks at a time, and sorts everything into chests it sets up in the depot: one kind per chest,
+  grouped by type, with walkways between the rows (16 chests for the default size, more for a
+  bigger area; a depot is at most 16 by 16 blocks). A drop-off chest that's about 3/4 full calls it for an extra trip. Between rounds
+  it tidies the depot. It takes chests from settlement storage or from you (tap it holding chests),
+  says "I need chests for the depot" when it has none and "The depot is full" when there's no room
+  left. It never takes goods from home chests or puts anything in them, and it still restocks its
+  own food from its own home chest. Depot chests face the walkway, so a pair of the same kind joins
+  into one double chest and the row behind faces the other way. It sleeps, tires from walking, finishes a delivery before
+  bed, and needs a free work area (ticking area) for a round, waiting for one if all are taken. Its
+  menu: Do a round now, Come here, Stop, Continue, Drop off, Go home, Pickup points. The new
+  `/crew:haul` command (the `haul` order) moves things from one chest to another, and `/crew:round`
+  sends it on a round now.
 
 - Workers walk through invisible light blocks (placed by dynamic-light add-ons) instead of treating
   them as walls, which boxed them in and made them take a shortcut. They never dig them.

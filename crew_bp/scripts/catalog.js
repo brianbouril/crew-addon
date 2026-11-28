@@ -72,6 +72,26 @@ export const JOBS = {
     },
   },
   status: { description: "Report the current job, progress, tool kit and items carried.", params: {} },
+  haul: {
+    roles: ["Hauler"],
+    description: "Hauler only. Carry everything (or only `items`) from one chest or barrel to another, up to 18 stacks a trip, until nothing (matching) is left or the second one is full. Never a worker's home chest.",
+    params: {
+      from: { type: "place", required: true, description: "Where to take things from: a saved place name or chest coordinates." },
+      to: { type: "place", required: true, description: "Where to put them: a saved place name or chest coordinates." },
+      items: { type: "string", description: "Only these item ids, comma separated (e.g. minecraft:coal,minecraft:raw_iron). Leave out to move everything." },
+    },
+  },
+  haul_now: {
+    roles: ["Hauler"],
+    description: "Hauler only. Do a round now: walk its route of pickup chests (the settlement's drop-off chests and its stake pickup points, nearest first), carry everything to the settlement's depot and sort it into the depot's chests. It also does this by itself three times a day.",
+    params: {},
+  },
+  round: {
+    roles: ["Hauler"],
+    hidden: true, // the routine starts rounds; players use haul_now
+    description: "Hauler only. One of its daily rounds.",
+    params: { slot: { type: "enum", values: ["morning", "midday", "evening", "now", "extra"], default: "now", description: "Which round." } },
+  },
 };
 /** v0.1 name, still accepted. */
 const ALIASES = { mine_area: "quarry" };
@@ -85,9 +105,11 @@ export const roleTakes = (jobName, role) => !JOBS[jobName]?.roles || /** @type {
 /** Why a worker refuses a job that isn't its role's. @param {string} name @param {string} role @param {string} jobName */
 export function roleRefusal(name, role, jobName) {
   const who = JOBS[jobName]?.roles?.[0] ?? "other";
-  const tool = { Digger: "a shovel", Miner: "a pickaxe", Woodcutter: "an axe", Farmer: "a hoe" }[who] ?? "the right tool";
-  const what = jobName === "quarry" ? "Quarries are" : jobName === "branch_mine" ? "Branch mines are" : `'${jobName}' is`;
-  return `${name} is a ${role}. ${what} a ${who}'s job: build a ${who} (put ${tool} in the barrel first), or change ${name}'s role in its menu.`;
+  const tool = { Digger: "a shovel", Miner: "a pickaxe", Woodcutter: "an axe", Farmer: "a hoe", Hauler: "a bundle and leather boots" }[who] ?? "the right tool";
+  const what = jobName === "quarry" ? "Quarries are" : jobName === "branch_mine" ? "Branch mines are" : jobName === "haul_now" || jobName === "round" ? "Rounds are" : `'${jobName}' is`;
+  // a Hauler's role comes from its build, so neither side can switch to or from it in the menu
+  const change = who === "Hauler" || role === "Hauler" ? "" : `, or change ${name}'s role in its menu`;
+  return `${name} is a ${role}. ${what} a ${who}'s job: build a ${who} (put ${tool} in the barrel first)${change}.`;
 }
 
 /** Tool definitions in the shape LLM APIs expect (name, description, JSON schema). */

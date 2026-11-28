@@ -25,10 +25,13 @@ import { getPlaces, getRegistry, saveRegistry } from "./store.js";
  * @typedef {{id?: string, name: string}} PersonRef
  * @typedef {{dim: string, x: number, y: number, z: number, att: string, dir?: number}} BellSpot
  * @typedef {{dim: string, x: number, y: number, z: number, label: string}} Spot  a storage chest
- * @typedef {{id: string, name: string, ownerId: string, ownerName: string, members: {id: string, name: string}[], bell: BellSpot | null, storage?: Spot[]}} Settlement
+ * @typedef {{x: number, y: number, z: number}} Cell
+ * @typedef {{cells: Cell[], kind: string, group: string}} DepotUnit  one chest or a double chest, holding one item kind
+ * @typedef {{dim: string, x0: number, z0: number, x1: number, z1: number, y: number, units: DepotUnit[]}} Depot  the Hauler's depot area (y = chest level)
+ * @typedef {{id: string, name: string, ownerId: string, ownerName: string, members: {id: string, name: string}[], bell: BellSpot | null, storage?: Spot[], depot?: Depot}} Settlement
  * @typedef {{dim: string, x: number, y: number, z: number, label?: string}} ChestRef
  * @typedef {{role: string, status: string, busy: boolean, noTools: boolean, low: boolean, ticking: boolean, dim: string, x: number, y: number, z: number, ts: number, home?: ChestRef, drop?: ChestRef}} Seen
- * @typedef {{ts: number, items?: Record<string, number>, dup?: boolean, gone?: boolean}} Stock
+ * @typedef {{ts: number, items?: Record<string, number>, fill?: number, dup?: boolean, gone?: boolean}} Stock  fill: share of its slots in use (0..1)
  * @typedef {{by: Commander, order: any}} Queued
  * @typedef {{dimension: {id: string}, location: {x:number,y:number,z:number}, typeId: string, permutation?: any}} BlockLike
  */
@@ -533,6 +536,7 @@ export function storageSpots(s) {
     if (!out.has(k)) out.set(k, { dim: p.dim, x: Math.floor(p.x), y: Math.floor(p.y), z: Math.floor(p.z), label });
   };
   for (const st of s.storage ?? []) add(st, st.label);
+  for (const u of s.depot?.units ?? []) for (const c of u.cells) add({ dim: /** @type {Depot} */ (s.depot).dim, ...c }, `Depot chest (${itemName(u.kind)})`);
   const ids = new Set(peopleOf(s).map((p) => p.id));
   const places = getPlaces();
   for (const pl of places) if (ids.has(pl.ownerId)) add(pl, pl.name);
@@ -594,17 +598,19 @@ function readChest(sp) {
   }
   if (!block) return undefined;
   const c = block.getComponent("minecraft:inventory")?.container;
-  if (!c) return { gone: true, size: 0, items: {}, slots: "", chest: false, c: undefined };
+  if (!c) return { gone: true, size: 0, items: {}, fill: 0, slots: "", chest: false, c: undefined };
   /** @type {Record<string, number>} */
   const items = {};
   /** @type {string[]} */
   const slots = [];
+  let used = 0;
   for (let i = 0; i < c.size; i++) {
     const it = c.getItem(i);
+    if (it) used++;
     slots.push(it ? `${it.typeId}*${it.amount}` : "");
     if (it) items[it.typeId] = (items[it.typeId] ?? 0) + it.amount; // a shulker box counts as one item
   }
-  return { gone: false, size: c.size, items, slots: slots.join("|"), chest: /chest/.test(block.typeId), c };
+  return { gone: false, size: c.size, items, fill: c.size ? used / c.size : 0, slots: slots.join("|"), chest: /chest/.test(block.typeId), c };
 }
 
 /**
@@ -682,7 +688,7 @@ export function refreshStorage(s, onlyKey) {
         else isDup = true;
       }
     }
-    setJSON(world, stockProp(k), isDup ? { ts: now, dup: true } : r.gone ? { ts: now, gone: true } : { ts: now, items: r.items });
+    setJSON(world, stockProp(k), isDup ? { ts: now, dup: true } : r.gone ? { ts: now, gone: true } : { ts: now, items: r.items, fill: r.fill });
   }
 }
 
@@ -724,6 +730,35 @@ export function ledger(s) {
 export function whereIs(s, id) {
   return ledger(s).chests.filter((c) => c.items?.[id]).map((c) => ({ label: c.label, n: /** @type {Record<string, number>} */ (c.items)[id], ts: c.ts })).sort((a, b) => b.n - a.n);
 }
+
+/** The last read contents of one chest (undefined if never read). @param {{dim: string, x: number, y: number, z: number}} p @returns {Stock | undefined} */
+export const stockAt = (p) => getJSON(world, stockProp(spotKey(p)), undefined);
+
+// ---------- the Hauler's depot (specs/hauler.md) ----------
+/**
+ * Marks (or moves) the settlement's depot area: one per settlement. Chests the Hauler already
+ * placed that are inside the new area are kept; the others are left as ordinary chests.
+ * The area's checks (floor, headroom, size) are in hauler.js markDepot.
+ * @param {Commander} by @param {Settlement} s @param {{dim: string, x0: number, z0: number, x1: number, z1: number, y: number}} area
+ */
+export function setDepot(by, s, area) {
+  if (!inIt(by, s)) return { ok: false, message: `Only people in ${s.name} can mark its depot.` };
+  const cur = getSettlements()[s.id];
+  const inside = (/** @type {Cell} */ c) => area.dim === cur.depot?.dim && c.y === area.y && c.x >= area.x0 && c.x <= area.x1 && c.z >= area.z0 && c.z <= area.z1;
+  const units = (cur.depot?.units ?? []).filter((u) => u.cells.every(inside));
+  cur.depot = { dim: area.dim, x0: area.x0, z0: area.z0, x1: area.x1, z1: area.z1, y: area.y, units };
+  save(cur);
+  return { ok: true, message: `${cur.name}'s depot is ${area.x1 - area.x0 + 1} by ${area.z1 - area.z0 + 1} at ${area.x0} ${area.y} ${area.z0}.${units.length ? ` ${units.length} of its chests are kept.` : ""}` };
+}
+/** Saves the depot's chests (the Hauler places and fills them). @param {string} settlementId @param {DepotUnit[]} units */
+export function saveDepotUnits(settlementId, units) {
+  const cur = getSettlements()[settlementId];
+  if (!cur?.depot) return;
+  cur.depot.units = units;
+  save(cur);
+}
+/** Is this block one of the settlement's depot chests? @param {Settlement} s @param {{dim: string, x: number, y: number, z: number}} p */
+export const isDepotChest = (s, p) => !!s.depot && s.depot.dim === p.dim && s.depot.units.some((u) => u.cells.some((c) => c.x === Math.floor(p.x) && c.y === Math.floor(p.y) && c.z === Math.floor(p.z)));
 
 // ---------- orders waiting for an unloaded worker ----------
 /** @param {string} workerId @param {Commander} by @param {any} order */

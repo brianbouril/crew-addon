@@ -1,6 +1,6 @@
 # Spec: Hauler (V1, release 1)
 
-Owner: Brian · Status: **ready** · Branch: `feat/hauler` · Builder: B (week 2)
+Owner: Brian · Status: **building** · Branch: `feat/hauler` · Builder: B (week 2)
 
 <!-- Drafted Nov 16 2026 by the lead session from docs/PLAN.md "v0.7 Hauler", the CLAUDE.md
 roadmap and docs/FACTORY_PLAN.md. Open questions answered by Brian on Nov 18 2026. -->
@@ -79,11 +79,27 @@ between chests."
   operators any. Its orders: Come here, Stop, Continue, Drop off, Go home, and **"Do a round now"**.
   The bell's settlement-wide orders reach it. Diggers' and Miners' jobs are refused (role split,
   decision 32); diggers and miners refuse `haul` and the round orders.
+- 2026-11-19 **Builder's questions answered (Brian, via the lead):**
+  1. `haul` moves only between the settlement's own chests (storage chests, its people's named
+     places, drop-offs, pickup points, the depot), never a home chest or another settlement's chest.
+  2. Out of chests for a new kind (none to place, none in storage), it shares a depot chest of the
+     same group (then any) with room; "The depot is full" only when no chest has room. Tidying
+     separates them again when chests come.
+  3. After Stop (including the bell's) it starts no rounds until Continue or Do a round now. After
+     Come here, Go home or Drop off it waits a minute, then goes back to its rounds (picking up an
+     interrupted round).
+  4. It takes its own food from its own home chest (the morning restock every worker does) and eats
+     it when tired. "Never home chests" means never collecting goods from (or putting them in) home
+     chests.
+  5. The depot area is at most **16 by 16** (the stake's sliders and every other way of setting it
+     refuse bigger). The limit is as many chests as fit with walkways (16 for the default 5 by 7).
+  6. `/crew:haul` and `/crew:round` slash commands in `commands.js`.
 - Standing rules: never break blocks; stable Script API only; `crew:` ids only; pack UUIDs fixed.
 
 ## Out of scope
 - Digging of any kind; crafting (including chests); delivering supplies to workers (roadmap).
-- Home chests (never read or filled).
+- Home chests: never collected from and never filled. A Hauler still takes its own food from its
+  own home chest, the morning restock every worker does (Nov 19).
 - Mine entrance chests: they come with Miner prospecting (release 3); once they exist they're
   picked up like drop-off chests.
 - A carry filter in its menu (later if missed).
@@ -135,7 +151,8 @@ Best guesses from the current code; the builder confirms before starting.
   from a bundle and leather boots, role); `tools.js` (`ROLES` has no Hauler since it isn't
   tool-based: role from the build instead); `runner.js` (round job type, load/unload pauses, loaded
   pace); `life.js` (routine, energy from walking, restock for a role with no tools);
-  `settlement.js` (depot area, drop-off chest fill level from `noteChestUse`); `ui.js` (Hauler menu,
+  `settlement.js` (depot area, drop-off chest fill level from `noteChestUse`); `commands.js`
+  (`/crew:haul`, `/crew:round`; new slash commands need a full server restart); `ui.js` (Hauler menu,
   status lines); `marker.js` (stake: "Make a depot here", chest tap "Hauler pickup");
   `guide_pages.js`.
 - **Entity and pack:** `crew:role` in `entities/worker.json` gets a hauler value and a `crew:loaded`
@@ -148,4 +165,4 @@ Best guesses from the current code; the builder confirms before starting.
 - **Player-facing:** CHANGELOG, QA.md checks, a guide page "Haulers", lang strings.
 
 ## Open questions
-None: all answered by Brian on Nov 18 2026 (see Decisions).
+None: the original ones were answered by Brian on Nov 18 and the builder's on Nov 19 (see Decisions).
