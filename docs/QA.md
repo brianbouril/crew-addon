@@ -21,6 +21,8 @@ server, which runs as SYSTEM: `C:\Windows\System32\config\systemprofile\AppData\
 
 ## Next release (0.4.1, unreleased)
 
+- [ ] Survey Stake icon: fully restart Minecraft (a texture does not reload with `/reload`). In the inventory and in the hand, the icon is the wooden stick and orange flag with a black outline, and it reads larger than the old picture.
+
 Built Nov 14 2026 and mock-tested. Nov 15 (Brian's OK) the server got all of it, through the
 Depth wording (3d), as scripts under 0.4.0 (backup in `C:\MinecraftServer-backups\`), so 5, 7, 8
 and 9 go out to friends before their local test. Nov 15 9:12 PM (Brian's OK) it also got the
