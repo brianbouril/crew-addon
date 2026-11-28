@@ -18,8 +18,9 @@ or pick "How workers work" in any worker's menu.
 13. [Stop and continue](#stop-and-continue)
 14. [Sharing and good manners](#sharing-and-good-manners)
 15. [The Sifter](#the-sifter)
-16. [Commands](#commands)
-17. [Tips](#tips)
+16. [Dev mode](#dev-mode)
+17. [Commands](#commands)
+18. [Tips](#tips)
 
 ## Build a worker
 
@@ -226,6 +227,16 @@ Most pieces yield nothing. About 1 in 10 gravel gives flint. Nuggets show up a f
 
 Anything that isn't gravel, sand, dirt, or soul sand stays in the input chest, ore included. Red sand and grass are left alone. The Miner and the Hauler can fill that top chest; the sieve only reads it.
 
+## Dev mode
+
+For testing. It is off unless a server operator turns it on, and it does nothing while it is off.
+
+**/crew:dev on** turns it on. **/crew:dev off** turns it off. **/crew:dev** opens the menu. **/crew:dev morning** and **/crew:dev night** skip the clock.
+
+The menu is labelled **Dev mode**. It gives a Survey Stake, sieves, and the tools and supplies each job uses, and it can spawn a Digger, Miner, Hauler, Woodcutter, Farmer, or Sifter with a home chest.
+
+While it is on, the worker limit is lifted for the world. Skip to morning or night only works while it is on. Turning it off does not rewind the clock, and workers already spawned stay. The limit applies again.
+
 ## Commands
 
 - **/crew:guide**: this guide
@@ -246,6 +257,7 @@ Anything that isn't gravel, sand, dirt, or soul sand stays in the input chest, o
 - **/crew:places**: list saved places
 - **/crew:jobs**: every job and its options
 - **/crew:cap [number]**: (operators) the worker limit, per person in a settlement and on your own
+- **/crew:dev**: (operators) testing mode. Off unless you turn it on
 
 ## Tips
 

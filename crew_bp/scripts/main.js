@@ -15,6 +15,7 @@ import { WORKER_TYPE, buildFromBarrel, loadedWorkers, roleOf, workerDied } from 
 import { BELL, checkBells, forgetBell, getSettlements, isProtected, protectedKeys, pruneStock, recordBell, refreshStorage, syncOwners, takeQueued } from "./settlement.js";
 import { dispatch } from "./orders.js";
 import { startSifter } from "./sift.js";
+import "./devmode.js";
 
 system.beforeEvents.startup.subscribe((ev) => {
   registerCommands(ev.customCommandRegistry);

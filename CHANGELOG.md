@@ -26,6 +26,13 @@ turns it into that version's section.
   it. Ore in the input chest is left alone. A sieve in the barrel builds a Sifter, which counts
   toward your worker limit and can mind one sieve during the day.
 - **Miner prospecting.** A Miner hunts any valuables in the overworld, either in the ground around its home or from a start you mark with the Survey Stake. One entrance and one shaft, with a branch level at the best depth for each ore the shaft can reach (from a start near Y 64: copper at Y 48, iron at Y 16, lapis at Y 0, gold at Y -16, diamonds and redstone together at Y -59). A quota uses only that ore's level. The levels are saved on the mine. The bed and the ground within 8 blocks of the home stay undug. Each level is a 2-wide trunk with branches and 2 solid blocks between them. It lights the tunnels and puts everything it keeps in a chest at the entrance. Optional: stop after a number of one ore, and type a mine name (otherwise the sign reads like "Digby's Diamond Mine No. 1"). The entrance is wood from the home or deposit chest (8 planks; a log counts as 4) plus that chest. Missing wood or a missing chest skips the woodwork, and it uses a chest you placed. It stops at night, when it runs out of pickaxes, when the quota is met, or when the claim is mined out. With a crafting table by the bed and materials in the home chest, it makes a replacement pickaxe no better than the one it lost. The entrance chest is an ordinary drop-off (a Hauler can collect it; a Sifter can read gravel, sand, dirt and ores from it).
+- **Dev mode.** For operators, and off unless you turn it on. `/crew:dev on` turns it on and
+  `/crew:dev off` turns it off. `/crew:dev` opens a menu labelled Dev mode: it gives a Survey Stake,
+  sieves, and the tools and supplies for each job, and it spawns a Digger, Miner, Hauler,
+  Woodcutter, Farmer, or Sifter beside you with a home chest (pickaxes, seeds, wood, gravel,
+  torches, and the rest of that job). While it is on, the worker limit is lifted. It can skip to
+  morning or night. While it is off, nothing here runs, and the worker limit applies again.
+  Turning it off does not rewind the clock. Workers it already spawned stay.
 
 - **Settlements.** Place a bell yourself and crouch-tap it to found a settlement and name it. Every
   worker you build belongs to it, including the ones you already have. Crouch-tap the bell for the

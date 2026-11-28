@@ -275,6 +275,20 @@ export const PAGES = [
     ].join("\n"),
   },
   {
+    title: "Dev mode",
+    body: [
+      H("Dev mode"),
+      "",
+      "For testing. It is off unless a server operator turns it on, and it does nothing while it is off.",
+      "",
+      `${K("/crew:dev on")} turns it on. ${K("/crew:dev off")} turns it off. ${K("/crew:dev")} opens the menu. ${K("/crew:dev morning")} and ${K("/crew:dev night")} skip the clock.`,
+      "",
+      `The menu is labelled ${K("Dev mode")}. It gives a Survey Stake, sieves, and the tools and supplies each job uses, and it can spawn a Digger, Miner, Hauler, Woodcutter, Farmer, or Sifter with a home chest.`,
+      "",
+      "While it is on, the worker limit is lifted for the world. Skip to morning or night only works while it is on. Turning it off does not rewind the clock, and workers already spawned stay. The limit applies again.",
+    ].join("\n"),
+  },
+  {
     title: "Commands",
     body: [
       H("Commands"),
@@ -297,6 +311,7 @@ export const PAGES = [
       `- ${K("/crew:places")}: list saved places`,
       `- ${K("/crew:jobs")}: every job and its options`,
       `- ${K("/crew:cap [number]")}: (operators) the worker limit, per person in a settlement and on your own`,
+      `- ${K("/crew:dev")}: (operators) testing mode. Off unless you turn it on`,
     ].join("\n"),
   },
   {
