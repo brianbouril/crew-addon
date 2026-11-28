@@ -32,9 +32,12 @@ The four skins share one face, nose, and hair drawing. Miner and Woodcutter shar
 | `crew_rp/textures/entity/worker_woodcutter.png` | 64×64 | same |
 | `crew_rp/textures/entity/worker_farmer.png` | 64×64 | same |
 | `crew_rp/pack_icon.png` and `crew_bp/pack_icon.png` | 64×64, byte-identical | `icon()` builds a 64×64 canvas and writes both paths |
-| `crew_rp/textures/items/crew_survey_stake.png` | 16×16 | `stake()` builds a 16×16 canvas |
+| `crew_rp/textures/items/crew_survey_stake.png` | 32×32 | `stake()` doubles the old 16×16 stick and flag, then paints a 1px `#000000` outline (`tools/make_textures.mjs`, pull request #15) |
+| `crew_rp/textures/items/crew_sieve.png` and `crew_rp/textures/blocks/crew_sieve.png` | 32×32 | `sieveIcon()` uses `BLACK` `[0, 0, 0, 255]` on the outline |
+| `crew_rp/textures/entity/worker_hauler.png` | 64×64 | `worker()` for the `hauler` role in `make_textures.mjs` |
+| `crew_rp/textures/entity/worker_sifter.png` | 64×64 | `worker()` for the `sifter` role |
 
-Entity skins and pack icons in this pack are 64×64. The shipped Survey Stake item texture is still 16×16. Brian, 2026-11-27 (art-director): redraw that icon at 32×32 with a `#000000` outline. `crew_rp/textures/items/crew_survey_stake.png` and `stake()` in `tools/make_textures.mjs` stay 16×16 until a worker pull request changes them. This knowledge file does not edit those files.
+Entity skins and pack icons in this pack are 64×64. The shipped Survey Stake item texture is 32×32. `stake()` in `tools/make_textures.mjs` still starts from the 16×16 stick and checkered flag, doubles each texel, and adds a 1px `#000000` outline. That is pull request #15 (`52c9feb`). The sieve item and block icons are also 32×32 with that black outline. Role skins stay 64×64. This knowledge file does not edit the PNGs or the generator.
 
 A hand edit of a PNG will not match the next run of `make_textures.mjs`. An optional script argument writes 8× preview PNGs. Those previews are not in the packs.
 
@@ -135,7 +138,7 @@ Item and entity names in lang are title case. Interact lines are sentence case. 
 ## Open questions
 
 1. Nose, brow, eye, jeans-shade, and boot colors are in the generator. Day 0 did not confirm each of them in the most common PNG pixels. They are painted; they are small.
-2. The shipped PNGs still have no `#000000` pixel. The 32×32 Survey Stake outline is the target above. It is not in the generator yet.
+2. The Survey Stake and sieve icons now use a `#000000` outline. The day-0 read that found no `#000000` pixel was before pull request #15 and the sieve art. Role skins are still drawn without that outline.
 3. Decision 12 says the worker is about 1.75 blocks tall and needs 2 blocks of headroom. The collision box height is `1.8`. The client entity scale is `0.8`. The files do not say which number is the intended on-screen height.
 4. `knowledge/assets/examples/` has no annotated Do/Don't PNGs. The pictures to compare against are the files under `crew_rp/textures/`.
 5. There is no lore file beyond the lang strings and the guide pages. The guide does not give the workers a backstory.
