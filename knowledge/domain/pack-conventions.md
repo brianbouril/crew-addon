@@ -40,11 +40,11 @@ Everything this add-on defines uses the `crew:` prefix. `CLAUDE.md` rule 4: neve
 | Kind | Pattern | Examples in the repo |
 | --- | --- | --- |
 | Entity | `crew:worker` | `entities/worker.json`, client entity |
-| Item | `crew:<snake>` | `crew:survey_stake` |
-| Entity property | `crew:role` (int 0–3), `crew:anim` (int 0–4) | both client-synced |
+| Item | `crew:<snake>` | `crew:survey_stake`. The sieve is the block `crew:sieve` (`crew_bp/blocks/sieve.json`) |
+| Entity property | `crew:role` (int 0–5), `crew:anim` (int 0–4), `crew:loaded` (bool) | client-synced. `crew:loaded` is the Hauler backpack |
 | Component group / event | `crew:<snake>` | `crew:idle`, `crew:working`, `crew:manage`, `crew:give_tool`, `crew:start_work`, `crew:stop_work` |
 | Slash command and enum | `crew:<snake>` | `crew:guide`, `crew:halt`, `crew:keep`, `crew:cap` |
-| Dynamic property | `crew:<name>` | See the two lists under this table |
+| Dynamic property | `crew:<name>` | See the lists under this table |
 | Family | `crew_worker` (underscore, no colon) plus `mob` | `minecraft:type_family` |
 
 World and entity dynamic properties already in the scripts. Do not rename them.
@@ -61,10 +61,38 @@ Settlement keys in `crew_bp/scripts/settlement.js` (the comment at the top of th
 | `crew:queue` | JSON object | Worker id to orders waiting while that worker is unloaded |
 | `crew:cap` | A number, `world.getDynamicProperty` / `setDynamicProperty`, not JSON | Workers per person. Missing or not a positive integer reads as `CAP_DEFAULT` (`6`). Operators set it from 1 to 100. |
 | `crew:stock:<spot>` | JSON object, one property per spot | `<spot>` is `dim\|x,y,z` from `spotKey`. Last read contents of one storage chest. Properties whose spot is gone are deleted. |
+| `crew:devMode` | Boolean on the world, `getDynamicProperty` / `setDynamicProperty` | `devmode.js` sets `true` while operator testing mode is on and deletes the property when it is off. `settlement.js` `capCheck` lifts the worker limit while it is true. Absent means off. |
+
+Hauler keys on the worker, from `crew_bp/scripts/hauler.js`. Do not rename them.
+
+| Key | Stored as | What the file says |
+| --- | --- | --- |
+| `crew:pickups` | JSON through `getJSON` / `setJSON` | Stake pickup points |
+| `crew:rounds` | JSON | Rounds done today |
+| `crew:roundsDay` | Dynamic property compared with `today()` | Which day those rounds belong to |
+| `crew:haulOff` | Dynamic property | A player stopped rounds until Continue |
+| `crew:hold` | Number dynamic property | Idle hold counted down in the round loop |
+
+`crew:loaded` is not one of those. It is the client-synced entity bool above. `hauler.js` sets it when the worker is carrying anything. The render controller shows `pack_full` when role 4 has it, and `pack` when role 4 does not.
+
+`prospect.js` stores `crew:mine` on the worker as JSON: `name`, `number`, `chest`, `decorative`, `quotaOre`, `handoff`, and `levels` (`{y, ores, peak}`).
+
+`crew:role` values, from `ROLE_LIST` in `tools.js` and `syncRole` in `workers.js`, in the same order as `Array.skins` in `crew_rp/render_controllers/worker.render_controllers.json`:
+
+| Index | Role | How a new worker gets it |
+| --- | --- | --- |
+| 0 | Miner | First tool in the barrel is a pickaxe |
+| 1 | Digger | First tool is a shovel |
+| 2 | Woodcutter | First tool is an axe |
+| 3 | Farmer | First tool is a hoe |
+| 4 | Hauler | A bundle and leather boots and no tools (`isHaulerBuild`) |
+| 5 | Sifter | A `crew:sieve` in the barrel (`spawnWorker` role override `"Sifter"`) |
+
+On `main` at `13d0b05` those two indexes do not collide. `worker.json` `crew:role` range is 0–5. Flag line 31 described the unmerged Hauler and Sifter branches both appending index 4. The merged pack kept Hauler at 4 and appended Sifter at 5. Do not reorder Miner, Digger, Woodcutter, or Farmer. The render controller hides the hard hat and shows the cap and backpack only when `crew:role` is 4.
 
 File names are `snake_case.json`. Script files are one lowercase module per concern (`runner.js`, `catalog.js`, `marker.js`, `settlement.js`), not a bundle.
 
-`crew:role` values: 0 Miner, 1 Digger, 2 Woodcutter, 3 Farmer (`syncRole` in `workers.js`). The render-controller skin array is in that same order. Do not reorder one without the other.
+The index table above is the skin order. Do not reorder one list without the other.
 
 ## Manifests and versions
 
