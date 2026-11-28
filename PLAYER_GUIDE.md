@@ -7,17 +7,18 @@ or pick "How workers work" in any worker's menu.
 2. [Talk to your worker](#talk-to-your-worker)
 3. [The Survey Stake (your remote)](#the-survey-stake-your-remote)
 4. [Quarry](#quarry)
-5. [Miners (coming next)](#miners-coming-next)
-6. [Tools and tough blocks](#tools-and-tough-blocks)
-7. [Torches](#torches)
-8. [Getting your stuff](#getting-your-stuff)
-9. [Home, sleep and energy](#home-sleep-and-energy)
-10. [Your settlement](#your-settlement)
-11. [Haulers](#haulers)
-12. [Stop and continue](#stop-and-continue)
-13. [Sharing and good manners](#sharing-and-good-manners)
-14. [Commands](#commands)
-15. [Tips](#tips)
+5. [Forests and fields](#forests-and-fields)
+6. [Miners (coming next)](#miners-coming-next)
+7. [Tools and tough blocks](#tools-and-tough-blocks)
+8. [Torches](#torches)
+9. [Getting your stuff](#getting-your-stuff)
+10. [Home, sleep and energy](#home-sleep-and-energy)
+11. [Your settlement](#your-settlement)
+12. [Haulers](#haulers)
+13. [Stop and continue](#stop-and-continue)
+14. [Sharing and good manners](#sharing-and-good-manners)
+15. [Commands](#commands)
+16. [Tips](#tips)
 
 ## Build a worker
 
@@ -30,7 +31,8 @@ The barrel and pumpkin turn into a little worker in a hard hat. It's yours: you'
 The **first tool you put in the barrel decides its job**:
 - a **shovel** makes a **Digger**: it digs quarries. Give it pickaxes too, for stone.
 - a **pickaxe** makes a **Miner**: it will prospect for ore in the next version (no dig jobs until then).
-- axes and hoes are for jobs coming later.
+- an **axe** makes a **Woodcutter**: it keeps a forest (see Forests and fields).
+- a **hoe** makes a **Farmer**: it keeps a field (see Forests and fields).
 No tools at all, but a **bundle** and **leather boots**? That makes a **Hauler**: it carries, it doesn't dig (see Haulers).
 Each worker only takes its own jobs. Workers from before this update are Diggers now.
 
@@ -62,7 +64,7 @@ Get one: pick **Get a Survey Stake** in a worker's menu, type **/crew:stake**, o
 
 Plan a dig
 1. **Face the way you want to dig** and tap the ground block where it should start.
-2. Pick **Plan a quarry** and set the size with the sliders. **Clear above** also takes off the hill or trees on top of it.
+2. Pick **Plan a quarry**, **Plan a forest** or **Plan a field** and set the size with the sliders. **Clear above** also takes off the hill or trees on top of a quarry.
 3. A **white outline** shows the plan while you hold the stake (flames point forward).
 4. Tap with the stake again (any block, or the air) and pick **Confirm**. The outline turns green.
 5. **Start it with** the linked Digger right there, or later from its orders. Choose where it drops off and what to bring back, then Start.
@@ -84,6 +86,18 @@ It leaves a **staircase in the wall** spiralling down, so you and the worker can
 Otherwise it only digs inside the box. The one exception: if a block is in its way at head height just above the box, it clears it.
 
 Up to 128 blocks on each side.
+
+## Forests and fields
+
+Stake the ground once, the way you stake a quarry: **Plan a forest** for a Woodcutter, **Plan a field** for a Farmer. Set the width and length (up to 64 by 64), check the outline, confirm, and start it with the linked worker. **/crew:forest** and **/crew:field** start the same job. It keeps working that plot: it sleeps at night and goes back in the morning.
+
+**Woodcutter.** It cuts a tree only when the logs or stems are connected to leaves (nether stems, to wart blocks). Planks, fences, chests and a bare log wall stay put. It strips the leaves and picks up the apples, sticks and saplings, then plants the same tree on the stump. Saplings come from the cut first, then its home chest, then the deposit. A 2 by 2 tree needs four. If it hasn't enough it leaves the stump and tells you. A beehive is left where it is, and it tells you where.
+
+**Farmer.** It hoes empty dirt, plants what you give it, picks a crop when it's ready, and plants the same one again. One piece of bonemeal you give it grows a crop one stage. It lays a **water channel every 9 blocks** along the long side of the field, from water buckets in its home chest or the deposit. The empty bucket goes back to the deposit. No bucket: it tells you and skips the channel. It does not take water out of the world.
+
+Pumpkin and melon stems stay put and it picks the fruit. Cocoa goes on jungle logs you give it. It picks sweet berries without breaking the bush. Sugar cane, cactus, and bamboo keep their bottom block. Cane and cactus need sand from you, cane wants that sand beside the water, and cactus needs empty space on every side. Nether wart needs soul sand from you. It will not dig any of that ground up, and it does not cook.
+
+Both need a **deposit chest**, like a quarry. The home chest is where they restock tools, saplings and seeds. They keep everything they pick up. They walk around crops when there's a way around.
 
 ## Miners (coming next)
 
@@ -197,7 +211,9 @@ Only the **owner** and the players they allow can give a worker orders or tools.
 - **/crew:status <worker>**: what it's doing
 - **/crew:come <worker>**: call it to you
 - **/crew:halt <worker>**: stop it
-- **/crew:continue <worker>**: pick its dig (or a Hauler's round) back up
+- **/crew:continue <worker>**: pick its dig, forest, field, or a Hauler's round back up
+- **/crew:forest <worker> <from> <to> [deposit]**: a Woodcutter keeps that forest
+- **/crew:field <worker> <from> <to> [deposit]**: a Farmer keeps that field
 - **/crew:round <worker>**: a Hauler does a round now
 - **/crew:haul <worker> <from> <to> [items]**: a Hauler moves things from one chest to another
 - **/crew:allow <worker> <player>**: let a friend give orders

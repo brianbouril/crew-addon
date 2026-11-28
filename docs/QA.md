@@ -23,6 +23,33 @@ server, which runs as SYSTEM: `C:\Windows\System32\config\systemprofile\AppData\
 
 - [ ] Survey Stake icon: fully restart Minecraft (a texture does not reload with `/reload`). In the inventory and in the hand, the icon is the wooden stick and orange flag with a black outline, and it reads larger than the old picture.
 
+**Woodcutter and Farmer** (feat/woodcutter-farmer)
+- [ ] W1. Barrel with an axe, carved pumpkin: a Woodcutter. A hoe makes a Farmer. The Woodcutter's
+      menu offers Forest, not Quarry. A Digger refuses Plan a forest.
+- [ ] W2. Stake: Plan a forest, sliders, outline up to 48 blocks tall, confirm, start with the
+      linked Woodcutter. A 65 by 65 plan is refused. `/crew:forest` starts the same job.
+- [ ] W3. An oak with leaves is cut, the leaves go, a sapling is planted on the stump. A log wall
+      with no leaves, a plank house, and a chest stay. A bee nest stays and the worker says where
+      it is. A 2 by 2 dark oak gets four saplings.
+- [ ] W4. Take its saplings away and empty the chests: it cuts the tree, tells you it couldn't
+      replant, and leaves the stump bare.
+- [ ] W5. Stake a field. Dirt becomes farmland and your seeds are planted. Ripe wheat is picked
+      into the deposit chest and replanted. One bonemeal grows a crop one stage. Nether wart on
+      dirt waits until you give it soul sand. It does not cook.
+- [ ] W5b. Give it water buckets. A water row appears every 9 blocks along the long side of the
+      field (through the middle of each band). The empty buckets go to the deposit. With no
+      bucket it says so and does not take water from a lake.
+- [ ] W5c. Pumpkin and melon: the stem stays, the fruit is picked. Cocoa on a jungle log you
+      gave it is picked and replanted. Sweet berries are picked and the bush stays. Sugar cane,
+      cactus, and bamboo keep the bottom block. Cane and cactus are not planted without sand
+      from you. Cactus is not planted against another block.
+- [ ] W6. At dusk it goes to bed; at dawn it is back on the same forest or field. Stop, then
+      Continue, picks the plot back up. It walks around the crops when there's a path around them.
+- [ ] W7. No new script errors over a 30 minute run. Brian: does the replanting look right, and
+      did the Farmer leave your water where you put it?
+
+**Settlements and the rest of 0.4.1**
+
 Built Nov 14 2026 and mock-tested. Nov 15 (Brian's OK) the server got all of it, through the
 Depth wording (3d), as scripts under 0.4.0 (backup in `C:\MinecraftServer-backups\`), so 5, 7, 8
 and 9 go out to friends before their local test. Nov 15 9:12 PM (Brian's OK) it also got the

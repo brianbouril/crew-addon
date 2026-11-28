@@ -59,7 +59,7 @@ function dispatchOne(by, order) {
   const byRef = { id: by.id, name: by.name, console: !!by.console };
   // an order that gives it something to do wakes it, and at night it stays up to do it
   // (go_home isn't here on purpose: sent at night, the worker walks home and the routine puts it to bed)
-  if (["come", "drop_off", "resume", "quarry", "branch_mine", "haul", "haul_now"].includes(v.job)) keepUp(e);
+  if (["come", "drop_off", "resume", "quarry", "branch_mine", "forest", "field", "haul", "haul_now"].includes(v.job)) keepUp(e);
   const hauler = roleOf(e) === "Hauler";
   if (hauler && ["resume", "haul_now", "round"].includes(v.job)) e.setDynamicProperty("crew:hold", undefined);
 
@@ -120,9 +120,10 @@ function dispatchOne(by, order) {
         e.setDynamicProperty("crew:haulOff", undefined);
         if (!paused) return { ok: true, message: `${m.name} is back on its rounds.` };
       }
-      if (!paused) return { ok: false, message: `${m.name} has no stopped dig to continue.` };
+      if (!paused) return { ok: false, message: `${m.name} has no stopped job to continue.` };
       resumeJob(e); // any role finishes what it already started (workers converted to Diggers keep their old digs)
-      return { ok: true, message: `${m.name} is going back to the ${paused.name} (${paused.pct}% done).` };
+      const pctBit = paused.pct == null ? "" : ` (${paused.pct}% done)`;
+      return { ok: true, message: `${m.name} is going back to the ${paused.name}${pctBit}.` };
     }
     case "drop_off": {
       if (hauler && p.deposit === undefined) {
@@ -167,6 +168,22 @@ function dispatchOne(by, order) {
         ? `${g.L}x${g.W} quarry, ${g.D} deep, from ${fmt(g.anchor)} heading ${g.facing}${g.up ? `, first clearing ${g.up} layer${g.up === 1 ? "" : "s"} above it` : ""}`
         : `branch mine from ${fmt(g.anchor)} heading ${g.facing} at Y ${g.ty}: ${g.L}-block trunk ${g.w ?? 2} wide, ${g.branchAt.length * 2} branches of ${g.B}`;
       return { ok: true, message: `${m.name} is on it: ${what}. Depositing at ${dep.label}.` };
+    }
+    case "forest":
+    case "field": {
+      const inv = e.getComponent("minecraft:inventory")?.container;
+      const kind = v.job === "forest" ? "axe" : "hoe";
+      if (!inv || !kit(inv).some((t) => t.info.kind === kind)) return { ok: false, message: `${m.name} needs ${v.job === "forest" ? "an axe" : "a hoe"}.` };
+      const dep = depositFor(by, p.deposit, e.dimension.id);
+      if (typeof dep === "string") return { ok: false, message: dep };
+      if (dep.dim !== e.dimension.id) return { ok: false, message: `${dep.label} is in another dimension from ${m.name}.` };
+      setJSON(e, "crew:lastDeposit", dep);
+      startJob(e, { type: v.job, id: newId(), by: byRef, box: p.box, keep: p.keep, deposit: dep });
+      setJSON(e, "crew:paused", undefined);
+      const b = p.box;
+      const w = b.max.x - b.min.x + 1, l = b.max.z - b.min.z + 1;
+      const name = v.job === "forest" ? "forest" : "field";
+      return { ok: true, message: `${m.name} is on it: a ${w} by ${l} ${name} from ${fmt(b.min)}. Depositing at ${dep.label}.` };
     }
     case "haul": {
       const from = depositFor(by, p.from, e.dimension.id);

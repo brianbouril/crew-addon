@@ -90,6 +90,13 @@ const NOT_BLOCKS = /_(pickaxe|shovel|axe|hoe|sword)$|^crew:|bread|apple|cooked|i
 export const BlockTypes = { get: (id) => (NOT_BLOCKS.test(id) ? undefined : { id }) };
 const wprops = new Map();
 const LOOT = { "minecraft:stone": "minecraft:cobblestone", "minecraft:iron_ore": "minecraft:raw_iron", "minecraft:coal_ore": "minecraft:coal", "minecraft:diamond_ore": "minecraft:diamond", "minecraft:dirt": "minecraft:dirt", "minecraft:grass_block": "minecraft:dirt" };
+const LEAF_SAPLING = {
+  "minecraft:oak_leaves": "minecraft:oak_sapling", "minecraft:spruce_leaves": "minecraft:spruce_sapling",
+  "minecraft:birch_leaves": "minecraft:birch_sapling", "minecraft:jungle_leaves": "minecraft:jungle_sapling",
+  "minecraft:acacia_leaves": "minecraft:acacia_sapling", "minecraft:dark_oak_leaves": "minecraft:dark_oak_sapling",
+  "minecraft:cherry_leaves": "minecraft:cherry_sapling", "minecraft:mangrove_leaves": "minecraft:mangrove_propagule",
+  "minecraft:pale_oak_leaves": "minecraft:pale_oak_sapling",
+};
 export const lootCalls = [];
 let timeOfDay = 1000; // day by default; tests move the clock with setTimeOfDay
 export const setTimeOfDay = (t) => { timeOfDay = ((t % 24000) + 24000) % 24000; };
@@ -98,7 +105,15 @@ export const setDay = (n) => { day = n; };
 export const world = {
   getDimension: (id) => dims[id], getAllPlayers: () => players, getTimeOfDay: () => timeOfDay, getDay: () => day,
   getDynamicProperty: (k) => wprops.get(k), setDynamicProperty: (k, v) => (v === undefined ? wprops.delete(k) : wprops.set(k, v)), getDynamicPropertyIds: () => [...wprops.keys()],
-  getLootTableManager: () => ({ generateLootFromBlock: (b, tool) => { lootCalls.push([b.typeId, tool?.typeId ?? "hand"]); return [new ItemStack(LOOT[b.typeId] ?? b.typeId, 1)]; } }),
+  getLootTableManager: () => ({ generateLootFromBlock: (b, tool) => {
+    lootCalls.push([b.typeId, tool?.typeId ?? "hand"]);
+    if (LEAF_SAPLING[b.typeId]) return [new ItemStack(LEAF_SAPLING[b.typeId], 1), new ItemStack("minecraft:stick", 1), ...(b.typeId === "minecraft:oak_leaves" ? [new ItemStack("minecraft:apple", 1)] : [])];
+    if (b.typeId === "minecraft:wheat") return [new ItemStack("minecraft:wheat", 1), new ItemStack("minecraft:wheat_seeds", 1)];
+    if (b.typeId === "minecraft:nether_wart") return [new ItemStack("minecraft:nether_wart", 1)];
+    if (b.typeId === "minecraft:melon") return [new ItemStack("minecraft:melon_slice", 4)];
+    if (b.typeId === "minecraft:cocoa") return [new ItemStack("minecraft:cocoa_beans", 2)];
+    return [new ItemStack(LOOT[b.typeId] ?? b.typeId, 1)];
+  } }),
   afterEvents: new Proxy({}, { get: sub("world.afterEvents") }), beforeEvents: new Proxy({}, { get: sub("world.beforeEvents") }),
 };
 const intervals = [];

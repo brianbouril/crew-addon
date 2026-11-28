@@ -302,6 +302,32 @@ export function restock(dim, home, inv, role) {
     const name = it.typeId === TORCH ? "torches" : it.typeId.replace("minecraft:", "").replace(/_/g, " ");
     took[name] = (took[name] ?? 0) + moved;
   }
+  // A Woodcutter restocks saplings; a Farmer restocks seeds, bonemeal and soul sand. A small
+  // stack, so the home chest stays the supply and the deposit chest stays the harvest.
+  if (role === "Woodcutter" || role === "Farmer") {
+    const wantId = (/** @type {string} */ id) => role === "Woodcutter"
+      ? /_sapling$|mangrove_propagule$|_fungus$/.test(id)
+      : /_seeds$|^minecraft:(carrot|potato|nether_wart|pitcher_pod|bone_meal|soul_sand|cocoa_beans|sweet_berries|sugar_cane|cactus|bamboo|water_bucket|sand|jungle_log)$/.test(id);
+    for (let i = 0; i < chest.size; i++) {
+      const it = chest.getItem(i);
+      if (!it || !wantId(it.typeId)) continue;
+      const have = count((id) => id === it.typeId);
+      const room = 16 - have;
+      if (room <= 0) continue;
+      const n = Math.min(room, it.amount);
+      const part = it.clone();
+      part.amount = n;
+      const left = stash(inv, part);
+      const moved = n - (left?.amount ?? 0);
+      if (!moved) continue;
+      if (it.amount - moved > 0) {
+        it.amount -= moved;
+        chest.setItem(i, it);
+      } else chest.setItem(i, undefined);
+      const name = it.typeId.replace("minecraft:", "").replace(/_/g, " ");
+      took[name] = (took[name] ?? 0) + moved;
+    }
+  }
   const words = Object.entries(took).map(([k, n]) => `${n} ${k}`).join(", ");
   // the ledger re-reads this chest now, not on the next few-second pass (specs/settlement-layer.md)
   if (words && home.chest) noteChestUse(dim.id, home.chest);
