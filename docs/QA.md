@@ -21,6 +21,8 @@ server, which runs as SYSTEM: `C:\Windows\System32\config\systemprofile\AppData\
 
 ## Next release (0.4.1, unreleased)
 
+- [ ] Survey Stake icon: fully restart Minecraft (a texture does not reload with `/reload`). In the inventory and in the hand, the icon is the wooden stick and orange flag with a black outline, and it reads larger than the old picture.
+
 Built Nov 14 2026 and mock-tested. Nov 15 (Brian's OK) the server got all of it, through the
 Depth wording (3d), as scripts under 0.4.0 (backup in `C:\MinecraftServer-backups\`), so 5, 7, 8
 and 9 go out to friends before their local test. Nov 15 9:12 PM (Brian's OK) it also got the
@@ -82,7 +84,9 @@ a full server restart: `reload` refuses to re-register it.
       by side, both full of cobblestone and both added: both count (and nothing in them changes). Take a stack out
       and reopen Storage a few seconds later: the total dropped.
 - [ ] 13b. Walk far from one storage chest (out of loaded range): Storage says it's far away and
-      shows its last count; come back and it updates. A worker's drop-off shows up straight away.
+      shows its last count ("as of N min ago" on the item and the chest list); come back and it updates.
+      A worker's drop-off shows up straight away. In the morning, after a worker takes food, torches
+      or a tool from its home chest, Storage drops by that amount straight away.
 - [ ] 13c. Give orders to everyone: Come to the bell (everyone walks to the bell), All Diggers > Stop
       (only Diggers stop), Go home (workers with a bed walk home, the rest stay), Drop off, and
       Continue after a Stop (paused digs pick up). A worker far away does it when you come near.

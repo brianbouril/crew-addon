@@ -205,11 +205,27 @@ const PREVIEW = process.argv[2];
 
 // ---------- survey stake and pack icon (same art as before) ----------
 function stake(path) {
-  const { px, set } = canvas(16, 16);
+  // Same 16×16 stick and checkered flag, each texel doubled, then a 1px #000000 outline.
+  // Brian, 2026-11-27: the item icon is 32×32. The four wood and flag colours stay.
+  const S = 32;
+  const { px, set } = canvas(S, S);
   const WOOD = [140, 95, 50, 255], WOOD_D = [100, 65, 35, 255], FLAG = [255, 120, 20, 255], FLAG_D = [220, 90, 10, 255];
-  for (let i = 3; i < 15; i++) { const x = i - 1, y = 16 - i; set(x, y, WOOD); if (x + 1 < 16) set(x + 1, y, WOOD_D); }
-  for (let y = 1; y < 6; y++) for (let x = 9; x < 15 - Math.floor((y - 1) / 2); x++) set(x, y, (x + y) % 3 ? FLAG : FLAG_D);
-  png(path, 16, 16, px);
+  const INK = [0, 0, 0, 255];
+  const paint = (x, y, c) => { for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) set(x * 2 + dx, y * 2 + dy, c); };
+  for (let i = 3; i < 15; i++) { const x = i - 1, y = 16 - i; paint(x, y, WOOD); if (x + 1 < 16) paint(x + 1, y, WOOD_D); }
+  for (let y = 1; y < 6; y++) for (let x = 9; x < 15 - Math.floor((y - 1) / 2); x++) paint(x, y, (x + y) % 3 ? FLAG : FLAG_D);
+  const filled = px.map((c) => c[3] !== 0);
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    if (filled[y * S + x]) continue;
+    let edge = false;
+    for (let dy = -1; dy <= 1 && !edge; dy++) for (let dx = -1; dx <= 1; dx++) {
+      if (!dx && !dy) continue;
+      const nx = x + dx, ny = y + dy;
+      if (nx >= 0 && ny >= 0 && nx < S && ny < S && filled[ny * S + nx]) edge = true;
+    }
+    if (edge) set(x, y, INK);
+  }
+  png(path, S, S, px);
 }
 function icon(path) {
   const { px, rect } = canvas(64, 64, [40, 46, 60, 255]);

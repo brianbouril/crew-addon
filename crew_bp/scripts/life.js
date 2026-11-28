@@ -3,6 +3,7 @@
 // at dusk, sleeping, picking the job back up at dawn) is the `rest` job in runner.js.
 import { world } from "@minecraft/server";
 import { TORCH, passable } from "./blocks.js";
+import { noteChestUse } from "./settlement.js";
 import { KIT_SLOTS, SUPPLY_FIRST, addToKit, kit, roleKinds, stash, toolInfo } from "./tools.js";
 import { getJSON, setJSON } from "./util.js";
 
@@ -301,5 +302,8 @@ export function restock(dim, home, inv, role) {
     const name = it.typeId === TORCH ? "torches" : it.typeId.replace("minecraft:", "").replace(/_/g, " ");
     took[name] = (took[name] ?? 0) + moved;
   }
-  return Object.entries(took).map(([k, n]) => `${n} ${k}`).join(", ");
+  const words = Object.entries(took).map(([k, n]) => `${n} ${k}`).join(", ");
+  // the ledger re-reads this chest now, not on the next few-second pass (specs/settlement-layer.md)
+  if (words && home.chest) noteChestUse(dim.id, home.chest);
+  return words;
 }
