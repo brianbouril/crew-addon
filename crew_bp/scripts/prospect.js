@@ -17,6 +17,75 @@ export const HOME_GUARD = 8;
 /** Planks a wooden entrance costs. One log counts as four planks. */
 export const WOOD_NEED = 8;
 
+/**
+ * Where a branch level sits. Peaks are the triangle centers in the 1.18+ placed features
+ * (Bedrock since 1.18; the same ranges are on the Minecraft Wiki ore-feature table, with
+ * Bedrock's iron blob one size larger and the same heights). Diamond and redstone triangles
+ * are centered on the bedrock floor (Y -64). A 2-block tunnel cannot stand in bedrock, so
+ * those two branch at Y -59, the lowest layer the floor never reaches. Coal's even band
+ * from Y 136 is denser than the Y 96 triangle, so 136 is the coal level when the entrance
+ * is high enough to reach it.
+ * `min`/`max` are where that band still places ore.
+ * @type {{ore:string, y:number, min:number, max:number}[]}
+ */
+export const ORE_BANDS = [
+  { ore: "coal", y: 136, min: 136, max: 319 },
+  { ore: "coal", y: 96, min: 0, max: 192 },
+  { ore: "iron", y: 232, min: 80, max: 319 },
+  { ore: "emerald", y: 232, min: -16, max: 319 },
+  { ore: "copper", y: 48, min: -16, max: 112 },
+  { ore: "iron", y: 16, min: -24, max: 56 },
+  { ore: "lapis", y: 0, min: -32, max: 32 },
+  { ore: "gold", y: -16, min: -64, max: 32 },
+  { ore: "redstone", y: -59, min: -64, max: 15 },
+  { ore: "diamond", y: -59, min: -64, max: 16 },
+];
+
+/**
+ * Branch floors for a start at `anchorY`, shallowest first.
+ * A quota uses that ore's best band at or below the start. If every peak is above the
+ * start but the ore still generates there, the branch is at the start (as close as a
+ * downward shaft gets) and `peak` keeps the real best Y.
+ * With no quota, one level for each band whose peak is at or below the start. Diamond
+ * and redstone share Y -59. Emerald and the high iron band are only included when the
+ * entrance is already at or above them.
+ * @param {number} anchorY @param {string} [quotaOre]
+ * @returns {{y:number, ores:string[], peak:number, above?:boolean}[]}
+ */
+export function branchLevels(anchorY, quotaOre) {
+  const ores = quotaOre ? [quotaOre] : [...new Set(ORE_BANDS.map((b) => b.ore))];
+  /** @type {{y:number, ores:string[], peak:number, above?:boolean}[]} */
+  const out = [];
+  for (const ore of ores) {
+    const bands = ORE_BANDS.filter((b) => b.ore === ore);
+    const below = bands.filter((b) => b.y <= anchorY);
+    if (below.length) {
+      // A quota takes the first listed band that the shaft can reach (the denser one).
+      // No quota keeps every such band, so iron can have a high level and a deep one.
+      const use = quotaOre ? [below[0]] : below;
+      for (const b of use) out.push({ y: b.y, ores: [ore], peak: b.y });
+      continue;
+    }
+    if (!quotaOre) continue;
+    if (bands.some((b) => anchorY >= b.min && anchorY <= b.max)) {
+      out.push({ y: anchorY, ores: [ore], peak: bands[0].y, above: true });
+    }
+  }
+  /** @type {Map<number, {y:number, ores:string[], peak:number, above?:boolean}>} */
+  const byY = new Map();
+  for (const level of out) {
+    const hit = byY.get(level.y);
+    if (!hit) byY.set(level.y, { ...level, ores: [...level.ores] });
+    else if (!hit.ores.includes(level.ores[0])) hit.ores.push(level.ores[0]);
+  }
+  return [...byY.values()].sort((a, b) => b.y - a.y);
+}
+
+/** @param {{y:number, ores:string[], peak?:number, above?:boolean}[]} levels */
+export function levelText(levels) {
+  return levels.map((l) => `Y ${l.y} (${l.ores.join(", ")})${l.above ? `, richest at Y ${l.peak}` : ""}`).join("; ");
+}
+
 const LOG = /_(log|stem|hyphae)$/;
 const PLANK = /_planks$/;
 const ORE_NAME = { coal: "Coal", copper: "Copper", iron: "Iron", gold: "Gold", redstone: "Redstone", lapis: "Lapis", emerald: "Emerald", diamond: "Diamond" };
@@ -197,6 +266,7 @@ export function buildEntrance(dim, e, job, home, apply) {
     name: job.mineName, number: job.mineNumber,
     chest: { x: chest.x, y: chest.y, z: chest.z, dim: dim.id },
     decorative, quotaOre: job.quotaOre ?? null, handoff: "sifter-chest",
+    levels: (job.geom?.levels ?? []).map((/** @type {{y:number, ores:string[], peak?:number}} */ l) => ({ y: l.y, ores: l.ores, peak: l.peak ?? l.y })),
   });
   const used = placed ? "I placed a chest for the ore" : `I'll use the chest at ${fmt(chest)}`;
   const built = decorative ? `Built the entrance for ${job.mineName}.` : `No wooden entrance.${woodNote}`;

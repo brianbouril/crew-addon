@@ -6,7 +6,7 @@ import { dispatch } from "./scripts/orders.js";
 import { catalogText, toolSchemas } from "./scripts/catalog.js";
 import { setHome } from "./scripts/life.js";
 import { prospectGeom, stepAt } from "./scripts/plans.js";
-import { craftPickaxe, mineTitle } from "./scripts/prospect.js";
+import { branchLevels, craftPickaxe, mineTitle } from "./scripts/prospect.js";
 
 const logs = [];
 const out = console.log;
@@ -40,8 +40,15 @@ const pick = () => new ItemStack("minecraft:iron_pickaxe");
 
 // --- pure geometry: home column, spacing, torches, no buried ore in the plan ---
 {
+  const any = branchLevels(64);
+  check("no quota from Y 64 uses five levels", any.map((l) => `${l.y}:${l.ores.join("+")}`).join(",") === "48:copper,16:iron,0:lapis,-16:gold,-59:redstone+diamond");
+  check("diamond quota is only Y -59", branchLevels(64, "diamond").map((l) => l.y).join() === "-59");
+  check("iron quota is the underground peak", branchLevels(64, "iron")[0]?.y === 16 && branchLevels(64, "iron").length === 1);
+  check("coal from Y 64 branches at the entrance and records the higher peak", branchLevels(64, "coal")[0]?.y === 64 && branchLevels(64, "coal")[0]?.peak === 136);
+  check("coal from Y 200 branches at the denser band", branchLevels(200, "coal")[0]?.y === 136);
+  check("a high start also reaches mountain iron and coal", branchLevels(300).some((l) => l.y === 232 && l.ores.includes("iron") && l.ores.includes("emerald")) && branchLevels(300).some((l) => l.y === 136));
   const anchor = { x: 9, y: 64, z: 0 };
-  const geom = prospectGeom(anchor, "west", 16);
+  const geom = prospectGeom(anchor, "west", 16, any);
   const guard = { r: 8, spots: [{ x: 0, y: 64, z: 0 }, { x: 1, y: 64, z: 0 }] };
   const job = { type: "prospect", geom, guard, safe: [] };
   let mined = 0, inHome = 0, torches = 0;
@@ -56,11 +63,21 @@ const pick = () => new ItemStack("minecraft:iron_pickaxe");
       if (c.x === buried.x && c.y === buried.y && c.z === buried.z) buriedInPlan = true;
     }
   }
-  const at = geom.branch.branchAt;
-  let gaps = at.length > 1;
-  for (let i = 1; i < at.length; i++) if (at[i] - at[i - 1] - 1 !== 2) gaps = false;
-  check("floor is diamond depth", geom.ty === -59);
-  check("trunk is 2 wide and spacing is 2", geom.branch.w === 2 && geom.branch.s === 2 && gaps);
+  const branches = (geom.parts ?? []).filter((p) => p.kind === "branch");
+  let gaps = true;
+  for (const b of branches) {
+    const at = b.branch.branchAt;
+    if (b.branch.w !== 2 || b.branch.s !== 2) gaps = false;
+    for (let i = 1; i < at.length; i++) if (at[i] - at[i - 1] - 1 !== 2) gaps = false;
+  }
+  const standYs = new Set();
+  for (let i = 0; i < geom.total; i++) {
+    const s = stepAt(job, i);
+    if (s.stand) standYs.add(s.stand.y);
+  }
+  check("deepest level is diamond depth", geom.ty === -59 && geom.levels.length === 5);
+  check("every level is 2 wide with 2 solid blocks between branches", branches.length === 5 && gaps);
+  check("the shaft reaches a stand at every branch floor", [48, 16, 0, -16, -59].every((y) => standYs.has(y)));
   check("home column is not in the dig list", mined > 0 && inHome === 0);
   check("a buried ore off the tunnel is not a planned cell", !buriedInPlan);
   check("stair steps include torches", torches >= 1);
@@ -230,7 +247,7 @@ const pick = () => new ItemStack("minecraft:iron_pickaxe");
   put(supply, [new ItemStack("minecraft:oak_log", 2), new ItemStack("minecraft:chest", 1)]);
   ow.setBlockType(anchor, "minecraft:gravel");
   const { e } = spawnWorker(ow, { x: 2200.5, y: 66, z: 2196.5 }, owner, "Gravelly", [pick()]);
-  const geom = prospectGeom(anchor, "south", 3, 64);
+  const geom = prospectGeom(anchor, "south", 3, [{ y: 64, ores: ["iron"], peak: 16 }]);
   const job = {
     type: "prospect", id: "g1", by: by, geom, keep: "all", where: "stake", supplies: [supply],
     mineName: "Gravelly's Mine No. 1", mineNumber: 1, who: "Gravelly", pickCap: 2,
@@ -243,6 +260,27 @@ const pick = () => new ItemStack("minecraft:iron_pickaxe");
   const gravel = (chest ? count(chest, "minecraft:gravel") : 0) + count(e.inv, "minecraft:gravel");
   check("mined out is reported", said('"stop":"mined_out"'));
   check("gravel is in the entrance chest for the Sifter", gravel >= 1 && mine?.handoff === "sifter-chest");
+}
+
+// --- two branch levels off one shaft ---
+{
+  const anchor = { x: 2600, y: 64, z: 2600 };
+  const supply = { x: 2600, y: 65, z: 2594 };
+  put(supply, [new ItemStack("minecraft:oak_log", 2), new ItemStack("minecraft:chest", 1)]);
+  ow.setBlockType({ x: 2600, y: 62, z: 2600 }, "minecraft:deepslate");
+  const { e } = spawnWorker(ow, { x: 2600.5, y: 66, z: 2596.5 }, owner, "Layers", [pick()]);
+  const levels = [{ y: 64, ores: ["copper"], peak: 48 }, { y: 62, ores: ["iron"], peak: 16 }];
+  const geom = prospectGeom(anchor, "south", 2, levels);
+  startJob(e, {
+    type: "prospect", id: "layers", by, geom, keep: "all", where: "stake", supplies: [supply],
+    mineName: "Layers' Mine No. 1", mineNumber: 1, who: "Layers", pickCap: 2,
+    deposit: { ...supply, dim: ow.id, label: "supply" },
+  });
+  until(() => !e.getDynamicProperty("crew:job"), 40000);
+  const mine = mineOf(e);
+  check("both levels are saved on the mine", mine?.levels?.map((l) => l.y).join() === "64,62");
+  check("the lower level was dug", ow.typeAt({ x: 2600, y: 62, z: 2600 }) === "minecraft:air");
+  check("the upper level was dug", ow.typeAt(anchor) !== "minecraft:deepslate" && ow.typeAt(anchor) !== "minecraft:stone");
 }
 
 // --- night pause, morning resume ---

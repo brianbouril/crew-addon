@@ -65,7 +65,7 @@ export function planText(plan) {
   if (plan.mode === "prospect") {
     const quota = plan.quotaOre && plan.quota ? ` Stops after ${plan.quota} ${plan.quotaOre}.` : " It hunts any valuables.";
     const named = plan.mineName ? ` Sign: ${plan.mineName}.` : " The sign name is automatic.";
-    return `Mine from ${fmt(plan.anchor)} heading ${plan.facing}, down to Y -59, within ${plan.range ?? CLAIM_RADIUS} blocks.${quota}${named} The home, if it is inside that ground, stays undug.`;
+    return `Mine from ${fmt(plan.anchor)} heading ${plan.facing}, within ${plan.range ?? CLAIM_RADIUS} blocks. One entrance and one shaft. A quota branches at that ore's best depth; with no quota it adds a level for each ore the shaft can reach.${quota}${named} The home, if it is inside that ground, stays undug.`;
   }
   if (plan.mode === "quarry") {
     const above = !plan.clearAbove ? "" : plan.aboveTooHigh ? `\n§cClear above is on, but there's more than ${CLEAR_ABOVE_MAX} blocks over it (underground?): turn it off or plan at the surface.§r`

@@ -119,8 +119,9 @@ export function startJob(e, job) {
       `starting a branch mine at ${fmt(g.anchor)} heading ${g.facing}: ${g.n > 0 ? `stairs down to Y ${g.ty}, ` : ""}a ${g.L}-block trunk ${g.w ?? 2} wide, then ${g.branchAt.length * 2} branches ${g.B} long with ${g.s} blocks between. Depositing at ${job.deposit.label}.`);
   } else if (job.type === "prospect") {
     const g = job.geom;
-    emit(e, "job_started", { mode: "prospect", start: fmt(g.anchor), facing: g.facing, target_y: g.ty, range: g.range, name: job.mineName, quota: job.quota ?? null, quota_ore: job.quotaOre ?? null },
-      `starting ${job.mineName} at ${fmt(g.anchor)} heading ${g.facing}: down to Y ${g.ty}, then a branch mine within ${g.range} blocks. Home ground stays undug.`);
+    const levels = (g.levels ?? []).map((/** @type {{y:number, ores:string[]}} */ l) => `${l.y}:${l.ores.join("+")}`).join(", ");
+    emit(e, "job_started", { mode: "prospect", start: fmt(g.anchor), facing: g.facing, target_y: g.ty, range: g.range, levels, name: job.mineName, quota: job.quota ?? null, quota_ore: job.quotaOre ?? null },
+      `starting ${job.mineName} at ${fmt(g.anchor)} heading ${g.facing}: one shaft, branch levels ${levels || "none"}, within ${g.range} blocks. Home ground stays undug.`);
   }
 }
 

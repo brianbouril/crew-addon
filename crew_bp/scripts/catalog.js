@@ -54,7 +54,7 @@ export const JOBS = {
   prospect: {
     roles: ["Miner"],
     description:
-      "Miner only. Overworld only. Hunt any valuables from a branch mine at diamond depth, either around the worker's home (the home column is never dug) or from a Survey Stake start. Optional quota on one ore. Stops at night, when pickaxes run out, when the quota is met, or when the claim is mined out. Ore goes to a chest at the entrance.",
+      "Miner only. Overworld only. One entrance and one shaft. With no quota, a branch level at the best depth for each ore the shaft can reach. With a quota, one level at that ore's best depth. Home column is never dug. Stops at night, when pickaxes run out, when the quota is met, or when the claim is mined out. Ore goes to a chest at the entrance.",
     params: {
       where: { type: "enum", values: ["home", "stake"], required: true, description: "home: the ground around the worker's bed. stake: the block in start." },
       start: { type: "vec3", description: "Ground block where a staked mine begins. Required when where is stake." },

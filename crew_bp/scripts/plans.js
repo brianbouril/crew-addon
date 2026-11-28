@@ -234,20 +234,31 @@ export function prospectBlocked(job, c) {
 }
 
 /**
- * Prospect geometry. The descent is a shaft at the start with treads on alternating sides, so
- * the whole stair stays next to the entrance. A straight branch-mine stair would walk out of a
- * 64-block claim before it reached diamond level. At `floorY` the hidden branch mine runs:
- * 2-wide trunk, branches, 2 solid blocks between them.
- * @param {V3} anchor @param {string} facing @param {number} range @param {number} [floorY]
+ * Prospect geometry. One shaft at the entrance, with treads on alternating sides, and a hidden
+ * branch mine (2-wide trunk, 2 solid blocks between branches) taking off at each level. Levels
+ * are shallowest first. `levels` is `{y, ores, peak?}[]` from `branchLevels`.
+ * @param {V3} anchor @param {string} facing @param {number} range @param {{y:number, ores:string[], peak?:number}[]} levels
  */
-export function prospectGeom(anchor, facing, range, floorY = -59) {
-  const ty = Math.min(floorY, anchor.y);
-  const nStairs = anchor.y === ty ? 0 : anchor.y - ty + 1;
-  const bAnchor = { x: anchor.x, y: ty - 1, z: anchor.z };
-  const branch = branchGeom(bAnchor, facing, { trunk: range, branch: range, spacing: 2, targetY: ty, width: 2 });
+export function prospectGeom(anchor, facing, range, levels) {
+  const list = (levels ?? []).filter((l) => l && Number.isFinite(l.y)).slice().sort((a, b) => b.y - a.y);
+  const ty = list.length ? list[list.length - 1].y : anchor.y;
+  /** @type {{kind:string, k0?:number, n:number, y?:number, ores?:string[], peak?:number, branch?:any}[]} */
+  const parts = [];
+  let cursor = anchor.y;
+  for (const level of list) {
+    const y = Math.min(level.y, cursor);
+    const n = cursor - y;
+    if (n > 0) parts.push({ kind: "shaft", k0: anchor.y - cursor, n });
+    const bAnchor = { x: anchor.x, y: y - 1, z: anchor.z };
+    const branch = branchGeom(bAnchor, facing, { trunk: range, branch: range, spacing: 2, targetY: y, width: 2 });
+    parts.push({ kind: "branch", y, ores: level.ores ?? [], peak: level.peak ?? y, branch, n: branch.total });
+    cursor = y;
+  }
+  const nStairs = parts.filter((p) => p.kind === "shaft").reduce((a, p) => a + p.n, 0);
   return {
-    anchor: { x: anchor.x, y: anchor.y, z: anchor.z }, facing, ty, range, nStairs, branch,
-    total: nStairs + branch.total,
+    anchor: { x: anchor.x, y: anchor.y, z: anchor.z }, facing, ty, range, nStairs, parts,
+    levels: list.map((l) => ({ y: Math.min(l.y, anchor.y), ores: l.ores ?? [], peak: l.peak ?? l.y })),
+    total: parts.reduce((a, p) => a + p.n, 0),
   };
 }
 
@@ -263,7 +274,7 @@ function descentStep(g, k) {
   return {
     stand, treadAt: tread, fwd: d,
     mine: [shaft, { x: shaft.x, y: y + 1, z: shaft.z }, tread, stand, { x: stand.x, y: stand.y + 1, z: stand.z }],
-    torch: g.nStairs > 0 && torchAt(k, g.nStairs),
+    torch: (g.nStairs ?? 0) > 0 && torchAt(k, g.nStairs),
   };
 }
 
@@ -283,11 +294,19 @@ function filterProspect(job, step) {
 /** @param {any} job @param {number} i */
 export function prospectStep(job, i) {
   const g = job.geom;
-  if (i < g.nStairs) return filterProspect(job, descentStep(g, i));
-  let k = i - g.nStairs;
-  for (const s of segments(g.branch)) {
-    if (k < s.n) return filterProspect(job, s.at(k));
-    k -= s.n;
+  let k = i;
+  for (const part of g.parts ?? []) {
+    if (k >= part.n) {
+      k -= part.n;
+      continue;
+    }
+    if (part.kind === "shaft") return filterProspect(job, descentStep(g, (part.k0 ?? 0) + k));
+    let t = k;
+    for (const s of segments(part.branch)) {
+      if (t < s.n) return filterProspect(job, s.at(t));
+      t -= s.n;
+    }
+    return {};
   }
   return {};
 }
@@ -300,7 +319,10 @@ export function prospectStep(job, i) {
 export function inProspectPlan(g, c) {
   if (!g?.anchor) return false;
   if (Math.max(Math.abs(c.x - g.anchor.x), Math.abs(c.z - g.anchor.z)) <= 1 && c.y <= g.anchor.y + 2 && c.y >= g.ty) return true;
-  return inBranchPlan(g.branch, c);
+  for (const part of g.parts ?? []) {
+    if (part.kind === "branch" && inBranchPlan(part.branch, c)) return true;
+  }
+  return false;
 }
 
 // ---------------- shared ----------------

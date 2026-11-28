@@ -1,7 +1,7 @@
 // One entry point for every order, whoever gives it: the worker menu, a slash command, the
 // server console, or (Phase 2) an LLM bridge. Orders are plain objects:
 //   { worker: "Digby", job: "quarry", params: { from, to, facing, deposit, keep, clear_above } }
-import { JOBS, PROSPECT_FLOOR, roleRefusal, roleTakes, validate } from "./catalog.js";
+import { JOBS, roleRefusal, roleTakes, validate } from "./catalog.js";
 import { fmt, getJSON, setJSON } from "./util.js";
 import { getRegistry, resolvePlace } from "./store.js";
 import { canCommand, findWorker, loadedWorkers, meta, roleOf } from "./workers.js";
@@ -15,7 +15,7 @@ const loadedWorkersById = (id) => loadedWorkers().find((w) => w.id === id);
 const isKnownWorker = (id) => Object.values(getRegistry()).some((r) => r.id === id);
 import { kit } from "./tools.js";
 import { inGuard, prospectGeom } from "./plans.js";
-import { buildEntrance, guardOf, homeEntrance, mineTitle } from "./prospect.js";
+import { branchLevels, buildEntrance, guardOf, homeEntrance, levelText, mineTitle } from "./prospect.js";
 import { CLEAR_ABOVE_MAX, layersAbove } from "./blocks.js";
 import { quarryGeom } from "./plans.js";
 
@@ -177,7 +177,9 @@ export function dispatch(by, order) {
       }
       const count = Number(e.getDynamicProperty("crew:mineCount") ?? 0) + 1;
       const mineName = mineTitle(m.name, count, p.quota_ore, p.name);
-      const geom = prospectGeom(anchor, p.facing, p.range, PROSPECT_FLOOR);
+      const levels = branchLevels(anchor.y, p.quota_ore);
+      if (!levels.length) return { ok: false, message: `${p.quota_ore ?? "That ore"} doesn't generate at or below this start, so ${m.name} has nowhere to branch.` };
+      const geom = prospectGeom(anchor, p.facing, p.range, levels);
       const job = {
         type: "prospect", id: newId(), by: byRef, geom, keep: "all", where: p.where,
         guard, supplies, quotaOre: p.quota_ore, quota: p.quota, mineName, mineNumber: count,
@@ -190,7 +192,7 @@ export function dispatch(by, order) {
       startJob(e, job);
       setJSON(e, "crew:paused", undefined);
       const quota = p.quota_ore ? ` It stops after ${p.quota} ${p.quota_ore}, or sooner if the claim is mined out.` : "";
-      return { ok: true, message: `${m.name} is prospecting from ${fmt(anchor)} heading ${p.facing}, down to Y ${geom.ty}, within ${p.range} blocks. ${mineName}. The home stays undug.${quota}` };
+      return { ok: true, message: `${m.name} is prospecting from ${fmt(anchor)} heading ${p.facing}, within ${p.range} blocks. One shaft, branch levels ${levelText(geom.levels)}. ${mineName}. The home stays undug.${quota}` };
     }
     default:
       return { ok: false, message: `${v.job} isn't wired up yet.` };
