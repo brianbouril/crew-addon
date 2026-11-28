@@ -2,15 +2,17 @@
 // Tests run workers 5x faster (runner.js testFast); a test that wants real speed sets it false.
 globalThis.crewTestFast = true;
 export const CommandPermissionLevel = { Any: 0, GameDirectors: 1, Admin: 2, Host: 3, Owner: 4 };
+export const GameMode = { survival: "survival", creative: "creative", adventure: "adventure", spectator: "spectator" };
 export const CustomCommandParamType = new Proxy({}, { get: (_, k) => k });
 export const CustomCommandSource = { Block: "Block", Entity: "Entity", NPCDialogue: "NPCDialogue", Server: "Server" };
 export const CustomCommandStatus = { Success: 0, Failure: 1 };
 const MAXDUR = { wooden: 59, golden: 32, stone: 131, copper: 190, iron: 250, diamond: 1561, netherite: 2031 };
+// `data` (tests only) stands for item data such as banner patterns or firework flights: stacks with different data never stack.
 export class ItemStack {
   constructor(typeId, amount = 1) { this.typeId = typeId; this.amount = amount; this.damage = 0; this.enchants = {}; }
-  get maxAmount() { return /_(pickaxe|shovel|axe|hoe)$/.test(this.typeId) ? 1 : 64; }
-  isStackableWith(o) { return o.typeId === this.typeId && this.maxAmount > 1; }
-  clone() { const c = new ItemStack(this.typeId, this.amount); c.damage = this.damage; c.enchants = { ...this.enchants }; return c; }
+  get maxAmount() { return /_(pickaxe|shovel|axe|hoe|sword)$|bundle|leather_boots|shulker_box/.test(this.typeId) ? 1 : 64; }
+  isStackableWith(o) { return o.typeId === this.typeId && this.maxAmount > 1 && (o.nameTag ?? "") === (this.nameTag ?? "") && (o.data ?? "") === (this.data ?? ""); }
+  clone() { const c = new ItemStack(this.typeId, this.amount); c.damage = this.damage; c.enchants = { ...this.enchants }; if (this.nameTag !== undefined) c.nameTag = this.nameTag; if (this.data !== undefined) c.data = this.data; return c; }
   getComponent(n) {
     const m = /^minecraft:(\w+?)_(pickaxe|shovel|axe|hoe)$/.exec(this.typeId);
     if (n === "minecraft:durability" && m) { const it = this; return { get damage() { return it.damage; }, set damage(v) { it.damage = v; }, maxDurability: MAXDUR[m[1]] }; }
@@ -26,9 +28,9 @@ export class Container {
   clearAll() { this.items.fill(undefined); }
   addItem(it) {
     let left = it.amount;
-    for (const s of this.items) if (s && s.isStackableWith(it) && s.amount < 64 && left) { const n = Math.min(64 - s.amount, left); s.amount += n; left -= n; }
+    for (const s of this.items) if (s && s.isStackableWith(it) && s.amount < s.maxAmount && left) { const n = Math.min(s.maxAmount - s.amount, left); s.amount += n; left -= n; }
     for (let i = 0; i < this.size && left; i++) if (!this.items[i]) { const n = Math.min(it.maxAmount, left); const c = it.clone(); c.amount = n; this.items[i] = c; left -= n; }
-    return left ? new ItemStack(it.typeId, left) : undefined;
+    if (!left) return undefined; const r = it.clone(); r.amount = left; return r;
   }
 }
 /** @param {string} id @param {Record<string, any>} [states] */
@@ -36,8 +38,12 @@ const perm = (id, states = {}) => ({ id, states, type: { id }, getState: (n) => 
 export const BlockPermutation = { resolve: (id, states) => perm(id, states) };
 const key = (p) => `${Math.floor(p.x)},${Math.floor(p.y)},${Math.floor(p.z)}`;
 export const log = { tele: 0, commands: [], spawnedItems: [] };
+let tickingFull = false;
+/** Tests: while on, `tickingarea add` fails (throws), as when the world's 10 ticking areas are taken. */
+export const setTickingFull = (on) => { tickingFull = !!on; };
+function command(c) { log.commands.push(c); if (tickingFull && /^tickingarea add/.test(c)) throw new Error("Too many ticking areas"); return { successCount: 1 }; }
 class Dimension {
-  constructor(id) { this.id = id; this.blocks = new Map(); this.states = new Map(); this.containers = new Map(); this.signs = new Map(); this.entities = []; this.unloaded = new Set(); }
+  constructor(id) { this.id = id; this.blocks = new Map(); this.states = new Map(); this.containers = new Map(); this.signs = new Map(); this.power = new Map(); this.entities = []; this.unloaded = new Set(); }
   /** Tests: make a block read as unloaded (getBlock returns undefined), or loaded again. */
   setUnloaded(p, on = true) { if (on) this.unloaded.add(key(p)); else this.unloaded.delete(key(p)); }
   typeAt(p) { const k = key(p); if (this.blocks.has(k)) return this.blocks.get(k); return Math.floor(p.y) <= 64 ? "minecraft:stone" : "minecraft:air"; }
@@ -51,6 +57,7 @@ class Dimension {
         return undefined;
       },
       below() { return dim.getBlock({ x: loc.x, y: loc.y - 1, z: loc.z }); }, bottomCenter() { return { x: loc.x + 0.5, y: loc.y, z: loc.z + 0.5 }; },
+      getRedstonePower() { return dim.power.get(key(loc)) ?? 0; },
       get permutation() { return perm(t, dim.states.get(key(loc))); },
       setPermutation(p) { dim.setBlockType(loc, p.id); if (p.states && Object.keys(p.states).length) dim.states.set(key(loc), { ...p.states }); } };
   }
@@ -59,7 +66,7 @@ class Dimension {
   spawnEntity(type, loc) { const e = new Entity(type, loc, this); this.entities.push(e); return e; }
   spawnItem(it, loc) { log.spawnedItems.push(it); }
   spawnParticle() {} playSound() {}
-  runCommand(c) { log.commands.push(c); return { successCount: 1 }; }
+  runCommand(c) { return command(c); }
 }
 let nextId = 1;
 class Entity {
@@ -69,7 +76,7 @@ class Entity {
   getComponent(n) { return n === "minecraft:inventory" ? { container: this.inv } : undefined; }
   teleport(loc) { this.location = { ...loc }; log.tele++; }
   triggerEvent(e) { this.events.push(e); }
-  runCommand(c) { log.commands.push(c); return { successCount: 1 }; }
+  runCommand(c) { return command(c); }
   setProperty(k, v) { (this.eprops ??= new Map()).set(k, v); if (k === "crew:anim") this.anim = v; }
   getProperty(k) { return this.eprops?.get(k); }
   remove() { this.isValid = false; }
@@ -85,7 +92,9 @@ let players = [];
 /** The players world.getAllPlayers() returns. */
 export const setPlayers = (list) => { players = list; };
 // Item ids that aren't blocks (BlockTypes.get returns undefined for them).
-const NOT_BLOCKS = /_(pickaxe|shovel|axe|hoe|sword)$|^crew:|bread|apple|cooked|ingot|diamond$|^minecraft:coal$|stick/;
+const NOT_BLOCKS = /_(pickaxe|shovel|axe|hoe|sword)$|^crew:(?!sieve$)|bread|apple|cooked|ingot|diamond$|^minecraft:coal$|stick/;
+/** Tests: redstone power at a block (Block.getRedstonePower). @param {Dimension} dim @param {{x:number,y:number,z:number}} p @param {number} power */
+export function setRedstonePower(dim, p, power) { dim.power.set(key(p), power); }
 export const BlockTypes = { get: (id) => (NOT_BLOCKS.test(id) ? undefined : { id }) };
 const wprops = new Map();
 const LOOT = {
@@ -99,13 +108,30 @@ const LOOT = {
   "minecraft:emerald_ore": "minecraft:emerald", "minecraft:deepslate_emerald_ore": "minecraft:emerald",
   "minecraft:gravel": "minecraft:gravel", "minecraft:sand": "minecraft:sand", "minecraft:dirt": "minecraft:dirt", "minecraft:grass_block": "minecraft:dirt",
 };
+const LEAF_SAPLING = {
+  "minecraft:oak_leaves": "minecraft:oak_sapling", "minecraft:spruce_leaves": "minecraft:spruce_sapling",
+  "minecraft:birch_leaves": "minecraft:birch_sapling", "minecraft:jungle_leaves": "minecraft:jungle_sapling",
+  "minecraft:acacia_leaves": "minecraft:acacia_sapling", "minecraft:dark_oak_leaves": "minecraft:dark_oak_sapling",
+  "minecraft:cherry_leaves": "minecraft:cherry_sapling", "minecraft:mangrove_leaves": "minecraft:mangrove_propagule",
+  "minecraft:pale_oak_leaves": "minecraft:pale_oak_sapling",
+};
 export const lootCalls = [];
 let timeOfDay = 1000; // day by default; tests move the clock with setTimeOfDay
 export const setTimeOfDay = (t) => { timeOfDay = ((t % 24000) + 24000) % 24000; };
+let day = 0; // world.getDay(); tests move it with setDay
+export const setDay = (n) => { day = n; };
 export const world = {
-  getDimension: (id) => dims[id], getAllPlayers: () => players, getTimeOfDay: () => timeOfDay,
+  getDimension: (id) => dims[id], getAllPlayers: () => players, getTimeOfDay: () => timeOfDay, getDay: () => day,
   getDynamicProperty: (k) => wprops.get(k), setDynamicProperty: (k, v) => (v === undefined ? wprops.delete(k) : wprops.set(k, v)), getDynamicPropertyIds: () => [...wprops.keys()],
-  getLootTableManager: () => ({ generateLootFromBlock: (b, tool) => { lootCalls.push([b.typeId, tool?.typeId ?? "hand"]); return [new ItemStack(LOOT[b.typeId] ?? b.typeId, 1)]; } }),
+  getLootTableManager: () => ({ generateLootFromBlock: (b, tool) => {
+    lootCalls.push([b.typeId, tool?.typeId ?? "hand"]);
+    if (LEAF_SAPLING[b.typeId]) return [new ItemStack(LEAF_SAPLING[b.typeId], 1), new ItemStack("minecraft:stick", 1), ...(b.typeId === "minecraft:oak_leaves" ? [new ItemStack("minecraft:apple", 1)] : [])];
+    if (b.typeId === "minecraft:wheat") return [new ItemStack("minecraft:wheat", 1), new ItemStack("minecraft:wheat_seeds", 1)];
+    if (b.typeId === "minecraft:nether_wart") return [new ItemStack("minecraft:nether_wart", 1)];
+    if (b.typeId === "minecraft:melon") return [new ItemStack("minecraft:melon_slice", 4)];
+    if (b.typeId === "minecraft:cocoa") return [new ItemStack("minecraft:cocoa_beans", 2)];
+    return [new ItemStack(LOOT[b.typeId] ?? b.typeId, 1)];
+  } }),
   afterEvents: new Proxy({}, { get: sub("world.afterEvents") }), beforeEvents: new Proxy({}, { get: sub("world.beforeEvents") }),
 };
 const intervals = [];

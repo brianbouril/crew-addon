@@ -7,16 +7,19 @@ or pick "How workers work" in any worker's menu.
 2. [Talk to your worker](#talk-to-your-worker)
 3. [The Survey Stake (your remote)](#the-survey-stake-your-remote)
 4. [Quarry](#quarry)
-5. [Prospecting](#prospecting)
-6. [Tools and tough blocks](#tools-and-tough-blocks)
-7. [Torches](#torches)
-8. [Getting your stuff](#getting-your-stuff)
-9. [Home, sleep and energy](#home-sleep-and-energy)
-10. [Your settlement](#your-settlement)
-11. [Stop and continue](#stop-and-continue)
-12. [Sharing and good manners](#sharing-and-good-manners)
-13. [Commands](#commands)
-14. [Tips](#tips)
+5. [Forests and fields](#forests-and-fields)
+6. [Prospecting](#prospecting)
+7. [Tools and tough blocks](#tools-and-tough-blocks)
+8. [Torches](#torches)
+9. [Getting your stuff](#getting-your-stuff)
+10. [Home, sleep and energy](#home-sleep-and-energy)
+11. [Your settlement](#your-settlement)
+12. [Haulers](#haulers)
+13. [Stop and continue](#stop-and-continue)
+14. [Sharing and good manners](#sharing-and-good-manners)
+15. [The Sifter](#the-sifter)
+16. [Commands](#commands)
+17. [Tips](#tips)
 
 ## Build a worker
 
@@ -29,7 +32,10 @@ The barrel and pumpkin turn into a little worker in a hard hat. It's yours: you'
 The **first tool you put in the barrel decides its job**:
 - a **shovel** makes a **Digger**: it digs quarries. Give it pickaxes too, for stone.
 - a **pickaxe** makes a **Miner**: it prospects for ore, around its home or from a spot you stake.
-- axes and hoes are for jobs coming later.
+- an **axe** makes a **Woodcutter**: it keeps a forest (see Forests and fields).
+- a **hoe** makes a **Farmer**: it keeps a field (see Forests and fields).
+- a **sieve** makes a **Sifter**. See "The Sifter". The sieve is used up.
+No tools at all, but a **bundle** and **leather boots**? That makes a **Hauler**: it carries, it doesn't dig (see Haulers).
 Each worker only takes its own jobs. Workers from before this update are Diggers now.
 
 Better tools let it mine more and dig faster, just like yours.
@@ -60,7 +66,7 @@ Get one: pick **Get a Survey Stake** in a worker's menu, type **/crew:stake**, o
 
 Plan a dig
 1. **Face the way you want to dig** and tap the ground block where it should start.
-2. A Digger: pick **Plan a quarry** and set the size with the sliders. **Clear above** also takes off the hill or trees on top of it. A Miner: the tap plans a **mine** (name and quota are on the next tap).
+2. Pick **Plan a quarry**, **Plan a forest** or **Plan a field** and set the size with the sliders. **Clear above** also takes off the hill or trees on top of a quarry. A Miner: the tap plans a **mine** (name and quota are on the next tap).
 3. A **white outline** shows the plan while you hold the stake (flames point forward).
 4. Tap with the stake again (any block, or the air) and pick **Confirm**. The outline turns green.
 5. **Start it with** the linked worker right there, or later from its orders. A quarry asks where it drops off and what to bring back. A mine uses a chest at the entrance.
@@ -82,6 +88,18 @@ It leaves a **staircase in the wall** spiralling down, so you and the worker can
 Otherwise it only digs inside the box. The one exception: if a block is in its way at head height just above the box, it clears it.
 
 Up to 128 blocks on each side.
+
+## Forests and fields
+
+Stake the ground once, the way you stake a quarry: **Plan a forest** for a Woodcutter, **Plan a field** for a Farmer. Set the width and length (up to 64 by 64), check the outline, confirm, and start it with the linked worker. **/crew:forest** and **/crew:field** start the same job. It keeps working that plot: it sleeps at night and goes back in the morning.
+
+**Woodcutter.** It cuts a tree only when the logs or stems are connected to leaves (nether stems, to wart blocks). Planks, fences, chests and a bare log wall stay put. It strips the leaves and picks up the apples, sticks and saplings, then plants the same tree on the stump. Saplings come from the cut first, then its home chest, then the deposit. A 2 by 2 tree needs four. If it hasn't enough it leaves the stump and tells you. A beehive is left where it is, and it tells you where.
+
+**Farmer.** It hoes empty dirt, plants what you give it, picks a crop when it's ready, and plants the same one again. One piece of bonemeal you give it grows a crop one stage. It lays a **water channel every 9 blocks** along the long side of the field, from water buckets in its home chest or the deposit. The empty bucket goes back to the deposit. No bucket: it tells you and skips the channel. It does not take water out of the world.
+
+Pumpkin and melon stems stay put and it picks the fruit. Cocoa goes on jungle logs you give it. It picks sweet berries without breaking the bush. Sugar cane, cactus, and bamboo keep their bottom block. Cane and cactus need sand from you, cane wants that sand beside the water, and cactus needs empty space on every side. Nether wart needs soul sand from you. It will not dig any of that ground up, and it does not cook.
+
+Both need a **deposit chest**, like a quarry. The home chest is where they restock tools, saplings and seeds. They keep everything they pick up. They walk around crops when there's a way around.
 
 ## Prospecting
 
@@ -151,7 +169,7 @@ Tip: put a bed and a chest near a mine so its walk home is short.
 
 Crouch-tap the bell any time for the settlement menu:
 - **Workers**: all your settlement's workers, what each is doing and where. **Out of tools** (red) and **Tools low** (yellow) show who needs tools. Far-away workers show **Working far away** or **Paused: nobody nearby**. Tap one for its menu; orders to a far-away worker wait until its area loads. A worker that was killed can be taken off the list with **Forget this worker** (if it was only far away, it comes back when its area loads).
-- **Storage**: everything in the settlement's chests, added up (most first). Tap an item to see which chests hold it. Storage chests are your workers' home chests and drop-offs, your named places, and any chest you tap with the Survey Stake and pick **Add to settlement storage**. Chests far away show what they held when they were last loaded.
+- **Storage**: everything in the settlement's chests, added up (most first). Tap an item to see which chests hold it. Storage chests are your workers' home chests and drop-offs, your named places, and any chest you tap with the Survey Stake and pick **Add to settlement storage**. The total changes as soon as a worker puts something in or takes something out, including food, torches and tools it takes from its home chest in the morning. Chests far away show what they held when they were last loaded, marked with how long ago.
 - **Give orders to everyone**: Stop, Continue, Drop off, Go home or Come to the bell, for every worker or just one kind (All Diggers). Far-away workers do it when their area loads.
 - **Members**: add friends. Everyone in a settlement runs it together: their workers become the settlement's, and they can give orders to every worker, add and remove members, rename it and move its bell. The **founder** (who rang it first) can't be removed and can hand that role to someone else; the founder leaves only after doing that.
 - **Name** and **Move the bell**. The bell can't be broken, by you or anyone, and explosions skip it: Move the bell puts it in your inventory, then place it and crouch-tap it again.
@@ -159,6 +177,22 @@ Crouch-tap the bell any time for the settlement menu:
 A plain tap still rings the bell. Village bells aren't yours to claim (for now).
 
 Workers belong to the settlement (on paper, to its founder), so someone who leaves takes none with them. A settlement can have **6 workers for each person in it**; on your own you can have 6. A server operator can change the 6 to keep the server running smoothly.
+
+## Haulers
+
+**Build one:** a barrel holding a **bundle** and **leather boots** (no tools), carved pumpkin on top. It wears a leather cap and a backpack. It never digs.
+
+**Mark a depot** first: tap the ground with the Survey Stake, pick **Make a depot here**, set the width and length, check the outline, then tap again and confirm. It needs a flat floor with 2 blocks of room. One per settlement, up to 16 by 16; 5 by 7 holds 16 chests, a bigger area more.
+
+**Three rounds a day** (morning, midday and evening) it walks the same loop of chests, nearest first: your settlement's Diggers' and Miners' drop-off chests, plus any chest you tap with the stake while it's linked (**Hauler pickup**). It carries 18 stacks at a time and brings everything back to the depot. A drop-off chest that gets about 3/4 full calls it for an extra trip. It never takes goods from home chests or puts anything in them. It still takes its own food from its own home chest in the morning, like the other workers.
+
+**In the depot** it sets up chests in rows with walkways and sorts as it stores: one kind of item per chest, grouped (stone and dirt, ores and metals, wood, food, other). Between rounds it tidies: it merges half stacks and moves strays (never shulker boxes, named items or tools).
+
+**Chests:** it takes them from your settlement's storage chests, or tap it holding chests. It never crafts them. With none it says **I need chests for the depot**. When every chest is full it keeps what it carries, waits at the depot and says **The depot is full** once, then carries on when there's room.
+
+Its menu: **Do a round now**, Come here, Stop, Continue, Drop off (at the depot), Go home, and its **Pickup points**. It sleeps at night and tires from walking (more when loaded); carrying at dusk, it delivers first.
+
+**/crew:haul <worker> <from> <to> [items]** moves things from one chest to another (places by name or as "x y z"; items comma separated). **/crew:round <worker>** does a round now.
 
 ## Stop and continue
 
@@ -178,6 +212,20 @@ Only the **owner** and the players they allow can give a worker orders or tools.
 
 **Dismiss** (owners only) gives back its tools, what it carries, the barrel and the pumpkin.
 
+## The Sifter
+
+Craft a **sieve**: eight **iron bars** in a ring around one **stick**. That is three iron ingots of bars. The sieve has a black outline so it reads clearly in your hand.
+
+1. Place the sieve. Put a **chest on top** (gravel, sand, dirt, or soul sand) and a **chest underneath** for the finds.
+2. **Use the sieve** to sift one piece. Holding a piece sifts that one into your inventory. An empty hand takes one from the chest on top.
+3. Power it with **redstone** and it keeps sifting whenever more input arrives, day or night, until the power goes off.
+
+A sieve in a barrel, with a carved pumpkin on top, builds a **Sifter**. It counts toward your worker limit. Look at a sieve and pick **Sift the sieve I'm looking at**, or type **/crew:sift**. It sifts through the day, sleeps at night, and picks up in the morning. Stop pauses it. Continue starts it again.
+
+Most pieces yield nothing. About 1 in 10 gravel gives flint. Nuggets show up a few times in a hundred. A diamond is about 1 in 5,000 gravel, and rarer from sand. Dirt can give seeds. Soul sand, which you have to bring yourself, can give quartz or a gold nugget.
+
+Anything that isn't gravel, sand, dirt, or soul sand stays in the input chest, ore included. Red sand and grass are left alone. The Miner and the Hauler can fill that top chest; the sieve only reads it.
+
 ## Commands
 
 - **/crew:guide**: this guide
@@ -187,7 +235,12 @@ Only the **owner** and the players they allow can give a worker orders or tools.
 - **/crew:status <worker>**: what it's doing
 - **/crew:come <worker>**: call it to you
 - **/crew:halt <worker>**: stop it
-- **/crew:continue <worker>**: pick its dig back up
+- **/crew:continue <worker>**: pick its dig, forest, field, sifting, or a Hauler's round back up
+- **/crew:forest <worker> <from> <to> [deposit]**: a Woodcutter keeps that forest
+- **/crew:field <worker> <from> <to> [deposit]**: a Farmer keeps that field
+- **/crew:round <worker>**: a Hauler does a round now
+- **/crew:haul <worker> <from> <to> [items]**: a Hauler moves things from one chest to another
+- **/crew:sift <worker>**: set a Sifter working at the sieve you are looking at
 - **/crew:allow <worker> <player>**: let a friend give orders
 - **/crew:setplace "name"**: save the chest you're looking at as a named drop-off (add **true** to share it with everyone)
 - **/crew:places**: list saved places

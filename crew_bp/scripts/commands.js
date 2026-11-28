@@ -196,6 +196,19 @@ export function registerCommands(reg) {
       }
       order(by, { worker, job: "prospect", params });
     });
+  const plotCmd = (name, job) => cmd(reg, { name, description: job === "forest" ? "A Woodcutter keeps a forest between two ground corners." : "A Farmer keeps a field between two ground corners.", permissionLevel: ANY,
+    mandatoryParameters: [{ name: "worker", type: T.String }, { name: "from", type: T.Location }, { name: "to", type: T.Location }],
+    optionalParameters: [{ name: "deposit", type: T.String }, { name: "crew:keep", type: T.Enum }] },
+    (by, worker, from, to, deposit, keep) => {
+      let dep = deposit;
+      if (!dep && by.player) {
+        const d = by.player.getDynamicProperty("crew:deposit");
+        if (typeof d === "object") dep = [d.x, d.y, d.z];
+      }
+      order(by, { worker, job, params: { from, to, deposit: dep, keep } });
+    });
+  plotCmd("crew:forest", "forest");
+  plotCmd("crew:field", "field");
 
   cmd(reg, { name: "crew:come", description: "Call a worker to you.", permissionLevel: ANY, mandatoryParameters: [{ name: "worker", type: T.String }] },
     (by, worker) => order(by, { worker, job: "come", params: {} }));
@@ -203,11 +216,37 @@ export function registerCommands(reg) {
   cmd(reg, { name: "crew:halt", description: "Stop a worker's job.", permissionLevel: ANY, mandatoryParameters: [{ name: "worker", type: T.String }] },
     (by, worker) => order(by, { worker, job: "stop", params: {} }));
 
-  cmd(reg, { name: "crew:continue", description: "Continue a worker's stopped quarry or branch mine where it left off.", permissionLevel: ANY, mandatoryParameters: [{ name: "worker", type: T.String }] },
+  cmd(reg, { name: "crew:continue", description: "Continue a worker's stopped dig or sifting where it left off.", permissionLevel: ANY, mandatoryParameters: [{ name: "worker", type: T.String }] },
     (by, worker) => order(by, { worker, job: "resume", params: {} }));
+
+  cmd(reg, { name: "crew:sift", description: "Have a Sifter work the sieve you are looking at.", permissionLevel: ANY,
+    mandatoryParameters: [{ name: "worker", type: T.String }],
+    optionalParameters: [{ name: "at", type: T.Location }] },
+    (by, worker, at) => {
+      let pos = at;
+      if (!pos && by.player?.getBlockFromViewDirection) {
+        const hit = by.player.getBlockFromViewDirection({ maxDistance: 6 });
+        if (hit?.block?.typeId === "crew:sieve") pos = hit.block.location;
+      }
+      if (!pos) return answer(by, false, "Look at a sieve, or give its coordinates: /crew:sift <worker> <x y z>.");
+      order(by, { worker, job: "sift", params: { at: pos } });
+    });
 
   cmd(reg, { name: "crew:status", description: "Show what a worker is doing.", permissionLevel: ANY, mandatoryParameters: [{ name: "worker", type: T.String }] },
     (by, worker) => order(by, { worker, job: "status", params: {} }));
+
+  // the Hauler (specs/hauler.md): a one-off move, and a round now
+  /** A place name, or "x y z" / "x,y,z" coordinates. @param {string} s */
+  const placeArg = (s) => {
+    const m = /^\s*(-?\d+)[\s,]+(-?\d+)[\s,]+(-?\d+)\s*$/.exec(String(s ?? ""));
+    return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : s;
+  };
+  cmd(reg, { name: "crew:haul", description: "Hauler: move everything (or only some items, comma separated) from one chest to another. Places by name or as \"x y z\".", permissionLevel: ANY,
+    mandatoryParameters: [{ name: "worker", type: T.String }, { name: "from", type: T.String }, { name: "to", type: T.String }],
+    optionalParameters: [{ name: "items", type: T.String }] },
+    (by, worker, from, to, items) => order(by, { worker, job: "haul", params: { from: placeArg(from), to: placeArg(to), items } }));
+  cmd(reg, { name: "crew:round", description: "Hauler: do a round now (collect from its pickup chests and sort it all into the depot).", permissionLevel: ANY, mandatoryParameters: [{ name: "worker", type: T.String }] },
+    (by, worker) => order(by, { worker, job: "haul_now", params: {} }));
 
   cmd(reg, { name: "crew:allow", description: "Let another player give orders to your worker.", permissionLevel: ANY,
     mandatoryParameters: [{ name: "worker", type: T.String }, { name: "player", type: T.PlayerSelector }] },

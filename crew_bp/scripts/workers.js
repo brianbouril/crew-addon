@@ -2,7 +2,7 @@
 import { world, system, ItemStack } from "@minecraft/server";
 import { DIMS, getJSON, setJSON, onlinePlayer, tell, fmt } from "./util.js";
 import { getRegistry, saveRegistry, freeName } from "./store.js";
-import { KIT_SLOTS, ROLE_LIST, addToKit, defaultRole, kit, stash, toolInfo } from "./tools.js";
+import { KIT_SLOTS, ROLE_LIST, addToKit, defaultRole, isGear, isHaulerBuild, kit, stash, toolInfo } from "./tools.js";
 import { setHome } from "./life.js";
 import { capCheck, forgetWorker, ownerFor, sameSettlement } from "./settlement.js";
 
@@ -73,10 +73,12 @@ export function canManage(by, m) {
  * @param {{x:number,y:number,z:number}} loc
  * @param {PersonRef} owner
  * @param {string | undefined} wantedName
- * @param {import("@minecraft/server").ItemStack[]} [items]  barrel contents: tools go into the kit, the rest is carried
+ * @param {import("@minecraft/server").ItemStack[]} [items]  barrel contents: tools go into the kit, the rest is carried.
+ *   A bundle and leather boots with no tools make a Hauler: they're its gear, in slots 0 and 1.
+ * @param {string} [roleOverride]  a build kit that isn't a tool (the sieve makes a Sifter)
  * @returns {{e: import("@minecraft/server").Entity, spill: import("@minecraft/server").ItemStack[]}}
  */
-export function spawnWorker(dim, loc, owner, wantedName, items = []) {
+export function spawnWorker(dim, loc, owner, wantedName, items = [], roleOverride) {
   const name = freeName(wantedName);
   const e = dim.spawnEntity(WORKER_TYPE, loc);
   e.setDynamicProperty("crew:name", name);
@@ -86,12 +88,21 @@ export function spawnWorker(dim, loc, owner, wantedName, items = []) {
   const inv = /** @type {import("@minecraft/server").Container} */ (e.getComponent("minecraft:inventory")?.container);
   /** @type {import("@minecraft/server").ItemStack[]} */
   const spill = [];
+  const hauler = isHaulerBuild(items);
   for (const it of items) {
+    if (hauler && isGear(it.typeId)) {
+      const slot = it.typeId === "minecraft:bundle" ? 0 : 1;
+      if (!inv.getItem(slot)) {
+        inv.setItem(slot, it);
+        continue;
+      }
+    }
     if (toolInfo(it) && addToKit(inv, it).ok) continue;
     const left = stash(inv, it);
     if (left) spill.push(left);
   }
-  e.setDynamicProperty("crew:role", defaultRole(kit(inv)));
+  const role = roleOverride && ROLE_LIST.includes(roleOverride) ? roleOverride : hauler ? "Hauler" : defaultRole(kit(inv));
+  e.setDynamicProperty("crew:role", role);
   e.setDynamicProperty("crew:roleSplit", 1);
   updateTag(e);
   const reg = getRegistry();
@@ -127,8 +138,24 @@ export function buildFromBarrel(player, head) {
     if (it) items.push(it);
   }
   const tools = items.filter((it) => toolInfo(it));
-  if (!tools.length) {
-    tell(player, "To build a worker, put at least one tool (pickaxe, shovel, axe or hoe) in the barrel, then place the pumpkin again.");
+  // one sieve is the build kit (used up). A stack keeps the rest. Tools in the same barrel do not change the role.
+  let sieve = false;
+  /** @type {import("@minecraft/server").ItemStack[]} */
+  const kept = [];
+  for (const it of items) {
+    if (it.typeId === "crew:sieve" && !sieve) {
+      sieve = true;
+      if (it.amount > 1) {
+        const extra = it.clone();
+        extra.amount = it.amount - 1;
+        kept.push(extra);
+      }
+      continue;
+    }
+    kept.push(it);
+  }
+  if (!tools.length && !sieve && !isHaulerBuild(items)) {
+    tell(player, "To build a worker, put at least one tool (pickaxe, shovel, axe or hoe) or a sieve in the barrel, or a bundle and leather boots for a Hauler, then place the pumpkin again.");
     return;
   }
   const cap = capCheck(player.id);
@@ -142,9 +169,9 @@ export function buildFromBarrel(player, head) {
   dim.setBlockType(head.location, "minecraft:air");
   dim.setBlockType(body.location, "minecraft:air");
   // tools first, so the kit gets them before anything else
-  const ordered = [...tools, ...items.filter((it) => !toolInfo(it))];
+  const ordered = [...kept.filter((it) => toolInfo(it)), ...kept.filter((it) => !toolInfo(it))];
   // in a settlement, the worker is the founder's, like every worker there
-  const { e, spill } = spawnWorker(dim, at, ownerFor({ id: player.id, name: player.name }), undefined, ordered);
+  const { e, spill } = spawnWorker(dim, at, ownerFor({ id: player.id, name: player.name }), undefined, ordered, sieve ? "Sifter" : undefined);
   for (const it of spill) dim.spawnItem(it, at);
   const extra = tools.length > KIT_SLOTS ? ` Only ${KIT_SLOTS} tools fit in the kit; the other ${tools.length - KIT_SLOTS} are carried and will go in the deposit chest.` : "";
   tell(player, `Crouch and use ${e.getDynamicProperty("crew:name")} to give it orders. New to workers? Type /crew:guide.${extra}`);
@@ -197,7 +224,7 @@ export function holdTool(e, id) {
   }
 }
 
-/** Keeps the entity property the skin is picked by (0 Miner, 1 Digger, 2 Woodcutter, 3 Farmer) in step with the role. @param {import("@minecraft/server").Entity} e */
+/** Keeps the entity property the skin is picked by (0 Miner, 1 Digger, 2 Woodcutter, 3 Farmer, 4 Hauler, 5 Sifter) in step with the role. @param {import("@minecraft/server").Entity} e */
 export function syncRole(e) {
   try {
     const want = Math.max(0, ROLE_LIST.indexOf(roleOf(e)));
@@ -210,6 +237,11 @@ export function syncRole(e) {
 /** Name tag: the name, with role and best tool underneath. @param {import("@minecraft/server").Entity} e */
 export function updateTag(e) {
   syncRole(e);
+  if (roleOf(e) === "Hauler") {
+    holdTool(e, undefined);
+    e.nameTag = `${meta(e).name}\n§7Hauler`;
+    return;
+  }
   const inv = e.getComponent("minecraft:inventory")?.container;
   const k = inv ? kit(inv) : [];
   const best = [...k].sort((a, b) => b.info.tier - a.info.tier)[0];

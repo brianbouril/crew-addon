@@ -10,7 +10,7 @@
           "type": "int",
           "range": [
             0,
-            3
+            5
           ],
           "default": 0,
           "client_sync": true
@@ -22,6 +22,11 @@
             4
           ],
           "default": 0,
+          "client_sync": true
+        },
+        "crew:loaded": {
+          "type": "bool",
+          "default": false,
           "client_sync": true
         }
       }
@@ -71,7 +76,7 @@
         "is_pushable_by_piston": true
       },
       "minecraft:knockback_resistance": {
-        "value": 1.0
+        "value": 1
       },
       "minecraft:movement": {
         "value": 0.25
@@ -385,6 +390,40 @@
               "target": "self"
             },
             "interact_text": "action.interact.crew_give_torches",
+            "swing": true
+          },
+          {
+            "on_interact": {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "player"
+                  },
+                  {
+                    "test": "is_sneaking",
+                    "subject": "other",
+                    "value": false
+                  },
+                  {
+                    "test": "has_equipment",
+                    "subject": "other",
+                    "domain": "hand",
+                    "value": "minecraft:chest"
+                  },
+                  {
+                    "test": "int_property",
+                    "subject": "self",
+                    "domain": "crew:role",
+                    "value": 4
+                  }
+                ]
+              },
+              "event": "crew:give_tool",
+              "target": "self"
+            },
+            "interact_text": "action.interact.crew_give_chests",
             "swing": true
           }
         ]

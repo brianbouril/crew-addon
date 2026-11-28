@@ -14,7 +14,18 @@ export const MATERIALS = {
   netherite: { tier: 4, speed: 9, name: "Netherite" },
 };
 export const ROLES = { pickaxe: "Miner", shovel: "Digger", axe: "Woodcutter", hoe: "Farmer" };
-export const ROLE_LIST = ["Miner", "Digger", "Woodcutter", "Farmer"];
+/** Roles in skin order (the entity's crew:role property). The Hauler isn't tool-based: built from a bundle and leather boots. The Sifter is built from a sieve. */
+export const ROLE_LIST = ["Miner", "Digger", "Woodcutter", "Farmer", "Hauler", "Sifter"];
+/** The roles a player can switch between in the menu (the tool roles). */
+export const TOOL_ROLES = ["Miner", "Digger", "Woodcutter", "Farmer"];
+/** A Hauler carries 18 stacks (half a player's 36): cargo in slots 5-22; supplies (food, chests) from 23. */
+export const HAUL_SLOTS = 18;
+export const CARGO_END = 5 + HAUL_SLOTS;
+export const SUPPLY_FIRST = CARGO_END;
+/** A Hauler's gear (kept with it, like a tool kit). @param {string} id */
+export const isGear = (id) => id === "minecraft:bundle" || id === "minecraft:leather_boots";
+/** Is this barrel content a Hauler's build (a bundle and leather boots, no tools)? @param {{typeId: string}[]} items */
+export const isHaulerBuild = (items) => !items.some((it) => toolInfo(/** @type {any} */ (it))) && items.some((it) => it.typeId === "minecraft:bundle") && items.some((it) => it.typeId === "minecraft:leather_boots");
 const TIER_NAMES = ["wooden", "stone", "iron", "diamond", "netherite"];
 const KIND_NAMES = { pickaxe: "Pickaxe", shovel: "Shovel", axe: "Axe", hoe: "Hoe" };
 
@@ -73,7 +84,7 @@ export function defaultRole(k) {
 }
 
 /** The tool kinds a role keeps in its kit and restocks. Diggers carry pickaxes too, for stone. @param {string} role */
-export const roleKinds = (role) => (role === "Miner" || role === "Digger" ? ["pickaxe", "shovel"] : role === "Woodcutter" ? ["axe"] : ["hoe"]);
+export const roleKinds = (role) => (role === "Miner" || role === "Digger" ? ["pickaxe", "shovel"] : role === "Woodcutter" ? ["axe"] : role === "Farmer" ? ["hoe"] : []);
 
 /** The worker's tool setting: "save" its best tools (default) or use the "fastest". @param {import("@minecraft/server").Entity} e @returns {"save"|"fastest"} */
 export const toolPref = (e) => (e.getDynamicProperty("crew:toolPref") === "fastest" ? "fastest" : "save");
@@ -150,11 +161,14 @@ export function wear(inv, tool, uses) {
 
 /**
  * Adds an item to the haul slots (5 and up), never into the tool kit. Returns what didn't fit.
- * @param {Container} inv @param {ItemStack} item @returns {ItemStack | undefined}
+ * `from`/`to` narrow the slots (a Hauler's cargo is 5-22, its supplies 23 on).
+ * @param {Container} inv @param {ItemStack} item @param {number} [from] @param {number} [to] exclusive
+ * @returns {ItemStack | undefined}
  */
-export function stash(inv, item) {
+export function stash(inv, item, from = KIT_SLOTS, to = inv.size) {
   let left = item.amount;
-  for (let i = KIT_SLOTS; i < inv.size && left > 0; i++) {
+  to = Math.min(to, inv.size);
+  for (let i = from; i < to && left > 0; i++) {
     const s = inv.getItem(i);
     if (!s || !s.isStackableWith(item) || s.amount >= s.maxAmount) continue;
     const n = Math.min(s.maxAmount - s.amount, left);
@@ -162,7 +176,7 @@ export function stash(inv, item) {
     inv.setItem(i, s);
     left -= n;
   }
-  for (let i = KIT_SLOTS; i < inv.size && left > 0; i++) {
+  for (let i = from; i < to && left > 0; i++) {
     if (inv.getItem(i)) continue;
     const n = Math.min(item.maxAmount, left);
     const s = item.clone();

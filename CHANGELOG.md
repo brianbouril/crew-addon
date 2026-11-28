@@ -5,6 +5,26 @@ turns it into that version's section.
 
 ## Unreleased
 
+- **Survey Stake icon.** The item picture is larger: the same wooden stick and orange checkered flag, now with a black outline.
+- **Woodcutter and Farmer.** An axe in the barrel makes a Woodcutter, a hoe makes a Farmer. With
+  the Survey Stake, Plan a forest or Plan a field (width and length, up to 64 by 64, outline,
+  confirm), or use `/crew:forest` and `/crew:field`. The plot keeps going: the worker sleeps at
+  night and starts again in the morning. A Woodcutter cuts trees whose logs or stems connect to
+  leaves, strips the leaves, and replants the same tree on the stump (four saplings on a 2 by 2).
+  Planks, fences, chests and bare logs stay. Beehives stay, and it tells you. A Farmer hoes empty
+  dirt, plants seeds you provide, harvests ripe crops and replants them, and uses bonemeal you
+  give it one stage at a time. Nether wart also needs soul sand from you. It does not place water
+  and it does not cook. Both need a deposit chest; the home chest restocks tools, saplings and
+  seeds. They walk around crops when another way is open. The Farmer also lays a water
+  channel every 9 blocks along the long side of the field, from water buckets you provide,
+  and picks pumpkins, melons, cocoa, sweet berries, sugar cane, cactus, and bamboo the way
+  those plants grow (stems and berry bushes stay, cane and cactus and bamboo keep their base).
+- **Sieve and Sifter.** Craft a sieve from eight iron bars around a stick. Set a chest on top
+  (gravel, sand, dirt, or soul sand) and a chest underneath. Use it by hand for one piece, or
+  power it with redstone and it keeps sifting whenever more input arrives. Most pieces yield
+  nothing; gravel sometimes gives flint, and a gem is rare. Soul sand only sifts if you supply
+  it. Ore in the input chest is left alone. A sieve in the barrel builds a Sifter, which counts
+  toward your worker limit and can mind one sieve during the day.
 - **Miner prospecting.** A Miner hunts any valuables in the overworld, either in the ground around its home or from a start you mark with the Survey Stake. One entrance and one shaft, with a branch level at the best depth for each ore the shaft can reach (from a start near Y 64: copper at Y 48, iron at Y 16, lapis at Y 0, gold at Y -16, diamonds and redstone together at Y -59). A quota uses only that ore's level. The levels are saved on the mine. The bed and the ground within 8 blocks of the home stay undug. Each level is a 2-wide trunk with branches and 2 solid blocks between them. It lights the tunnels and puts everything it keeps in a chest at the entrance. Optional: stop after a number of one ore, and type a mine name (otherwise the sign reads like "Digby's Diamond Mine No. 1"). The entrance is wood from the home or deposit chest (8 planks; a log counts as 4) plus that chest. Missing wood or a missing chest skips the woodwork, and it uses a chest you placed. It stops at night, when it runs out of pickaxes, when the quota is met, or when the claim is mined out. With a crafting table by the bed and materials in the home chest, it makes a replacement pickaxe no better than the one it lost. The entrance chest is an ordinary drop-off (a Hauler can collect it; a Sifter can read gravel, sand, dirt and ores from it).
 
 - **Settlements.** Place a bell yourself and crouch-tap it to found a settlement and name it. Every
@@ -21,8 +41,9 @@ turns it into that version's section.
   A plain tap still rings it, and village bells can't be claimed.
 - **Storage.** The settlement menu adds up everything in your settlement's chests (your workers'
   home chests and drop-offs, your named places, and any chest you add by tapping it with the Survey
-  Stake), most first; tap an item to see which chests hold it. It keeps up as you and your workers
-  put things in and take them out; chests far away show what they held when last loaded.
+  Stake), most first; tap an item to see which chests hold it. It updates as soon as a worker
+  puts something in or takes something out, including food, torches and tools taken from the home
+  chest in the morning. Chests far away show what they held when last loaded, and how long ago.
 - **Orders to everyone.** From the bell: Stop, Continue, Drop off, Go home or Come to the bell, for
   all your settlement's workers or one kind (All Diggers). Far-away workers do it when they load.
   Workers also understand "go home" and "come to a place" as orders on their own.
@@ -39,6 +60,23 @@ turns it into that version's section.
   whatever they were digging.
 - **Branch mine is no longer a job you can order** (menu, Survey Stake, commands): it comes back
   inside the Miner's prospecting. A branch mine already started can still be continued.
+- **The Hauler.** Build one from a barrel holding a bundle and leather boots (no tools) with a
+  carved pumpkin on top: a worker in a leather cap with a backpack that carries, never digs. Mark
+  your settlement's **depot** with the Survey Stake (tap the ground, Make a depot here, size,
+  outline, confirm). Three times a day (morning, midday, evening) it walks the same loop of your
+  Diggers' and Miners' drop-off chests and any chest you mark as a **Hauler pickup**, carries up to
+  18 stacks at a time, and sorts everything into chests it sets up in the depot: one kind per chest,
+  grouped by type, with walkways between the rows (16 chests for the default size, more for a
+  bigger area; a depot is at most 16 by 16 blocks). A drop-off chest that's about 3/4 full calls it for an extra trip. Between rounds
+  it tidies the depot. It takes chests from settlement storage or from you (tap it holding chests),
+  says "I need chests for the depot" when it has none and "The depot is full" when there's no room
+  left. It never takes goods from home chests or puts anything in them, and it still restocks its
+  own food from its own home chest. Depot chests face the walkway, so a pair of the same kind joins
+  into one double chest and the row behind faces the other way. It sleeps, tires from walking, finishes a delivery before
+  bed, and needs a free work area (ticking area) for a round, waiting for one if all are taken. Its
+  menu: Do a round now, Come here, Stop, Continue, Drop off, Go home, Pickup points. The new
+  `/crew:haul` command (the `haul` order) moves things from one chest to another, and `/crew:round`
+  sends it on a round now.
 
 - Workers walk through invisible light blocks (placed by dynamic-light add-ons) instead of treating
   them as walls, which boxed them in and made them take a shortcut. They never dig them.

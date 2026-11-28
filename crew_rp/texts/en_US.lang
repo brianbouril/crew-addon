@@ -1,6 +1,9 @@
 entity.crew:worker.name=Crew Worker
 item.spawn_egg.entity.crew:worker.name=Spawn Crew Worker
 item.crew:survey_stake.name=Survey Stake
+tile.crew:sieve.name=Sieve
+item.crew:sieve.name=Sieve
 action.interact.crew_manage=Manage worker
 action.interact.crew_give_tool=Give tool
 action.interact.crew_give_torches=Give torches
+action.interact.crew_give_chests=Give chests
