@@ -4,7 +4,8 @@
 // one role, as normal typed orders, queued for unloaded workers, only from people in the settlement.
 import { world, tick, fire, setPlayers, ItemStack, Container, BlockPermutation } from "@minecraft/server";
 import "./scripts/main.js";
-import { foundSettlement, settlementOf, addStorage, removeStorage, storageSpots, ledger, whereIs, noteChestUse, takeQueued, refreshStorage, getSettlements } from "./scripts/settlement.js";
+import { foundSettlement, settlementOf, addMember, addStorage, removeStorage, storageSpots, ledger, whereIs, noteChestUse, takeQueued, refreshStorage, getSettlements } from "./scripts/settlement.js";
+import { getHome, restock } from "./scripts/life.js";
 import { orderSettlement } from "./scripts/orders.js";
 import { spawnWorker } from "./scripts/workers.js";
 import { savePlace, getRegistry, saveRegistry } from "./scripts/store.js";
@@ -129,6 +130,14 @@ homeChest.addItem(new ItemStack("minecraft:raw_iron", 7));
 noteChestUse("minecraft:overworld", { x: 3005, y: 65, z: 3000 });
 check("re-read right after a worker uses it", asMap()["minecraft:raw_iron"] === 12, asMap());
 
+// morning restock takes food out of the home chest; the ledger must drop in the same moment
+homeChest.addItem(new ItemStack("minecraft:bread", 8));
+noteChestUse("minecraft:overworld", { x: 3005, y: 65, z: 3000 });
+const beforeBread = asMap()["minecraft:bread"];
+const tookMorning = restock(ow, getHome(digby), digby.getComponent("minecraft:inventory").container, "Digger");
+check("morning restock takes the bread", beforeBread === 8 && tookMorning.includes("8 bread"), { beforeBread, tookMorning });
+check("the ledger drops as soon as the worker takes it out", (asMap()["minecraft:bread"] ?? 0) === 0, asMap());
+
 // a chest whose area isn't loaded keeps its last contents, with when
 ow.setUnloaded({ x: 3010, y: 65, z: 3000 });
 placeChest.addItem(new ItemStack("minecraft:diamond", 100)); // nobody can see this yet
@@ -165,6 +174,11 @@ brian.location = { x: 3300, y: 65, z: 3000 }; // far enough that nobody arrives 
 const stopDiggers = orderSettlement(asBy(brian), S(), "stop", "Digger");
 check("stop the Diggers only", stopDiggers.ok && !job(digby) && !job(dig2) && job(miner)?.type === "come", stopDiggers);
 check("outsiders can't give settlement orders", !orderSettlement(asBy(cal), S(), "stop").ok);
+const ann = mkPlayer("p2", "Ann");
+setPlayers([brian, cal, ann]);
+const joined = addMember(asBy(brian), S(), { id: "p2", name: "Ann" });
+const memberOrder = joined.ok ? orderSettlement(asBy(ann), S(), "stop", "Miner") : joined;
+check("a member can give the same orders", joined.ok && memberOrder.ok && !job(miner) && !job(digby), { joined, memberOrder, miner: job(miner), digby: job(digby) });
 const bellOrder = orderSettlement(asBy(brian), S(), "come_bell");
 check("come to the bell: everyone walks to the bell", bellOrder.ok && [digby, dig2, miner].every((w) => job(w)?.type === "come" && job(w).at?.x === 3000 && job(w).at?.z === 3010), bellOrder);
 const q = takeQueued("far-1");

@@ -84,7 +84,9 @@ a full server restart: `reload` refuses to re-register it.
       by side, both full of cobblestone and both added: both count (and nothing in them changes). Take a stack out
       and reopen Storage a few seconds later: the total dropped.
 - [ ] 13b. Walk far from one storage chest (out of loaded range): Storage says it's far away and
-      shows its last count; come back and it updates. A worker's drop-off shows up straight away.
+      shows its last count ("as of N min ago" on the item and the chest list); come back and it updates.
+      A worker's drop-off shows up straight away. In the morning, after a worker takes food, torches
+      or a tool from its home chest, Storage drops by that amount straight away.
 - [ ] 13c. Give orders to everyone: Come to the bell (everyone walks to the bell), All Diggers > Stop
       (only Diggers stop), Go home (workers with a bed walk home, the rest stay), Drop off, and
       Continue after a Stop (paused digs pick up). A worker far away does it when you come near.
