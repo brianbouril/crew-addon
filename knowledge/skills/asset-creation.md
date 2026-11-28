@@ -10,11 +10,14 @@ How to add or change an entity, item, texture, or string. Visual rules: `knowled
    - `crew_rp/textures/entity/worker_digger.png`
    - `crew_rp/textures/entity/worker_woodcutter.png`
    - `crew_rp/textures/entity/worker_farmer.png`
+   - `crew_rp/textures/entity/worker_hauler.png`
+   - `crew_rp/textures/entity/worker_sifter.png`
    - `crew_rp/textures/items/crew_survey_stake.png`
+   - `crew_rp/textures/items/crew_sieve.png` and `crew_rp/textures/blocks/crew_sieve.png`
    - `crew_rp/pack_icon.png`
 3. The same `icon()` call writes both `crew_rp/pack_icon.png` and `crew_bp/pack_icon.png`. On day 0 those two files are byte-identical. Keep it that way: do not paint one icon by hand.
 4. An optional argument is a preview directory of 8× enlarged PNGs. Those previews are not part of the packs. Do not commit a preview folder unless Brian asks.
-5. Check the result against `knowledge/domain/visual-identity.md` before committing. Hat colors stay per role. Item icons stay 16×16. Entity skins stay 64×64 on the existing UV layout.
+5. Check the result against `knowledge/domain/visual-identity.md` before committing. Hat colors stay per role. Entity skins stay 64×64 on the existing UV layout. The Survey Stake item icon and the sieve item and block icons are 32×32 with a `#000000` outline (`stake()` and `sieveIcon()`). Do not paint that outline onto the role skins.
 
 `knowledge/assets/examples/` is empty on purpose (`.gitkeep` only). There is no approved/rejected PNG pair yet. `approved-exports/` is the place for a human-edited v2 image the curator may diff later. It is also empty.
 
