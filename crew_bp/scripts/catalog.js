@@ -3,6 +3,9 @@
 import { FACINGS, branchGeom, quarryFromBox } from "./plans.js";
 
 export const MAX_SIDE = 128;
+/** A forest or field footprint, and how far above its ground the worker looks. */
+export const PLOT_MAX = 64;
+export const PLOT_HEIGHT = 48;
 /** What to bring back. "all" (the default) keeps everything it digs, like a player picking up drops. */
 export const KEEP = ["all", "valuables", "nothing"];
 export const DEFAULTS = { trunk: 32, branch: 32, spacing: 2, targetY: -54, width: 2 };
@@ -72,6 +75,48 @@ export const JOBS = {
     },
   },
   status: { description: "Report the current job, progress, tool kit and items carried.", params: {} },
+  forest: {
+    roles: ["Woodcutter"],
+    description:
+      "Woodcutter only. Keep a marked forest: cut natural trees (logs or stems connected to leaves, nether stems connected to wart blocks), strip their leaves, and replant the same tree on the stump. Never planks, fences, chests, or other built wood. Leave beehives and report them. The plot stays going: it sleeps at night and starts again in the morning.",
+    params: {
+      from: { type: "vec3", required: true, description: "One ground corner of the forest." },
+      to: { type: "vec3", required: true, description: "The opposite ground corner. At most 64 by 64." },
+      deposit: { type: "place", required: true, description: "A saved place name or the coordinates of a chest or barrel. Logs and apples go here." },
+      keep: { type: "enum", values: KEEP, default: "all", description: "What to bring back. 'all' (the default) keeps every drop." },
+    },
+  },
+  field: {
+    roles: ["Farmer"],
+    description:
+      "Farmer only. Keep a marked field: till empty dirt, plant crops the player provides, harvest when ready, and replant. Stems and berry bushes stay; cane, cactus, and bamboo keep their base. Places a water channel every 9 blocks along the long side from water buckets the player provides. Nether wart needs soul sand, cane and cactus need sand, cocoa needs jungle logs, all from the player. Uses bonemeal one stage at a time. Does not cook. The plot stays going.",
+    params: {
+      from: { type: "vec3", required: true, description: "One ground corner of the field." },
+      to: { type: "vec3", required: true, description: "The opposite ground corner. At most 64 by 64." },
+      deposit: { type: "place", required: true, description: "A saved place name or the coordinates of a chest or barrel. The harvest goes here." },
+      keep: { type: "enum", values: KEEP, default: "all", description: "What to bring back. 'all' (the default) keeps every drop." },
+    },
+  },
+  haul: {
+    roles: ["Hauler"],
+    description: "Hauler only. Carry everything (or only `items`) from one chest or barrel to another, up to 18 stacks a trip, until nothing (matching) is left or the second one is full. Never a worker's home chest.",
+    params: {
+      from: { type: "place", required: true, description: "Where to take things from: a saved place name or chest coordinates." },
+      to: { type: "place", required: true, description: "Where to put them: a saved place name or chest coordinates." },
+      items: { type: "string", description: "Only these item ids, comma separated (e.g. minecraft:coal,minecraft:raw_iron). Leave out to move everything." },
+    },
+  },
+  haul_now: {
+    roles: ["Hauler"],
+    description: "Hauler only. Do a round now: walk its route of pickup chests (the settlement's drop-off chests and its stake pickup points, nearest first), carry everything to the settlement's depot and sort it into the depot's chests. It also does this by itself three times a day.",
+    params: {},
+  },
+  round: {
+    roles: ["Hauler"],
+    hidden: true, // the routine starts rounds; players use haul_now
+    description: "Hauler only. One of its daily rounds.",
+    params: { slot: { type: "enum", values: ["morning", "midday", "evening", "now", "extra"], default: "now", description: "Which round." } },
+  },
   sift: {
     roles: ["Sifter"],
     description:
@@ -93,9 +138,11 @@ export const roleTakes = (jobName, role) => !JOBS[jobName]?.roles || /** @type {
 /** Why a worker refuses a job that isn't its role's. @param {string} name @param {string} role @param {string} jobName */
 export function roleRefusal(name, role, jobName) {
   const who = JOBS[jobName]?.roles?.[0] ?? "other";
-  const tool = { Digger: "a shovel", Miner: "a pickaxe", Woodcutter: "an axe", Farmer: "a hoe", Sifter: "a sieve" }[who] ?? "the right tool";
-  const what = jobName === "quarry" ? "Quarries are" : jobName === "branch_mine" ? "Branch mines are" : jobName === "sift" ? "Sifting is" : `'${jobName}' is`;
-  return `${name} is a ${role}. ${what} a ${who}'s job: build a ${who} (put ${tool} in the barrel first), or change ${name}'s role in its menu.`;
+  const tool = { Digger: "a shovel", Miner: "a pickaxe", Woodcutter: "an axe", Farmer: "a hoe", Hauler: "a bundle and leather boots", Sifter: "a sieve" }[who] ?? "the right tool";
+  const what = jobName === "quarry" ? "Quarries are" : jobName === "branch_mine" ? "Branch mines are" : jobName === "forest" ? "Forests are" : jobName === "field" ? "Fields are" : jobName === "sift" ? "Sifting is" : jobName === "haul_now" || jobName === "round" ? "Rounds are" : `'${jobName}' is`;
+  // a Hauler's role comes from its build, so neither side can switch to or from it in the menu
+  const change = who === "Hauler" || role === "Hauler" ? "" : `, or change ${name}'s role in its menu`;
+  return `${name} is a ${role}. ${what} a ${who}'s job: build a ${who} (put ${tool} in the barrel first)${change}.`;
 }
 
 /** Tool definitions in the shape LLM APIs expect (name, description, JSON schema). */
@@ -183,6 +230,14 @@ export function validate(jobName, params) {
   if (jobName === "branch_mine") {
     if (out.target_y > out.start.y + 1) return { ok: false, error: `target_y (${out.target_y}) must be at or below the start (${out.start.y + 1}).` };
     out.geom = branchGeom(out.start, out.facing, { trunk: out.trunk_length, branch: out.branch_length, spacing: out.spacing, targetY: out.target_y, width: out.trunk_width });
+  }
+  if (jobName === "forest" || jobName === "field") {
+    const a = out.from, b = out.to;
+    const min = { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), z: Math.min(a.z, b.z) };
+    const max = { x: Math.max(a.x, b.x), y: min.y, z: Math.max(a.z, b.z) };
+    const w = max.x - min.x + 1, l = max.z - min.z + 1;
+    if (w > PLOT_MAX || l > PLOT_MAX) return { ok: false, error: `That plot is ${w} by ${l}. A forest or field can be at most ${PLOT_MAX} by ${PLOT_MAX}.` };
+    out.box = { min, max: { x: max.x, y: min.y + PLOT_HEIGHT - 1, z: max.z } };
   }
   return { ok: true, job: jobName, params: out };
 }

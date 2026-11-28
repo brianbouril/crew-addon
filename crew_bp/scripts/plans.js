@@ -256,6 +256,16 @@ export function outline(plan) {
     for (const x of xs) for (const y of ys) segs.push([{ x, y, z: a.z }, { x, y, z: b.z }]);
     return segs;
   }
+  if (plan.mode === "forest" || plan.mode === "field") {
+    const g = quarryGeom(plan.anchor, plan.facing, plan.length, plan.width, 1);
+    const a = { x: g.min.x, y: plan.anchor.y, z: g.min.z };
+    const b = { x: g.max.x + 1, y: plan.anchor.y + 48, z: g.max.z + 1 };
+    const xs = [a.x, b.x], ys = [a.y, b.y], zs = [a.z, b.z];
+    for (const y of ys) for (const z of zs) segs.push([{ x: a.x, y, z }, { x: b.x, y, z }]);
+    for (const x of xs) for (const z of zs) segs.push([{ x, y: a.y, z }, { x, y: b.y, z }]);
+    for (const x of xs) for (const y of ys) segs.push([{ x, y, z: a.z }, { x, y, z: b.z }]);
+    return segs;
+  }
   const g = branchGeom(plan.anchor, plan.facing, { trunk: plan.trunk, branch: plan.branch, spacing: plan.spacing, targetY: plan.targetY, width: plan.trunkWidth ?? 2 });
   const w = g.w;
   const d = DIRS[plan.facing], r = rightOf(d);

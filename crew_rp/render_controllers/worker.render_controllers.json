@@ -4,12 +4,19 @@
     "controller.render.crew_worker": {
       "arrays": {
         "textures": {
-          "Array.skins": ["Texture.miner", "Texture.digger", "Texture.woodcutter", "Texture.farmer", "Texture.sifter"]
+          "Array.skins": ["Texture.miner", "Texture.digger", "Texture.woodcutter", "Texture.farmer", "Texture.hauler", "Texture.sifter"]
         }
       },
       "geometry": "Geometry.default",
       "materials": [{ "*": "Material.default" }],
-      "textures": ["Array.skins[query.property('crew:role')]"]
+      "textures": ["Array.skins[query.property('crew:role')]"],
+      "part_visibility": [
+        { "*": true },
+        { "hat": "query.property('crew:role') != 4" },
+        { "cap": "query.property('crew:role') == 4" },
+        { "pack": "query.property('crew:role') == 4 && !query.property('crew:loaded')" },
+        { "pack_full": "query.property('crew:role') == 4 && query.property('crew:loaded')" }
+      ]
     }
   }
 }

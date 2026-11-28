@@ -91,7 +91,7 @@ const owned = () => Object.values(getRegistry()).filter((r) => r.ownerId === "si
 const beforeCap = owned();
 const barrel1 = build({ x: 20, y: 80, z: 20 }, [new ItemStack(SIEVE, 1)]);
 const sifter = ow.getEntities({ type: "crew:worker" }).find((e) => roleOf(e) === "Sifter");
-check("sieve barrel builds a Sifter", !!sifter && roleOf(sifter) === "Sifter" && sifter.getProperty("crew:role") === 4, roleOf(sifter));
+check("sieve barrel builds a Sifter", !!sifter && roleOf(sifter) === "Sifter" && sifter.getProperty("crew:role") === 5, roleOf(sifter));
 check("sieve is used up", sifter && !Array.from({ length: 36 }, (_, i) => sifter.getComponent("minecraft:inventory").container.getItem(i)).some((it) => it?.typeId === SIEVE));
 check("build spends a cap slot", owned() === beforeCap + 1, owned());
 check("barrel and pumpkin are gone", barrel1.typeId === "minecraft:air" && ow.getBlock({ x: 20, y: 81, z: 20 }).typeId === "minecraft:air");

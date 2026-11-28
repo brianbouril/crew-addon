@@ -42,6 +42,35 @@ server, which runs as SYSTEM: `C:\Windows\System32\config\systemprofile\AppData\
       nothing, some flint and nuggets, almost no gems). Note whether the iron-bar recipe feels
       mid to late game.
 
+- [ ] Survey Stake icon: fully restart Minecraft (a texture does not reload with `/reload`). In the inventory and in the hand, the icon is the wooden stick and orange flag with a black outline, and it reads larger than the old picture.
+
+**Woodcutter and Farmer** (feat/woodcutter-farmer)
+- [ ] W1. Barrel with an axe, carved pumpkin: a Woodcutter. A hoe makes a Farmer. The Woodcutter's
+      menu offers Forest, not Quarry. A Digger refuses Plan a forest.
+- [ ] W2. Stake: Plan a forest, sliders, outline up to 48 blocks tall, confirm, start with the
+      linked Woodcutter. A 65 by 65 plan is refused. `/crew:forest` starts the same job.
+- [ ] W3. An oak with leaves is cut, the leaves go, a sapling is planted on the stump. A log wall
+      with no leaves, a plank house, and a chest stay. A bee nest stays and the worker says where
+      it is. A 2 by 2 dark oak gets four saplings.
+- [ ] W4. Take its saplings away and empty the chests: it cuts the tree, tells you it couldn't
+      replant, and leaves the stump bare.
+- [ ] W5. Stake a field. Dirt becomes farmland and your seeds are planted. Ripe wheat is picked
+      into the deposit chest and replanted. One bonemeal grows a crop one stage. Nether wart on
+      dirt waits until you give it soul sand. It does not cook.
+- [ ] W5b. Give it water buckets. A water row appears every 9 blocks along the long side of the
+      field (through the middle of each band). The empty buckets go to the deposit. With no
+      bucket it says so and does not take water from a lake.
+- [ ] W5c. Pumpkin and melon: the stem stays, the fruit is picked. Cocoa on a jungle log you
+      gave it is picked and replanted. Sweet berries are picked and the bush stays. Sugar cane,
+      cactus, and bamboo keep the bottom block. Cane and cactus are not planted without sand
+      from you. Cactus is not planted against another block.
+- [ ] W6. At dusk it goes to bed; at dawn it is back on the same forest or field. Stop, then
+      Continue, picks the plot back up. It walks around the crops when there's a path around them.
+- [ ] W7. No new script errors over a 30 minute run. Brian: does the replanting look right, and
+      did the Farmer leave your water where you put it?
+
+**Settlements and the rest of 0.4.1**
+
 Built Nov 14 2026 and mock-tested. Nov 15 (Brian's OK) the server got all of it, through the
 Depth wording (3d), as scripts under 0.4.0 (backup in `C:\MinecraftServer-backups\`), so 5, 7, 8
 and 9 go out to friends before their local test. Nov 15 9:12 PM (Brian's OK) it also got the
@@ -103,7 +132,9 @@ a full server restart: `reload` refuses to re-register it.
       by side, both full of cobblestone and both added: both count (and nothing in them changes). Take a stack out
       and reopen Storage a few seconds later: the total dropped.
 - [ ] 13b. Walk far from one storage chest (out of loaded range): Storage says it's far away and
-      shows its last count; come back and it updates. A worker's drop-off shows up straight away.
+      shows its last count ("as of N min ago" on the item and the chest list); come back and it updates.
+      A worker's drop-off shows up straight away. In the morning, after a worker takes food, torches
+      or a tool from its home chest, Storage drops by that amount straight away.
 - [ ] 13c. Give orders to everyone: Come to the bell (everyone walks to the bell), All Diggers > Stop
       (only Diggers stop), Go home (workers with a bed walk home, the rest stay), Drop off, and
       Continue after a Stop (paused digs pick up). A worker far away does it when you come near.
@@ -160,6 +191,45 @@ a full server restart: `reload` refuses to re-register it.
 - [ ] 9. Quarry next to the stair: it never digs through a stair step to reach a block behind it;
       it walks round to where it can see the block. No `[Crew-Inside]` lines in the log after a
       full quarry. (The stair pass-through Brian saw Nov 14 couldn't be reproduced in the mock.)
+
+**Hauler** (feat/hauler; model, texture and entity changes need Minecraft fully restarted)
+- [ ] H1. Build: barrel with a bundle and leather boots, carved pumpkin on top: a Hauler appears
+      (leather cap, backpack, tan and brown clothes, leather boots; no hard hat, nothing in hand).
+      A barrel with a pickaxe and a bundle still makes a Miner. At the settlement's limit it's refused.
+- [ ] H2. Depot: tap the ground with the stake, Make a depot here, default 5 by 7: the outline
+      shows; tap again and confirm. Refused on uneven ground or under a low roof. The sliders stop
+      at 16 (a depot is at most 16 by 16).
+- [ ] H3. Two Diggers drop off in their chests; at morning (or Do a round now) the Hauler walks to
+      both (nearest first, same order each round), pausing longer at a full chest than an almost
+      empty one, and back to the depot. Backpack bulges when carrying, flat when empty; a little
+      slower with all 18 slots full. Status line: "On the morning round (1 of 2 chests)".
+- [ ] H4. In the depot it places chests in rows with walkways (you can reach every one), one kind
+      per chest, grouped by type. Totals in the bell's Storage match before and after.
+- [ ] H5. No chests anywhere: it says "I need chests for the depot" once. Put chests in a storage
+      chest (or tap it holding chests): it fetches them and carries on.
+- [ ] H6. Fill every depot chest: it says "The depot is full" once (you and settlement members),
+      waits at the depot with its load, and carries on when you empty a chest.
+- [ ] H7. A drop-off chest past 3/4 full calls it for an extra trip between rounds.
+- [ ] H8. Mix a stray item and two half stacks into a depot chest: between rounds it tidies them.
+      A named item, a shulker box and a tool are left where they are. With chests in hand, a kind
+      that had to share another kind's chest gets a chest of its own.
+- [ ] H9. At dusk while carrying it delivers to the depot first, then goes home to sleep. Its home
+      chest is never filled or emptied (it only takes food from it in the morning).
+- [ ] H10. Stop mid-round: it stays put and starts no rounds by itself; Continue picks the round
+      back up. Come here, Drop off (goes to the depot) and Go home work. A Digger refuses Do a round
+      now; the Hauler refuses Quarry. Its menu has no Tools or Role.
+- [ ] H11. `/crew:haul <hauler> "blue base" "x y z" minecraft:coal` moves only
+      the coal. Server log: no script errors over a 30 minute run; `tickingarea list` shows its
+      area during a round and not after.
+- [ ] H13 (staging). Double chests: when it puts a second chest beside one of the same kind, they
+      face the walkway and should join into one double chest. The row behind faces the other way,
+      so those two rows (and two different kinds side by side) should not join. If kinds join, the
+      depot's bookkeeping breaks: tell the lead. A torch or carpet in the area: marking the depot
+      is refused (it never removes blocks).
+- [ ] H14. `/crew:haul` from a chest that isn't the settlement's (or another settlement's) is
+      refused; a haul to a nearly full chest puts the rest back where it came from.
+- [ ] H12 (Brian's playtest). One Hauler serving two Diggers over an in-game day: does it keep up,
+      does 18 slots feel right, does it look and move like a hauler, not a miner?
 
 **Renamed commands**
 - [x] 10. `/halt <worker>`, `/workers`, `/guide` and `/setplace "name"` work (short and with

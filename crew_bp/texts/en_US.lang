@@ -5,3 +5,4 @@ tile.crew:sieve.name=Sieve
 item.crew:sieve.name=Sieve
 action.interact.crew_manage=Manage worker
 action.interact.crew_give_tool=Give tool
+action.interact.crew_give_chests=Give chests

@@ -16,6 +16,7 @@ Owner: Brian · Status: **building** · Branch: `feat/sifter` · Builder: A
 - 2026-11-27: **Material source.** The player supplies it, or it comes from the Miner's prospecting output. The Miner is built in parallel on `feat/miner-prospecting`. This branch does not touch Miner files. The handoff is a vanilla chest (below).
 - 2026-11-27: **Operation.** The player can run the sieve by hand, or power it with redstone so it runs whenever input arrives and redstone is on. Ongoing, not a single batch.
 - 2026-11-27: **Cap.** Both the Sifter and prospecting count toward the V1 cap of 6. Building a Sifter worker spends one slot of that cap. Placing extra sieve blocks does not. Prospecting does not add a role.
+- 2026-11-28 (merge order): Hauler keeps entity property 4, because its cap, backpack, and chest handoff are already tied to that index. Sifter appends at 5. Miner, Digger, Woodcutter, and Farmer stay 0–3.
 - Standing rules that still apply: stable Script API only; never change pack UUIDs or the `crew:` namespace; a Sifter refuses dig orders; come, stop, resume, status, drop off, and home stay open to every role; the same daily routine (sleep at night, resume in the morning) for the worker. Redstone does not sleep.
 
 ## Design choices (builder, 2026-11-27)
@@ -35,7 +36,7 @@ B B B
 
 `B` is `minecraft:iron_bars`, `S` is `minecraft:stick`. That is 8 iron bars and 1 stick. Eight bars are exactly 3 iron ingots (6 ingots make 16 bars). That is mid-game iron, the low end of mid-to-late, and it uses only the two materials Brian named. The frame is the bars; the stick is the handle.
 
-**Texture:** 32×32, pixel art, a `#000000` outline around the sieve and the handle. Wood and iron colors come from the Survey Stake and a grey mesh. This matches Brian's outline request and the 32×32 Survey Stake target. The placed block uses the same picture. The Sifter's skin is a separate 64×64 villager texture (index 4), with its own hat color and no black outline.
+**Texture:** 32×32, pixel art, a `#000000` outline around the sieve and the handle. Wood and iron colors come from the Survey Stake and a grey mesh. This matches Brian's outline request and the 32×32 Survey Stake target. The placed block uses the same picture. The Sifter's skin is a separate 64×64 villager texture (index 5), with its own hat color and no black outline. Hauler keeps index 4.
 
 ### Input chest and output chest (the Miner handoff)
 Chests and barrels are vanilla. The sieve is not a container, so hoppers do not insert into the block. They can still fill and empty the chests.
@@ -118,7 +119,7 @@ No ancient debris and no netherite. A diamond from gravel is about 1 in 5,000. N
 - World `crew:sieves`: JSON map of `"<dimension>|<x>,<y>,<z>"` to `{ n }`, how many pieces that sieve has sifted. Used for the roll. Removed when the block is gone.
 - Entity `crew:sieveLink`: `{x, y, z, dim}` while that Sifter is on duty at that sieve.
 - Entity `crew:sievePaused`: the same shape after Stop, until Continue.
-- `crew:role` string `"Sifter"`, and the entity property `crew:role` integer `4`. The property range widens from 0–3 to 0–4. Old saves keep 0–3. No renamed key, so no migration. A mock test still builds a Miner with a pickaxe and reads Miner.
+- `crew:role` string `"Sifter"`, and the entity property `crew:role` integer `5`. Hauler already occupies 4, so the property range widens from 0–3 to 0–5. Miner, Digger, Woodcutter, and Farmer stay 0–3. Old saves keep 0–3. No renamed key, so no migration. A mock test still builds a Miner with a pickaxe and reads Miner.
 
 Breaking a sieve in Survival gives the sieve back (the script drops it; Creative does not). An explosion can destroy the block without a drop. The tick forgets a sieve that is no longer there.
 
@@ -134,7 +135,7 @@ Breaking a sieve in Survival gives the sieve back (the script drops it; Creative
 ## Done criteria
 Every one of these must pass before the branch merges. The reviewer checks each.
 1. **Mock tests** (`tools/sim/sifter_test.mjs`, in `run.mjs`, exit non-zero on a wrong result):
-   - **Build and cap:** a barrel with a sieve and a carved pumpkin on top makes a Sifter (`crew:role` string Sifter, property 4). The sieve is used up. A shovel alone is still a Digger. A sieve plus a shovel is a Sifter. The Sifter counts toward the worker cap; at the cap the barrel is left as it was. `CAP_DEFAULT` stays 6.
+   - **Build and cap:** a barrel with a sieve and a carved pumpkin on top makes a Sifter (`crew:role` string Sifter, property 5). The sieve is used up. A shovel alone is still a Digger. A sieve plus a shovel is a Sifter. The Sifter counts toward the worker cap; at the cap the barrel is left as it was. `CAP_DEFAULT` stays 6.
    - **Roles:** a Sifter refuses a quarry. A Digger refuses `sift`. Come, stop, and resume work for a Sifter. Stop pauses the link; Continue picks it up.
    - **Table:** each boundary roll in the four tables above returns that row's item, or nothing.
    - **Chests:** gravel in the input chest becomes the forced yield in the output chest. Ores and other items in the input stay. Red sand and grass are not consumed. A full output chest consumes nothing. Counts: a yield replaces one input (no duplicate); a "nothing" roll removes one input and adds nothing else.
@@ -149,7 +150,7 @@ Every one of these must pass before the branch merges. The reviewer checks each.
 ## Touches
 - **Files:** `crew_bp/scripts/sift.js` (new), `catalog.js`, `orders.js`, `commands.js`, `workers.js`, `tools.js`, `ui.js`, `main.js`, `guide_pages.js`. `crew_bp/blocks/sieve.json`, `crew_bp/recipes/sieve.json`, `crew_bp/loot_tables` is not used (the break drop is scripted). Entity `crew:role` range, client entity, render controller, lang, `tools/make_textures.mjs`, textures. Mock: `getRedstonePower`, `GameMode`. Test: `tools/sim/sifter_test.mjs`.
 - **Not touched:** `runner.js`, `plans.js`, `blocks.js`, `life.js`, `marker.js`, `settlement.js`. Miner prospecting can keep the dig loop.
-- **Saved data:** `crew:sieves`, `crew:sieveLink`, `crew:sievePaused`, role index 4. No old key renamed.
+- **Saved data:** `crew:sieves`, `crew:sieveLink`, `crew:sievePaused`, role index 5. No old key renamed.
 - **Player-facing text:** CHANGELOG Unreleased, QA.md Next release, guide page "The Sifter", and the build page mentions the sieve.
 
 ## Open questions

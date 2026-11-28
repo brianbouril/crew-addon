@@ -3,7 +3,7 @@
 // number of expansions per tick, so a long search never stalls the server.
 // The worker is villager-sized (under two blocks tall), so it needs two blocks of air on top of
 // something solid; it can step up 1 and drop up to 3.
-import { canSee, passable } from "./blocks.js";
+import { canSee, footCost, passable } from "./blocks.js";
 import { floorV } from "./util.js";
 
 /** @typedef {{x:number,y:number,z:number}} V3 */
@@ -72,14 +72,14 @@ function* neighbors(s, c) {
         const m = { x: n.x, y, z: n.z };
         if (!free(s, m)) break;
         if (!free(s, { x: n.x, y: y - 1, z: n.z })) {
-          yield { p: m, cost: 1 + drop * 0.5 };
+          yield { p: m, cost: footCost(s.dim, m) + drop * 0.5 };
           break;
         }
       }
     } else if (!free(s, n)) {
       // step up one onto the block ahead: room for the body there, and headroom to rise here
       const u = { x: n.x, y: n.y + 1, z: n.z };
-      if (free(s, u) && free(s, { x: u.x, y: u.y + 1, z: u.z }) && free(s, { x: c.x, y: c.y + 2, z: c.z })) yield { p: u, cost: 1.5 };
+      if (free(s, u) && free(s, { x: u.x, y: u.y + 1, z: u.z }) && free(s, { x: c.x, y: c.y + 2, z: c.z })) yield { p: u, cost: 1.5 + footCost(s.dim, u) };
     }
   }
 }
