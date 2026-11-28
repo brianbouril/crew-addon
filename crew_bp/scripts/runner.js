@@ -11,6 +11,7 @@ import { center, dist, floorV, fmt, getJSON, lerp, setJSON, onlinePlayer, sameV,
 import { emit, holdTool, loadedWorkers, meta, migrateRole, roleOf, syncRole, updateTag } from "./workers.js";
 import { isProtected, noteChestUse, saveSeen } from "./settlement.js";
 import { DRAIN_PER_BLOCK, EXHAUSTED, REST, TIRED, TIRED_SLOWDOWN, bedPose, bedSafety, bedside, eatOne, energy, energyWord, getHome, isNight, isSupply, restock, setEnergy } from "./life.js";
+import { CARGO_END, HAUL_SLOTS, SLOT_WORDS, haulStatus, haulerIdle, haulerIdleStatus, isHaulJob, keepsItem, newDay, showLoad, stepHaul } from "./hauler.js";
 
 /**
  * @typedef {import("@minecraft/server").Entity} Entity
@@ -127,14 +128,17 @@ export function startJob(e, job) {
 const isDig = (/** @type {any} */ job) => job?.type === "quarry" || job?.type === "branch_mine";
 const isPlot = (/** @type {any} */ job) => job?.type === "forest" || job?.type === "field";
 const isWork = (/** @type {any} */ job) => isDig(job) || isPlot(job);
-const digName = (/** @type {any} */ job) => (job.type === "quarry" ? "quarry" : job.type === "branch_mine" ? "branch mine" : job.type);
+const digName = (/** @type {any} */ job) => (job.type === "quarry" ? "quarry" : job.type === "branch_mine" ? "branch mine" : job.type === "round" ? (/** @type {Record<string, string>} */ (SLOT_WORDS)[job.slot] ?? "round") : job.type);
+/** How far along a job is (0..1): dig or plot steps, or chests on a round. @param {any} job @param {any} st */
+const doneShare = (job, st) => (job.type === "round" ? (job.route?.length ? Math.min(1, (st.idx ?? 0) / job.route.length) : 0) : job.geom?.total ? (st.i ?? 0) / job.geom.total : 0);
 
 /**
  * Stops whatever the worker is doing. An unfinished quarry or branch mine is kept as the paused
  * job (`crew:paused`), with its progress, so Continue picks it up where it left off.
- * @param {Entity} e @param {string | undefined} why  undefined = silent
+ * A Hauler's unfinished round is kept the same way (`done`: it finished, nothing to keep).
+ * @param {Entity} e @param {string | undefined} why  undefined = silent @param {boolean} [done]
  */
-export function stopJob(e, why) {
+export function stopJob(e, why, done = false) {
   const job = getJSON(e, "crew:job", undefined);
   if (job?.tickingArea) {
     try {
@@ -150,7 +154,11 @@ export function stopJob(e, why) {
     const st = active.get(e.id)?.st ?? getJSON(e, "crew:state", undefined);
     if (st) setJSON(e, "crew:paused", { job: { ...job, tickingArea: false }, st });
   }
-  if (job && why) emit(e, "stopped", { reason: why }, isDig(job) ? `${why} Pick Continue in my menu to pick the ${digName(job)} up where I left off.` : why);
+  if (job?.type === "round" && !done) {
+    const st = active.get(e.id)?.st ?? getJSON(e, "crew:state", undefined);
+    if (st) setJSON(e, "crew:paused", { job: { ...job, tickingArea: false }, st });
+  }
+  if (job && why) emit(e, "stopped", { reason: why }, isDig(job) || (job.type === "round" && !done) ? `${why} Pick Continue in my menu to pick the ${digName(job)} up where I left off.` : why);
   if (job?.type === "rest") {
     // an order while it's lying in bed: get up beside the bed first
     const rst = active.get(e.id)?.st ?? getJSON(e, "crew:state", undefined);
@@ -181,7 +189,7 @@ export function pausedJob(e) {
   const saved = getJSON(e, "crew:paused", undefined);
   if (!saved?.job || !saved?.st) return undefined;
   if (isPlot(saved.job)) return { name: saved.job.type === "forest" ? "forest" : "field" };
-  return { name: digName(saved.job), pct: Math.floor((100 * saved.st.i) / saved.job.geom.total) };
+  return { name: digName(saved.job), pct: Math.floor(100 * doneShare(saved.job, saved.st)) };
 }
 
 /**
@@ -195,14 +203,16 @@ export function resumeJob(e) {
   stopJob(e, undefined); // ends a drop-off or come-here in progress
   setJSON(e, "crew:paused", undefined);
   const job = { ...saved.job, tickingArea: false };
-  const st = { ...saved.st, cool: 0, move: undefined, walkAfter: false, needTool: undefined, wait: undefined, blinks: 0 };
-  st.phase = isPlot(job) ? "scan" : st.i === 0 && !st.stand ? "travel_in" : "return";
+  const st = { ...saved.st, cool: 0, move: undefined, walkAfter: false, needTool: undefined, wait: undefined, blinks: 0, pause: 0, lastPos: undefined };
+  st.phase = isPlot(job) ? "scan" : job.type === "round" ? "area" : st.i === 0 && !st.stand ? "travel_in" : "return";
   setJSON(e, "crew:job", job);
   setJSON(e, "crew:state", st);
   e.triggerEvent("crew:start_work");
   active.set(e.id, { e, job, st, saveIn: 20, areaIn: 0 });
-  const pct = job.geom?.total ? Math.floor((100 * (st.i ?? 0)) / job.geom.total) : 0;
-  emit(e, "job_resumed", { mode: job.type, step: st.i, total: job.geom?.total }, isPlot(job) ? `picking the ${digName(job)} back up.` : `picking the ${digName(job)} back up at ${pct}% (step ${st.i} of ${job.geom.total}).`);
+  const pct = Math.floor(100 * doneShare(job, st));
+  if (job.type === "round") emit(e, "job_resumed", { mode: "round", chest: st.idx ?? 0, chests: job.route?.length ?? 0 }, `picking the ${digName(job)} back up (${Math.min(job.route?.length ?? 0, (st.idx ?? 0) + 1)} of ${job.route?.length ?? 0} chests).`);
+  else if (isPlot(job)) emit(e, "job_resumed", { mode: job.type, step: st.i, total: job.geom?.total }, `picking the ${digName(job)} back up.`);
+  else emit(e, "job_resumed", { mode: job.type, step: st.i, total: job.geom.total }, `picking the ${digName(job)} back up at ${pct}% (step ${st.i} of ${job.geom.total}).`);
   return job;
 }
 
@@ -211,14 +221,21 @@ export function statusText(e) {
   const job = getJSON(e, "crew:job", undefined);
   const st = active.get(e.id)?.st ?? getJSON(e, "crew:state", {});
   const inv = /** @type {Container} */ (e.getComponent("minecraft:inventory")?.container);
-  const hauling = inv ? inv.size - KIT_SLOTS - freeHaulSlots(inv) : 0;
+  const isHauler = roleOf(e) === "Hauler";
+  let hauling = inv ? inv.size - KIT_SLOTS - freeHaulSlots(inv) : 0;
+  if (inv && isHauler) {
+    hauling = 0;
+    for (let i = KIT_SLOTS; i < Math.min(CARGO_END, inv.size); i++) if (inv.getItem(i)) hauling++;
+  }
   const tools = inv ? kitText(kit(inv)) : "no tools";
   const where = fmt(e.location);
   const last = getJSON(e, "crew:skipped", undefined);
   let line;
   const paused = pausedJob(e);
-  if (!job) {
-    line = `Idle at ${where}.`;
+  if (job && isHaulJob(job)) {
+    line = `${haulStatus(e, job, st)}, at ${where}.`;
+  } else if (!job) {
+    line = isHauler ? `${haulerIdleStatus(e)}, at ${where}.` : `Idle at ${where}.`;
     if (paused) line += ` Its ${paused.name} is paused at ${paused.pct}%: pick Continue to pick it up.`;
     if (last?.blocks?.length) line += ` Last job left ${last.total} block${last.total === 1 ? "" : "s"} its tools couldn't harvest.`;
   } else if (job.type === "come") {
@@ -244,7 +261,7 @@ export function statusText(e) {
   const en = energy(e);
   const home = getHome(e);
   const homeLine = home ? `Home: the bed at ${fmt(home.head)}${home.chest ? `, chest at ${fmt(home.chest)}` : ", no home chest"}.` : "No home yet (stand by a bed and pick Home, Set home).";
-  return `${line}\nEnergy ${Math.round(en)}% (${energyWord(en)}). ${homeLine}\nCarrying ${hauling}/${inv ? inv.size - KIT_SLOTS : 31} stacks. Tools: ${tools}${toolPref(e) === "fastest" ? " (uses the fastest)" : ""}.${torches ? ` Torches: ${torches}.` : ""}`;
+  return `${line}\nEnergy ${Math.round(en)}% (${energyWord(en)}). ${homeLine}\nCarrying ${hauling}/${isHauler ? HAUL_SLOTS : inv ? inv.size - KIT_SLOTS : 31} stacks.${isHauler ? "" : ` Tools: ${tools}${toolPref(e) === "fastest" ? " (uses the fastest)" : ""}.`}${torches ? ` Torches: ${torches}.` : ""}`;
 }
 
 /** @param {Container} inv @param {string} id */
@@ -266,11 +283,13 @@ export function startEngine() {
         continue;
       }
       try {
-        keepLoaded(rt);
+        // a Hauler's round takes its own work area (and waits for one); tidying the depot needs none
+        if (rt.job.type !== "round" && rt.job.type !== "tidy") keepLoaded(rt);
         if (rt.job.type === "come") stepCome(rt);
         else if (rt.job.type === "drop_off") stepDropOff(rt);
         else if (rt.job.type === "rest") stepRest(rt);
         else if (isPlot(rt.job)) stepPlot(rt, { walkTo });
+        else if (isHaulJob(rt.job)) stepHaul(rt, haulCtx);
         else stepDig(rt);
         // twice a second: never inside a block (not while lying on its bed, which is meant to overlap)
         if (rt.job.type !== "rest" && active.get(rt.e.id) === rt && (rt.unstickIn = (rt.unstickIn ?? 10) - 1) <= 0) {
@@ -320,9 +339,16 @@ function routine() {
     try {
       const job = active.get(e.id)?.job ?? getJSON(e, "crew:job", undefined);
       if (!night && e.getDynamicProperty("crew:stayUp")) e.setDynamicProperty("crew:stayUp", undefined);
+      const hauler = roleOf(e) === "Hauler";
+      if (hauler && night) newDay(e);
+      if (hauler) showLoad(e);
       if (job?.type === "rest") continue;
       if (!job) setEnergy(e, energy(e) + 0.1);
-      if (!night) continue;
+      if (!night) {
+        // an idle Hauler starts its rounds, extra trips and tidying by itself
+        if (hauler && !job) haulerIdle(e, haulCtx);
+        continue;
+      }
       const up = e.getDynamicProperty("crew:stayUp");
       if (typeof up === "number") {
         if (job) {
@@ -404,7 +430,7 @@ function stepRest(rt) {
       }
       e.setProperty("crew:anim", rt.walk?.path ? 1 : 0);
       if (walkTo(rt, bedside(dim, home), 1.5) !== "arrived") return;
-      if (home.chest && inv) {
+      if (home.chest && inv && roleOf(e) !== "Hauler") {
         const r = deposit(e, { deposit: { ...home.chest, dim: home.dim, label: `my home chest at ${fmt(home.chest)}` } }, inv);
         if (r === "full") emit(e, "deposit_full", { deposit: "home chest" }, "my home chest is full, so I kept the rest.");
       }
@@ -513,8 +539,10 @@ function noteSeen() {
 function shortStatus(e, job, st) {
   if (!job) {
     const paused = pausedJob(e);
+    if (roleOf(e) === "Hauler" && !paused) return haulerIdleStatus(e);
     return paused ? `Idle (${paused.name} paused${paused.pct == null ? "" : ` at ${paused.pct}%`})` : "Idle";
   }
+  if (isHaulJob(job)) return haulStatus(e, job, st);
   if (job.type === "rest") return st?.phase === "asleep" ? (getHome(e) ? "Asleep at home" : "Asleep") : "Going to bed";
   if (job.type === "come") return `Walking to ${job.target?.name ?? job.label}`;
   if (job.type === "drop_off") return `Dropping off at ${job.deposit.label}`;
@@ -1385,7 +1413,7 @@ function deposit(e, job, inv) {
   let moved = 0;
   for (let i = 0; i < inv.size; i++) {
     const item = inv.getItem(i);
-    if (!item || (i < KIT_SLOTS && toolInfo(item)) || isSupply(item.typeId)) continue; // the tool kit, torches and food stay with the worker
+    if (!item || keepsItem(e, i, item) || isSupply(item.typeId)) continue; // the tool kit (a Hauler's gear and chests), torches and food stay with the worker
     const left = chest.addItem(item);
     inv.setItem(i, left);
     moved += item.amount - (left?.amount ?? 0);
@@ -1488,7 +1516,7 @@ function walkTo(rt, goal, reach, beside = false, noShortcut = false) {
   w.idx++;
   const last = w.idx >= path.length;
   // about a villager's walking pace; a little slower up a step and on the last step (to stop gently)
-  w.glide = { from: e.location, to, mid: glideMid(e.location, to), t: 0, n: (dy > 0 ? 9 : dy < 0 ? 5 + -dy : 7) + (last ? 2 : 0), last };
+  w.glide = { from: e.location, to, mid: glideMid(e.location, to), t: 0, n: Math.round(((dy > 0 ? 9 : dy < 0 ? 5 + -dy : 7) + (last ? 2 : 0)) * (rt.pace ?? 1)), last };
   return "moving";
 }
 
@@ -1575,6 +1603,9 @@ function blink(rt, target) {
   if (rt.st.blinks === 1) emit(e, "stuck", { at: fmt(e.location) }, "couldn't find a walkable route, so I took a shortcut.");
   return "arrived";
 }
+
+/** What hauler.js needs from the engine (passed in, so hauler.js doesn't import this module). */
+const haulCtx = { walkTo, stopJob, startRest, startJob, resumeJob };
 
 export const isWorking = (/** @type {Entity} */ e) => active.has(e.id) || !!e.getDynamicProperty("crew:job");
 export { meta };

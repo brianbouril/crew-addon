@@ -1,7 +1,8 @@
 // The Survey Stake planner. Use the stake on a ground block to start a plan there, facing the
 // way you look; plan a quarry (a Digger's job) and its size; an outline shows while you hold the
 // stake. Use the stake on the same block again to confirm, resize, turn or clear it.
-// Use it on a chest or barrel to mark where workers drop things off.
+// Use it on a chest or barrel to mark where workers drop things off (or, linked to a Hauler, a
+// pickup point on its rounds). On the ground it can also mark the settlement's depot for Haulers.
 import { ItemStack, system, world } from "@minecraft/server";
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
 import { DEFAULTS, MAX_SIDE, MAX_TRUNK_WIDTH, PLOT_HEIGHT, PLOT_MAX } from "./catalog.js";
@@ -18,6 +19,7 @@ import { bedAt, bedSafety, chestNear, getHome } from "./life.js";
 import { savePlace } from "./store.js";
 import { addStorage, isStorage, removeStorage, settlementOf } from "./settlement.js";
 import { statusText } from "./runner.js";
+import { DEPOT_DEFAULT, DEPOT_MAX, DEPOT_MIN, addPickup, chestLimit, isPickup, markDepot, removePickup } from "./hauler.js";
 
 export const STAKE = "crew:survey_stake";
 
@@ -145,6 +147,11 @@ async function chestTapped(p, block) {
   const what = block.typeId.replace("minecraft:", "").replace(/_/g, " ");
   /** @type {[string, () => any][]} */
   const b = [];
+  if (e && roleOf(e) === "Hauler") {
+    const here = { dim: block.dimension.id, ...loc };
+    if (isPickup(e, here)) b.push([`Hauler pickup: stop ${meta(e).name} collecting here`, () => say(p, removePickup(e, here))]);
+    else b.push([`Hauler pickup: ${meta(e).name} collects from here`, () => say(p, addPickup(whoIs(p), e, block))]);
+  }
   if (e) b.push([`Make it ${meta(e).name}'s home chest`, () => {
     const m = meta(e);
     const home = getHome(e);
@@ -192,6 +199,8 @@ const say = (p, r) => tell(p, r.ok ? r.message : `§c${r.message}`);
 export async function stakeTap(p, block) {
   if (block.typeId === "minecraft:bed") return bedTapped(p, block);
   if (block.getComponent("minecraft:inventory")) return chestTapped(p, block);
+  const depot = getDepotPlan(p);
+  if (depot && depot.dim === block.dimension.id) return depotActions(p);
   const plan = getPlan(p);
   // with an unconfirmed plan, any tap opens it (no need to find the exact start block again);
   // a confirmed plan opens from its start block, or offers to plan a new dig elsewhere
@@ -219,8 +228,11 @@ async function newPlan(p, block, plan) {
   const f = new ActionFormData().title("Plan here")
     .body(`Start: the block at ${fmt(block.location)}, heading ${facing} (the way you're facing).\n\nA quarry digs forward and to your right. A forest or a field keeps working that ground, up to ${PLOT_HEIGHT} blocks above it.`)
     .button("Plan a quarry").button("Plan a forest").button("Plan a field").button("Cancel").button("Put the stake away");
+  const s = settlementOf({ id: p.id, name: p.name });
+  if (s) f.button(`Make a depot here (${s.name}'s Haulers sort everything into it)`);
   const r = await show(p, f);
   if (r?.selection === 4) return putAway(p);
+  if (r?.selection === 5 && s) return newDepot(p, block, facing);
   if (r?.selection === undefined || r.selection > 2) return;
   next.mode = /** @type {Plan["mode"]} */ (["quarry", "forest", "field"][r.selection]);
   if (next.mode !== "quarry") {
@@ -401,6 +413,87 @@ async function sizeForm(p, plan) {
 /** @param {number} v @param {number} lo @param {number} hi */
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, Math.round(Number(v) || lo)));
 
+// ---------- the depot plan (specs/hauler.md) ----------
+/**
+ * @typedef {{dim: string, anchor: V3, facing: string, width: number, length: number}} DepotPlan
+ *   anchor = the ground block tapped (a floor corner); it runs `length` forward and `width` to the right
+ */
+/** @param {import("@minecraft/server").Player} p @returns {DepotPlan | undefined} */
+export const getDepotPlan = (p) => getJSON(p, "crew:depotPlan", undefined);
+/** @param {import("@minecraft/server").Player} p @param {DepotPlan | undefined} plan */
+const saveDepotPlan = (p, plan) => setJSON(p, "crew:depotPlan", plan);
+/** The floor corners of a depot plan. @param {DepotPlan} plan */
+export function depotBox(plan) {
+  const g = quarryGeom(plan.anchor, plan.facing, plan.length, plan.width, 1);
+  return { from: g.min, to: g.max };
+}
+/** @param {DepotPlan} plan */
+function depotPlanText(plan) {
+  const { from, to } = depotBox(plan);
+  const n = chestLimit({ x0: from.x, z0: from.z, x1: to.x, z1: to.z, y: from.y + 1, dim: plan.dim, units: [] });
+  return `Depot ${plan.length} forward x ${plan.width} to the right from the corner at ${fmt(plan.anchor)}, heading ${plan.facing}. It holds up to ${n} chests in rows with walkways between them. It needs a flat floor with 2 blocks of room above it.`;
+}
+/** Outline of the depot's floor, just above the ground. @param {DepotPlan} plan */
+function depotPoints(plan) {
+  const { from, to } = depotBox(plan);
+  const y = from.y + 1.05, a = { x: from.x, z: from.z }, b = { x: to.x + 1, z: to.z + 1 };
+  /** @type {V3[]} */
+  const pts = [];
+  const edge = (/** @type {number} */ x0, /** @type {number} */ z0, /** @type {number} */ x1, /** @type {number} */ z1) => {
+    const n = Math.max(1, Math.round(Math.hypot(x1 - x0, z1 - z0) * 2));
+    for (let i = 0; i <= n; i++) pts.push({ x: x0 + ((x1 - x0) * i) / n, y, z: z0 + ((z1 - z0) * i) / n });
+  };
+  edge(a.x, a.z, b.x, a.z); edge(b.x, a.z, b.x, b.z); edge(b.x, b.z, a.x, b.z); edge(a.x, b.z, a.x, a.z);
+  return pts;
+}
+
+/** Ground tapped, "Make a depot here": its size, then the outline to check. @param {import("@minecraft/server").Player} p @param {import("@minecraft/server").Block} block @param {string} facing */
+async function newDepot(p, block, facing) {
+  /** @type {DepotPlan} */
+  const plan = { dim: block.dimension.id, anchor: { ...block.location }, facing, ...DEPOT_DEFAULT };
+  if (!(await depotSize(p, plan))) return;
+  saveDepotPlan(p, plan);
+  tell(p, `${depotPlanText(plan)}\nCheck the white outline, then tap the ground with the stake again to confirm it.`);
+}
+/** @param {import("@minecraft/server").Player} p @param {DepotPlan} plan */
+async function depotSize(p, plan) {
+  const f = new ModalFormData().title("Depot size")
+    .slider("Length (forward)", DEPOT_MIN, DEPOT_MAX, { defaultValue: clamp(plan.length, DEPOT_MIN, DEPOT_MAX), valueStep: 1 })
+    .slider("Width (to the right)", DEPOT_MIN, DEPOT_MAX, { defaultValue: clamp(plan.width, DEPOT_MIN, DEPOT_MAX), valueStep: 1 })
+    .submitButton("Show outline");
+  const r = await show(p, f);
+  if (!r?.formValues) return false;
+  plan.length = clamp(Number(r.formValues[0]), DEPOT_MIN, DEPOT_MAX);
+  plan.width = clamp(Number(r.formValues[1]), DEPOT_MIN, DEPOT_MAX);
+  return true;
+}
+/** The depot plan's menu: confirm (mark it on the settlement), resize, turn, cancel. @param {import("@minecraft/server").Player} p */
+async function depotActions(p) {
+  const plan = getDepotPlan(p);
+  if (!plan) return;
+  const facing = facingFromYaw(p.getRotation().y);
+  const f = new ActionFormData().title("Depot (not confirmed yet)").body(depotPlanText(plan))
+    .button("Confirm: make this the depot").button("Change the size").button(`Point it ${facing}`).button("Cancel the depot plan");
+  const r = await show(p, f);
+  if (!r || r.selection === undefined) return;
+  if (r.selection === 0) {
+    const s = settlementOf({ id: p.id, name: p.name });
+    if (!s) return tell(p, "§cYou're not in a settlement any more, so there's no depot to mark.");
+    const res = markDepot(whoIs(p), s, { dim: plan.dim, ...depotBox(plan) });
+    if (res.ok) saveDepotPlan(p, undefined);
+    return say(p, res);
+  }
+  if (r.selection === 3) {
+    saveDepotPlan(p, undefined);
+    return tell(p, "Depot plan cancelled.");
+  }
+  const next = { ...plan };
+  if (r.selection === 1 && !(await depotSize(p, next))) return;
+  if (r.selection === 2) next.facing = facing;
+  saveDepotPlan(p, next);
+  tell(p, `${depotPlanText(next)}\nCheck the outline, then tap the ground with the stake again to confirm.`);
+}
+
 // ---------- the outline ----------
 /** @type {Map<string, {key: string, pts: V3[], arrow: V3[]}>} */
 const cache = new Map();
@@ -427,6 +520,16 @@ export function startOutlines() {
       try {
         const inv = p.getComponent("minecraft:inventory")?.container;
         if (inv?.getItem(p.selectedSlotIndex)?.typeId !== STAKE) continue;
+        const depot = getDepotPlan(p);
+        if (depot && depot.dim === p.dimension.id) {
+          const key = JSON.stringify(depot);
+          let c = cache.get(`${p.id}|depot`);
+          if (!c || c.key !== key) {
+            c = { key, pts: depotPoints(depot), arrow: [] };
+            cache.set(`${p.id}|depot`, c);
+          }
+          for (const pt of c.pts) if (dist(pt, p.location) < 96) p.spawnParticle("minecraft:endrod", pt);
+        }
         const plan = getPlan(p);
         if (!plan || plan.dim !== p.dimension.id) continue;
         const key = JSON.stringify(plan);

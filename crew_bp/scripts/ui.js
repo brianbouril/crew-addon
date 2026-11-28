@@ -8,7 +8,8 @@ import { SETTLEMENT_ORDERS, dispatch, orderSettlement } from "./orders.js";
 import { depthLabel, getPlan, giveStake, hasStake, planOrder, planText, updatePlan } from "./marker.js";
 import { countItem, isResting, isWorking, pausedJob, statusText, stopJob, wakeUp } from "./runner.js";
 import { canUsePlace, getPlaces } from "./store.js";
-import { KIT_SLOTS, ROLE_LIST, addToKit, kit, setToolPref, stash, toolInfo, toolPref } from "./tools.js";
+import { KIT_SLOTS, TOOL_ROLES, addToKit, kit, setToolPref, stash, toolInfo, toolPref } from "./tools.js";
+import { CHEST, depotText, keyOf, keepsItem, pickupSpots, removePickup, takeChests } from "./hauler.js";
 import { TORCH } from "./blocks.js";
 import { TORCH_EVERY } from "./plans.js";
 import { fmt, getJSON, setJSON, tell } from "./util.js";
@@ -48,6 +49,7 @@ const ROLE_JOBS = {
   Miner: " (prospecting for ore is coming in the next version; it has no dig jobs until then)",
   Woodcutter: " (keeps a forest)",
   Farmer: " (keeps a field)",
+  Hauler: " (carries what the settlement's diggers drop off to the depot, three rounds a day)",
 };
 
 /** @param {Player} p @param {Entity} e */
@@ -56,7 +58,8 @@ export async function openMenu(p, e) {
   const by = whoIs(p);
   const m = meta(e);
   const can = canCommand(by, m), manage = canManage(by, m);
-  const body = `${roleOf(e)}${ROLE_JOBS[roleOf(e)] ?? ""}. Owner: ${m.ownerName}.\n${statusText(e)}${carriedLine(e)}`;
+  const hauler = roleOf(e) === "Hauler";
+  const body = `${roleOf(e)}${ROLE_JOBS[roleOf(e)] ?? ""}. Owner: ${m.ownerName}.\n${statusText(e)}${carriedLine(e)}${hauler ? `\n${depotText(e)}` : ""}`;
   if (!can) return menu(p, m.name, `${body}\n\nOnly ${m.ownerName} and the players they allow can give ${m.name} orders.`, [["How workers work", () => openGuide(p)], ["Close", () => {}]]);
   /** @type {[string, () => any][]} */
   const b = [];
@@ -64,9 +67,17 @@ export async function openMenu(p, e) {
   const resting = isResting(e);
   if (resting) b.push(["Wake up", () => tell(p, wakeUp(e) ? `${m.name} is getting up.` : `${m.name} is already up.`)]);
   const paused = pausedJob(e);
-  const digging = /quarry|branch_mine/.test(String(getJSON(e, "crew:job", undefined)?.type));
+  const digging = /quarry|branch_mine|round/.test(String(getJSON(e, "crew:job", undefined)?.type));
   if (paused && !digging) {
     b.push([`Continue the ${paused.name}${paused.pct == null ? "" : ` (${paused.pct}% done)`}`, () => say(p, dispatch(by, { worker: m.name, job: "resume", params: {} }))]);
+  } else if (hauler && e.getDynamicProperty("crew:haulOff") && !isWorking(e)) {
+    b.push(["Continue its rounds", () => say(p, dispatch(by, { worker: m.name, job: "resume", params: {} }))]);
+  }
+  if (hauler) {
+    b.push(["Do a round now", () => say(p, dispatch(by, { worker: m.name, job: "haul_now", params: {} }))]);
+    b.push(["Pickup points", () => pickupMenu(p, by, e)]);
+    if (heldChests(p)) b.push([`Give it the chests in my hand (${heldChests(p)})`, () => giveHeldChests(p, e)]);
+    if (!hasStake(p)) b.push(["Get a Survey Stake", () => tell(p, giveStake(p))]);
   }
   // decision 32: each role offers only its own jobs. The Miner's (prospecting) come in v0.6.
   if (roleOf(e) === "Digger") {
@@ -81,12 +92,13 @@ export async function openMenu(p, e) {
   const n = carried(e).reduce((a, x) => a + x.item.amount, 0);
   if (n > 0) {
     b.push([`Take what it carries (${n})`, () => takeCarried(p, e)]);
-    b.push(["Drop off at a chest", () => dropOff(p, by, e)]);
+    b.push([hauler ? "Drop off at the depot" : "Drop off at a chest", () => (hauler ? say(p, dispatch(by, { worker: m.name, job: "drop_off", params: {} })) : dropOff(p, by, e))]);
   }
   b.push([getHome(e) ? "Home" : "Home: set one", () => homeMenu(p, by, e)]);
-  b.push(["Tools", () => toolsMenu(p, by, e)]);
+  if (!hauler) b.push(["Tools", () => toolsMenu(p, by, e)]);
   if (manage) {
-    b.push([`Role: ${roleOf(e)}`, () => roleForm(p, e)]);
+    // a Hauler's role comes from its build (a bundle and leather boots), not a tool
+    if (!hauler) b.push([`Role: ${roleOf(e)}`, () => roleForm(p, e)]);
     b.push(["Name", () => nameForm(p, e)]);
     b.push(["Who can give orders", () => crewMenu(p, e)]);
     b.push(["Dismiss", () => dismissForm(p, e)]);
@@ -131,7 +143,7 @@ function carried(e) {
   if (!inv) return out;
   for (let i = 0; i < inv.size; i++) {
     const item = inv.getItem(i);
-    if (!item || (i < KIT_SLOTS && toolInfo(item)) || isSupply(item.typeId)) continue;
+    if (!item || keepsItem(e, i, item) || isSupply(item.typeId)) continue;
     out.push({ slot: i, item });
   }
   return out;
@@ -291,6 +303,7 @@ export function giveHeldTool(p, e) {
   if (!e.isValid) return false;
   const m = meta(e);
   if (!canCommand(whoIs(p), m)) { tell(p, `§cOnly ${m.ownerName} and the players they allow can give ${m.name} tools.`); return false; }
+  if (roleOf(e) === "Hauler") { tell(p, `§c${m.name} is a Hauler: it carries, it doesn't dig, so it has no use for tools.`); return false; }
   const pinv = /** @type {import("@minecraft/server").Container} */ (p.getComponent("minecraft:inventory")?.container);
   const winv = /** @type {import("@minecraft/server").Container} */ (e.getComponent("minecraft:inventory")?.container);
   const cur = pinv?.getItem(p.selectedSlotIndex);
@@ -344,16 +357,53 @@ async function toolsMenu(p, by, e) {
   await menu(p, `${m.name}: tools`, `Tool kit (up to ${KIT_SLOTS}). For each block it uses the right kind of tool at the lowest tier that can harvest it, and switches when one breaks.\n${lines}${how}`, b);
 }
 
+/** Chests in the player's hand. @param {Player} p */
+function heldChests(p) {
+  const it = p.getComponent("minecraft:inventory")?.container?.getItem(p.selectedSlotIndex);
+  return it?.typeId === CHEST ? it.amount : 0;
+}
+
+/**
+ * Hands the chests in the player's hand to a Hauler: it sets them up in the depot as it needs them.
+ * @param {Player} p @param {Entity} e
+ */
+export function giveHeldChests(p, e) {
+  if (!e.isValid) return;
+  const m = meta(e);
+  if (!canCommand(whoIs(p), m)) return tell(p, `§cOnly people ${m.name} takes orders from can give it chests.`);
+  const pinv = /** @type {import("@minecraft/server").Container} */ (p.getComponent("minecraft:inventory")?.container);
+  const held = pinv?.getItem(p.selectedSlotIndex);
+  if (held?.typeId !== CHEST) return tell(p, "§cHold the chests you want to give.");
+  const left = takeChests(e, held);
+  pinv.setItem(p.selectedSlotIndex, left);
+  const n = held.amount - (left?.amount ?? 0);
+  tell(p, n ? `${m.name} took ${n} chest${n === 1 ? "" : "s"} for the depot.` : `${m.name} has no room for more chests.`);
+}
+
+/** A Hauler's pickup points: where it collects on its rounds, and taking stake points off. @param {Player} p @param {Commander} by @param {Entity} e */
+async function pickupMenu(p, by, e) {
+  const m = meta(e);
+  const spots = pickupSpots(e);
+  const own = getJSON(e, "crew:pickups", []);
+  const body = (spots.length ? `On each round ${m.name} collects from:\n${spots.map((s) => `- ${s.label} (${fmt(s)})`).join("\n")}` : `${m.name} has nowhere to collect from yet.`) +
+    "\n\nIt collects from its settlement's Diggers' and Miners' drop-off chests by itself. To add another chest, link it with the Survey Stake (tap it), then tap the chest and pick Hauler pickup. It never takes from home chests.";
+  /** @type {[string, () => any][]} */
+  const b = [];
+  for (const s of spots) if (own.some((/** @type {any} */ x) => keyOf(x) === keyOf(s))) b.push([`Stop collecting at ${fmt(s)}`, () => say(p, removePickup(e, s))]);
+  b.push(["Back", () => openMenu(p, e)]);
+  await menu(p, `${m.name}: pickup points`, body, b);
+}
+
 /** @param {Player} p @param {Entity} e */
 async function roleForm(p, e) {
   const m = meta(e);
   if (isWorking(e)) return menu(p, m.name, `Stop ${m.name} before changing its role.`, [["OK", () => {}]]);
   const f = new ModalFormData().title(`${m.name}: role`)
-    .dropdown("Role: Digger digs quarries; Miner will prospect for ore (next version); Woodcutter and Farmer are coming", ROLE_LIST, { defaultValueIndex: Math.max(0, ROLE_LIST.indexOf(roleOf(e))) })
+    .dropdown("Role: Digger digs quarries; Miner will prospect for ore (next version); Woodcutter and Farmer are coming", TOOL_ROLES, { defaultValueIndex: Math.max(0, TOOL_ROLES.indexOf(roleOf(e))) })
     .submitButton("Save");
   const r = await show(p, f);
   if (!r?.formValues) return;
-  const role = ROLE_LIST[Number(r.formValues[0])];
+  const role = TOOL_ROLES[Number(r.formValues[0])];
   setRole(e, role);
   tell(p, `${m.name} is now a ${role}.${role === "Digger" ? " It digs quarries." : " It has no dig jobs yet in this version."}`);
 }

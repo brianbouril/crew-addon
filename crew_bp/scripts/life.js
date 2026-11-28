@@ -3,7 +3,8 @@
 // at dusk, sleeping, picking the job back up at dawn) is the `rest` job in runner.js.
 import { world } from "@minecraft/server";
 import { TORCH, passable } from "./blocks.js";
-import { KIT_SLOTS, addToKit, kit, roleKinds, stash, toolInfo } from "./tools.js";
+import { noteChestUse } from "./settlement.js";
+import { KIT_SLOTS, SUPPLY_FIRST, addToKit, kit, roleKinds, stash, toolInfo } from "./tools.js";
 import { getJSON, setJSON } from "./util.js";
 
 /** @typedef {{x:number,y:number,z:number}} V3 */
@@ -65,10 +66,11 @@ export const PACKED_TORCHES = 64;
 
 /**
  * Eats one food item it carries (the first one in its inventory). Returns the energy gained, 0 if none.
- * @param {import("@minecraft/server").Entity} e @param {import("@minecraft/server").Container} inv
+ * `from`: the first slot to look in (a Hauler eats only its own lunch, slot 23 on, never cargo).
+ * @param {import("@minecraft/server").Entity} e @param {import("@minecraft/server").Container} inv @param {number} [from]
  */
-export function eatOne(e, inv) {
-  for (let i = KIT_SLOTS; i < inv.size; i++) {
+export function eatOne(e, inv, from = KIT_SLOTS) {
+  for (let i = from; i < inv.size; i++) {
     const it = inv.getItem(i);
     if (!it || !isFood(it.typeId)) continue;
     const gain = /** @type {Record<string, number>} */ (FOOD)[it.typeId];
@@ -253,6 +255,8 @@ export function bedSafety(dim, home) {
 /**
  * Takes supplies from the home chest: torches up to a stack, a packed lunch, and tools for any
  * empty kit slots (pickaxes and shovels for a Miner). Returns what it took, in words.
+ * A Hauler has no tools and places no torches: it takes only its lunch, into its supply slots
+ * (23 on), so its 18 cargo slots stay free.
  * @param {import("@minecraft/server").Dimension} dim @param {Home} home @param {import("@minecraft/server").Container} inv @param {string} role
  */
 export function restock(dim, home, inv, role) {
@@ -270,11 +274,12 @@ export function restock(dim, home, inv, role) {
     return n;
   };
   const kinds = roleKinds(role);
+  const hauler = role === "Hauler";
   for (let i = 0; i < chest.size; i++) {
     const it = chest.getItem(i);
     if (!it) continue;
     let want = 0;
-    if (it.typeId === TORCH) want = PACKED_TORCHES - count((id) => id === TORCH);
+    if (it.typeId === TORCH) want = hauler ? 0 : PACKED_TORCHES - count((id) => id === TORCH);
     else if (isFood(it.typeId)) want = PACKED_FOOD - count(isFood);
     else if (toolInfo(it) && kinds.includes(/** @type {any} */ (toolInfo(it)).kind) && kit(inv).length < KIT_SLOTS) {
       if (addToKit(inv, it).ok) {
@@ -287,7 +292,7 @@ export function restock(dim, home, inv, role) {
     const n = Math.min(want, it.amount);
     const part = it.clone();
     part.amount = n;
-    const left = stash(inv, part);
+    const left = hauler ? stash(inv, part, SUPPLY_FIRST) : stash(inv, part);
     const moved = n - (left?.amount ?? 0);
     if (!moved) continue;
     if (it.amount - moved > 0) {
@@ -323,5 +328,8 @@ export function restock(dim, home, inv, role) {
       took[name] = (took[name] ?? 0) + moved;
     }
   }
-  return Object.entries(took).map(([k, n]) => `${n} ${k}`).join(", ");
+  const words = Object.entries(took).map(([k, n]) => `${n} ${k}`).join(", ");
+  // the ledger re-reads this chest now, not on the next few-second pass (specs/settlement-layer.md)
+  if (words && home.chest) noteChestUse(dim.id, home.chest);
+  return words;
 }

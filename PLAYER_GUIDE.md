@@ -14,10 +14,11 @@ or pick "How workers work" in any worker's menu.
 9. [Getting your stuff](#getting-your-stuff)
 10. [Home, sleep and energy](#home-sleep-and-energy)
 11. [Your settlement](#your-settlement)
-12. [Stop and continue](#stop-and-continue)
-13. [Sharing and good manners](#sharing-and-good-manners)
-14. [Commands](#commands)
-15. [Tips](#tips)
+12. [Haulers](#haulers)
+13. [Stop and continue](#stop-and-continue)
+14. [Sharing and good manners](#sharing-and-good-manners)
+15. [Commands](#commands)
+16. [Tips](#tips)
 
 ## Build a worker
 
@@ -32,6 +33,7 @@ The **first tool you put in the barrel decides its job**:
 - a **pickaxe** makes a **Miner**: it will prospect for ore in the next version (no dig jobs until then).
 - an **axe** makes a **Woodcutter**: it keeps a forest (see Forests and fields).
 - a **hoe** makes a **Farmer**: it keeps a field (see Forests and fields).
+No tools at all, but a **bundle** and **leather boots**? That makes a **Hauler**: it carries, it doesn't dig (see Haulers).
 Each worker only takes its own jobs. Workers from before this update are Diggers now.
 
 Better tools let it mine more and dig faster, just like yours.
@@ -157,7 +159,7 @@ Tip: put a bed and a chest near a mine so its walk home is short.
 
 Crouch-tap the bell any time for the settlement menu:
 - **Workers**: all your settlement's workers, what each is doing and where. **Out of tools** (red) and **Tools low** (yellow) show who needs tools. Far-away workers show **Working far away** or **Paused: nobody nearby**. Tap one for its menu; orders to a far-away worker wait until its area loads. A worker that was killed can be taken off the list with **Forget this worker** (if it was only far away, it comes back when its area loads).
-- **Storage**: everything in the settlement's chests, added up (most first). Tap an item to see which chests hold it. Storage chests are your workers' home chests and drop-offs, your named places, and any chest you tap with the Survey Stake and pick **Add to settlement storage**. Chests far away show what they held when they were last loaded.
+- **Storage**: everything in the settlement's chests, added up (most first). Tap an item to see which chests hold it. Storage chests are your workers' home chests and drop-offs, your named places, and any chest you tap with the Survey Stake and pick **Add to settlement storage**. The total changes as soon as a worker puts something in or takes something out, including food, torches and tools it takes from its home chest in the morning. Chests far away show what they held when they were last loaded, marked with how long ago.
 - **Give orders to everyone**: Stop, Continue, Drop off, Go home or Come to the bell, for every worker or just one kind (All Diggers). Far-away workers do it when their area loads.
 - **Members**: add friends. Everyone in a settlement runs it together: their workers become the settlement's, and they can give orders to every worker, add and remove members, rename it and move its bell. The **founder** (who rang it first) can't be removed and can hand that role to someone else; the founder leaves only after doing that.
 - **Name** and **Move the bell**. The bell can't be broken, by you or anyone, and explosions skip it: Move the bell puts it in your inventory, then place it and crouch-tap it again.
@@ -165,6 +167,22 @@ Crouch-tap the bell any time for the settlement menu:
 A plain tap still rings the bell. Village bells aren't yours to claim (for now).
 
 Workers belong to the settlement (on paper, to its founder), so someone who leaves takes none with them. A settlement can have **6 workers for each person in it**; on your own you can have 6. A server operator can change the 6 to keep the server running smoothly.
+
+## Haulers
+
+**Build one:** a barrel holding a **bundle** and **leather boots** (no tools), carved pumpkin on top. It wears a leather cap and a backpack. It never digs.
+
+**Mark a depot** first: tap the ground with the Survey Stake, pick **Make a depot here**, set the width and length, check the outline, then tap again and confirm. It needs a flat floor with 2 blocks of room. One per settlement, up to 16 by 16; 5 by 7 holds 16 chests, a bigger area more.
+
+**Three rounds a day** (morning, midday and evening) it walks the same loop of chests, nearest first: your settlement's Diggers' and Miners' drop-off chests, plus any chest you tap with the stake while it's linked (**Hauler pickup**). It carries 18 stacks at a time and brings everything back to the depot. A drop-off chest that gets about 3/4 full calls it for an extra trip. It never takes goods from home chests or puts anything in them. It still takes its own food from its own home chest in the morning, like the other workers.
+
+**In the depot** it sets up chests in rows with walkways and sorts as it stores: one kind of item per chest, grouped (stone and dirt, ores and metals, wood, food, other). Between rounds it tidies: it merges half stacks and moves strays (never shulker boxes, named items or tools).
+
+**Chests:** it takes them from your settlement's storage chests, or tap it holding chests. It never crafts them. With none it says **I need chests for the depot**. When every chest is full it keeps what it carries, waits at the depot and says **The depot is full** once, then carries on when there's room.
+
+Its menu: **Do a round now**, Come here, Stop, Continue, Drop off (at the depot), Go home, and its **Pickup points**. It sleeps at night and tires from walking (more when loaded); carrying at dusk, it delivers first.
+
+**/crew:haul <worker> <from> <to> [items]** moves things from one chest to another (places by name or as "x y z"; items comma separated). **/crew:round <worker>** does a round now.
 
 ## Stop and continue
 
@@ -193,9 +211,11 @@ Only the **owner** and the players they allow can give a worker orders or tools.
 - **/crew:status <worker>**: what it's doing
 - **/crew:come <worker>**: call it to you
 - **/crew:halt <worker>**: stop it
-- **/crew:continue <worker>**: pick its dig, forest or field back up
+- **/crew:continue <worker>**: pick its dig, forest, field, or a Hauler's round back up
 - **/crew:forest <worker> <from> <to> [deposit]**: a Woodcutter keeps that forest
 - **/crew:field <worker> <from> <to> [deposit]**: a Farmer keeps that field
+- **/crew:round <worker>**: a Hauler does a round now
+- **/crew:haul <worker> <from> <to> [items]**: a Hauler moves things from one chest to another
 - **/crew:allow <worker> <player>**: let a friend give orders
 - **/crew:setplace "name"**: save the chest you're looking at as a named drop-off (add **true** to share it with everyone)
 - **/crew:places**: list saved places

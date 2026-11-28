@@ -9,7 +9,8 @@
         "miner": "textures/entity/worker_miner",
         "digger": "textures/entity/worker_digger",
         "woodcutter": "textures/entity/worker_woodcutter",
-        "farmer": "textures/entity/worker_farmer"
+        "farmer": "textures/entity/worker_farmer",
+        "hauler": "textures/entity/worker_hauler"
       },
       "geometry": { "default": "geometry.crew_worker" },
       "scripts": {

@@ -16,6 +16,7 @@ const isKnownWorker = (id) => Object.values(getRegistry()).some((r) => r.id === 
 import { kit } from "./tools.js";
 import { CLEAR_ABOVE_MAX, layersAbove } from "./blocks.js";
 import { quarryGeom } from "./plans.js";
+import { HOLD_AFTER_ORDER, isHomeChest, isSettlementChest, roundJob } from "./hauler.js";
 
 /** @typedef {import("./store.js").Commander} Commander */
 
@@ -27,6 +28,17 @@ const newId = () => `${Date.now().toString(36)}${Math.floor(Math.random() * 1296
  * @returns {{ok: boolean, message: string}}
  */
 export function dispatch(by, order) {
+  const r = dispatchOne(by, order);
+  // a Hauler called somewhere stays there a minute before its routine takes it back to the depot
+  if (r.ok && ["come", "go_home", "drop_off"].includes(String(order.job))) {
+    const e = findWorker(String(order.worker ?? ""));
+    if (e && roleOf(e) === "Hauler") e.setDynamicProperty("crew:hold", HOLD_AFTER_ORDER);
+  }
+  return r;
+}
+
+/** @param {Commander} by @param {{worker?: string, job?: string, params?: Record<string, any>, internal?: boolean}} order @returns {{ok: boolean, message: string}} */
+function dispatchOne(by, order) {
   const name = String(order.worker ?? "").trim();
   if (!name) return { ok: false, message: "Which worker? Give its name." };
   const e = findWorker(name);
@@ -47,11 +59,15 @@ export function dispatch(by, order) {
   const byRef = { id: by.id, name: by.name, console: !!by.console };
   // an order that gives it something to do wakes it, and at night it stays up to do it
   // (go_home isn't here on purpose: sent at night, the worker walks home and the routine puts it to bed)
-  if (["come", "drop_off", "resume", "quarry", "branch_mine", "forest", "field"].includes(v.job)) keepUp(e);
+  if (["come", "drop_off", "resume", "quarry", "branch_mine", "forest", "field", "haul", "haul_now"].includes(v.job)) keepUp(e);
+  const hauler = roleOf(e) === "Hauler";
+  if (hauler && ["resume", "haul_now", "round"].includes(v.job)) e.setDynamicProperty("crew:hold", undefined);
 
   switch (v.job) {
     case "stop":
       e.setDynamicProperty("crew:autoResume", undefined); // a player's stop isn't picked back up in the morning
+      // a stopped Hauler starts no rounds by itself until Continue or Do a round now
+      if (hauler) e.setDynamicProperty("crew:haulOff", true);
       stopJob(e, `stopped by ${by.name}.`);
       return { ok: true, message: `${m.name} stopped.` };
     case "set_home": {
@@ -100,18 +116,31 @@ export function dispatch(by, order) {
     }
     case "resume": {
       const paused = pausedJob(e);
+      if (hauler) {
+        e.setDynamicProperty("crew:haulOff", undefined);
+        if (!paused) return { ok: true, message: `${m.name} is back on its rounds.` };
+      }
       if (!paused) return { ok: false, message: `${m.name} has no stopped job to continue.` };
       resumeJob(e); // any role finishes what it already started (workers converted to Diggers keep their old digs)
-      return { ok: true, message: `${m.name} is going back to the ${paused.name} (${paused.pct}% done).` };
+      const pctBit = paused.pct == null ? "" : ` (${paused.pct}% done)`;
+      return { ok: true, message: `${m.name} is going back to the ${paused.name}${pctBit}.` };
     }
     case "drop_off": {
+      if (hauler && p.deposit === undefined) {
+        // a Hauler drops off at the depot (sorted, like the end of a round), never a home chest
+        const r = roundJob(e, "extra", []);
+        if (!r.ok) return r;
+        startJob(e, r.job);
+        return { ok: true, message: `${m.name} is taking what it carries to the depot.` };
+      }
       const home = getHome(e);
       const homeChest = home?.chest ? { ...home.chest, dim: home.dim, label: `its home chest at ${fmt(home.chest)}` } : undefined;
       const dep = p.deposit === undefined ? getJSON(e, "crew:lastDeposit", undefined) ?? homeChest : depositFor(by, p.deposit, e.dimension.id);
       if (!dep) return { ok: false, message: `Where to? ${m.name} hasn't dropped off anywhere yet, so give a place or chest.` };
       if (typeof dep === "string") return { ok: false, message: dep };
       if (dep.dim !== e.dimension.id) return { ok: false, message: `${dep.label} is in another dimension from ${m.name}.` };
-      setJSON(e, "crew:lastDeposit", dep);
+      if (hauler && isHomeChest(dep)) return { ok: false, message: `That's a worker's home chest: Haulers leave home chests alone. Pick another chest, or Drop off with no chest to use the depot.` };
+      if (!hauler) setJSON(e, "crew:lastDeposit", dep);
       startJob(e, { type: "drop_off", id: newId(), by: byRef, deposit: dep });
       return { ok: true, message: `${m.name} is taking what it carries to ${dep.label}.` };
     }
@@ -155,6 +184,33 @@ export function dispatch(by, order) {
       const w = b.max.x - b.min.x + 1, l = b.max.z - b.min.z + 1;
       const name = v.job === "forest" ? "forest" : "field";
       return { ok: true, message: `${m.name} is on it: a ${w} by ${l} ${name} from ${fmt(b.min)}. Depositing at ${dep.label}.` };
+    }
+    case "haul": {
+      const from = depositFor(by, p.from, e.dimension.id);
+      if (typeof from === "string") return { ok: false, message: from };
+      const to = depositFor(by, p.to, e.dimension.id);
+      if (typeof to === "string") return { ok: false, message: to };
+      for (const sp of [from, to]) {
+        if (sp.dim !== e.dimension.id) return { ok: false, message: `${sp.label} is in another dimension from ${m.name}.` };
+        if (isHomeChest(sp)) return { ok: false, message: `${sp.label} is a worker's home chest: Haulers leave home chests alone.` };
+        if (!isSettlementChest(e, sp)) return { ok: false, message: `${sp.label} isn't one of your settlement's chests. A Hauler only moves things between its settlement's chests: its storage chests, named places, drop-offs, pickup points and depot.` };
+      }
+      if (from.x === to.x && from.y === to.y && from.z === to.z) return { ok: false, message: "From and to are the same chest." };
+      const items = p.items === undefined ? undefined : String(p.items).split(",").map((s) => s.trim().toLowerCase()).filter((s) => s).map((s) => (s.includes(":") ? s : `minecraft:${s.replace(/ /g, "_")}`));
+      if (items && !items.length) return { ok: false, message: "'items' lists no item ids." };
+      startJob(e, { type: "haul", id: newId(), by: byRef, from, to, items });
+      return { ok: true, message: `${m.name} is moving ${items ? items.map((i) => i.replace("minecraft:", "").replace(/_/g, " ")).join(", ") : "everything"} from ${from.label} to ${to.label}.` };
+    }
+    case "haul_now":
+    case "round": {
+      e.setDynamicProperty("crew:haulOff", undefined);
+      const r = roundJob(e, v.job === "round" ? p.slot : "now");
+      if (!r.ok) return r;
+      if (!r.job.route.length) return { ok: false, message: `${m.name} has no chests to collect from: its settlement's Diggers and Miners haven't dropped off anywhere yet, and it has no pickup points (tap a chest with the Survey Stake while it's linked).` };
+      stopJob(e, undefined, true); // a round in progress isn't kept to pick up later: this one replaces it
+      setJSON(e, "crew:paused", undefined);
+      startJob(e, r.job);
+      return { ok: true, message: r.message };
     }
     default:
       return { ok: false, message: `${v.job} isn't wired up yet.` };
