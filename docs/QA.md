@@ -21,6 +21,27 @@ server, which runs as SYSTEM: `C:\Windows\System32\config\systemprofile\AppData\
 
 ## Next release (0.4.1, unreleased)
 
+**Sifter (built with this branch, mock-tested; staging first)**
+- [ ] 14. Craft a sieve (eight iron bars around a stick). The icon has a black outline. Place it
+      with a chest of gravel on top and an empty chest underneath. Use it once by hand: one gravel
+      is gone and the result is in your inventory or the lower chest. Use it with an empty hand:
+      it takes from the top chest.
+- [ ] 14b. Put a lever on the sieve and switch it on. It keeps sifting about once a second while
+      gravel remains, and it starts again if you add more gravel without touching the lever.
+      Switch the lever off: it stops, even if gravel is still in the chest. Leave it powered
+      overnight: it does not wait for morning.
+- [ ] 14c. Put raw iron (or any ore) in the gravel chest. After a sift the ore is still there.
+      Soul sand sifts only if you put it in. Red sand and grass do not.
+- [ ] 14d. Build a Sifter (sieve in a barrel, carved pumpkin on top). It counts toward the worker
+      limit, the name tag says Sifter, and the skin is the slate cap with the mesh apron. Look at
+      the sieve and pick "Sift the sieve I'm looking at" (or `/crew:sift`). It sifts with the
+      lever off, during the day. At night it sleeps and that pass pauses; in the morning it
+      resumes. Stop, then Continue: it picks up the same sieve. A Digger refuses `/crew:sift`.
+      A Sifter refuses a quarry.
+- [ ] 14e. A short stack of gravel and a short stack of sand: the finds feel modest (mostly
+      nothing, some flint and nuggets, almost no gems). Note whether the iron-bar recipe feels
+      mid to late game.
+
 - [ ] Survey Stake icon: fully restart Minecraft (a texture does not reload with `/reload`). In the inventory and in the hand, the icon is the wooden stick and orange flag with a black outline, and it reads larger than the old picture.
 
 **Woodcutter and Farmer** (feat/woodcutter-farmer)

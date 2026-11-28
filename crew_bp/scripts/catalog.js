@@ -117,6 +117,14 @@ export const JOBS = {
     description: "Hauler only. One of its daily rounds.",
     params: { slot: { type: "enum", values: ["morning", "midday", "evening", "now", "extra"], default: "now", description: "Which round." } },
   },
+  sift: {
+    roles: ["Sifter"],
+    description:
+      "Sifter only. Work the sieve block at `at`. While this Sifter is on duty it keeps sifting gravel, sand, dirt, or soul sand from the chest on top into the chest underneath, one piece a second, and sleeps at night. A player can also use that sieve by hand, or power it with redstone, without this order. Other items in the input chest are left alone.",
+    params: {
+      at: { type: "vec3", required: true, description: "The sieve block (chest on top is the input, chest underneath is the output)." },
+    },
+  },
 };
 /** v0.1 name, still accepted. */
 const ALIASES = { mine_area: "quarry" };
@@ -130,8 +138,8 @@ export const roleTakes = (jobName, role) => !JOBS[jobName]?.roles || /** @type {
 /** Why a worker refuses a job that isn't its role's. @param {string} name @param {string} role @param {string} jobName */
 export function roleRefusal(name, role, jobName) {
   const who = JOBS[jobName]?.roles?.[0] ?? "other";
-  const tool = { Digger: "a shovel", Miner: "a pickaxe", Woodcutter: "an axe", Farmer: "a hoe", Hauler: "a bundle and leather boots" }[who] ?? "the right tool";
-  const what = jobName === "quarry" ? "Quarries are" : jobName === "branch_mine" ? "Branch mines are" : jobName === "forest" ? "Forests are" : jobName === "field" ? "Fields are" : jobName === "haul_now" || jobName === "round" ? "Rounds are" : `'${jobName}' is`;
+  const tool = { Digger: "a shovel", Miner: "a pickaxe", Woodcutter: "an axe", Farmer: "a hoe", Hauler: "a bundle and leather boots", Sifter: "a sieve" }[who] ?? "the right tool";
+  const what = jobName === "quarry" ? "Quarries are" : jobName === "branch_mine" ? "Branch mines are" : jobName === "forest" ? "Forests are" : jobName === "field" ? "Fields are" : jobName === "sift" ? "Sifting is" : jobName === "haul_now" || jobName === "round" ? "Rounds are" : `'${jobName}' is`;
   // a Hauler's role comes from its build, so neither side can switch to or from it in the menu
   const change = who === "Hauler" || role === "Hauler" ? "" : `, or change ${name}'s role in its menu`;
   return `${name} is a ${role}. ${what} a ${who}'s job: build a ${who} (put ${tool} in the barrel first)${change}.`;

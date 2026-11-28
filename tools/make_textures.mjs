@@ -128,6 +128,19 @@ const ROLES = {
       return shirt;
     },
   },
+  sifter: {
+    // slate cap (not a lamp), brown shirt, iron-mesh apron. Hat color is this role's own.
+    hat: [90, 106, 120, 255], hatD: [60, 74, 86, 255], lamp: [90, 106, 120, 255],
+    sleeve: [110, 78, 56, 255], pants: [92, 83, 72, 255], pantsD: [70, 62, 54, 255],
+    torso: (x, y, fw, face) => {
+      const mesh = (x + y) % 2 === 0 ? [154, 163, 168, 255] : [92, 101, 108, 255];
+      const shirt = [110, 78, 56, 255];
+      if (y === 11) return BELT;
+      if (face === "north" && y >= 2 && y <= 9 && x >= 1 && x <= fw - 2) return mesh;
+      if ((face === "east" || face === "west") && y >= 3 && y <= 9) return mesh;
+      return shirt;
+    },
+  },
 };
 function plaid(x, y) {
   const a = (x >> 1) % 2, b = (y >> 1) % 2;
@@ -238,8 +251,27 @@ function icon(path) {
   png(path, 64, 64, px);
 }
 
+// 32x32 sieve icon: black outline, stake wood, iron mesh. Same picture for the item and the block.
+function sieveIcon(path) {
+  const { px, set } = canvas(32, 32);
+  const BLACK = [0, 0, 0, 255], WOOD = [140, 95, 50, 255], WOOD_D = [100, 65, 35, 255];
+  const IRON = [197, 204, 208, 255], IRON_D = [138, 146, 152, 255], HOLE = [40, 46, 60, 255];
+  const edge = (x, y, x0, y0, x1, y1) => x === x0 || y === y0 || x === x1 || y === y1;
+  for (let y = 4; y <= 22; y++) for (let x = 5; x <= 26; x++) {
+    if (edge(x, y, 5, 4, 26, 22)) set(x, y, BLACK);
+    else if (edge(x, y, 6, 5, 25, 21)) set(x, y, x > 20 || y > 16 ? WOOD_D : WOOD);
+    else set(x, y, (x + y) % 2 === 0 ? IRON : (x % 4 === 0 ? HOLE : IRON_D));
+  }
+  for (let y = 23; y <= 30; y++) for (let x = 14; x <= 17; x++) {
+    set(x, y, edge(x, y, 14, 23, 17, 30) ? BLACK : (x >= 16 ? WOOD_D : WOOD));
+  }
+  png(path, 32, 32, px);
+}
+
 for (const [name, r] of Object.entries(ROLES)) worker(join(ROOT, `crew_rp/textures/entity/worker_${name}.png`), r);
 stake(join(ROOT, "crew_rp/textures/items/crew_survey_stake.png"));
+sieveIcon(join(ROOT, "crew_rp/textures/items/crew_sieve.png"));
+sieveIcon(join(ROOT, "crew_rp/textures/blocks/crew_sieve.png"));
 icon(join(ROOT, "crew_rp/pack_icon.png"));
 icon(join(ROOT, "crew_bp/pack_icon.png"));
 console.log("textures written");

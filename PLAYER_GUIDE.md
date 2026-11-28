@@ -17,8 +17,9 @@ or pick "How workers work" in any worker's menu.
 12. [Haulers](#haulers)
 13. [Stop and continue](#stop-and-continue)
 14. [Sharing and good manners](#sharing-and-good-manners)
-15. [Commands](#commands)
-16. [Tips](#tips)
+15. [The Sifter](#the-sifter)
+16. [Commands](#commands)
+17. [Tips](#tips)
 
 ## Build a worker
 
@@ -33,6 +34,7 @@ The **first tool you put in the barrel decides its job**:
 - a **pickaxe** makes a **Miner**: it will prospect for ore in the next version (no dig jobs until then).
 - an **axe** makes a **Woodcutter**: it keeps a forest (see Forests and fields).
 - a **hoe** makes a **Farmer**: it keeps a field (see Forests and fields).
+- a **sieve** makes a **Sifter**. See "The Sifter". The sieve is used up.
 No tools at all, but a **bundle** and **leather boots**? That makes a **Hauler**: it carries, it doesn't dig (see Haulers).
 Each worker only takes its own jobs. Workers from before this update are Diggers now.
 
@@ -202,6 +204,20 @@ Only the **owner** and the players they allow can give a worker orders or tools.
 
 **Dismiss** (owners only) gives back its tools, what it carries, the barrel and the pumpkin.
 
+## The Sifter
+
+Craft a **sieve**: eight **iron bars** in a ring around one **stick**. That is three iron ingots of bars. The sieve has a black outline so it reads clearly in your hand.
+
+1. Place the sieve. Put a **chest on top** (gravel, sand, dirt, or soul sand) and a **chest underneath** for the finds.
+2. **Use the sieve** to sift one piece. Holding a piece sifts that one into your inventory. An empty hand takes one from the chest on top.
+3. Power it with **redstone** and it keeps sifting whenever more input arrives, day or night, until the power goes off.
+
+A sieve in a barrel, with a carved pumpkin on top, builds a **Sifter**. It counts toward your worker limit. Look at a sieve and pick **Sift the sieve I'm looking at**, or type **/crew:sift**. It sifts through the day, sleeps at night, and picks up in the morning. Stop pauses it. Continue starts it again.
+
+Most pieces yield nothing. About 1 in 10 gravel gives flint. Nuggets show up a few times in a hundred. A diamond is about 1 in 5,000 gravel, and rarer from sand. Dirt can give seeds. Soul sand, which you have to bring yourself, can give quartz or a gold nugget.
+
+Anything that isn't gravel, sand, dirt, or soul sand stays in the input chest, ore included. Red sand and grass are left alone. The Miner and the Hauler can fill that top chest; the sieve only reads it.
+
 ## Commands
 
 - **/crew:guide**: this guide
@@ -211,11 +227,12 @@ Only the **owner** and the players they allow can give a worker orders or tools.
 - **/crew:status <worker>**: what it's doing
 - **/crew:come <worker>**: call it to you
 - **/crew:halt <worker>**: stop it
-- **/crew:continue <worker>**: pick its dig, forest, field, or a Hauler's round back up
+- **/crew:continue <worker>**: pick its dig, forest, field, sifting, or a Hauler's round back up
 - **/crew:forest <worker> <from> <to> [deposit]**: a Woodcutter keeps that forest
 - **/crew:field <worker> <from> <to> [deposit]**: a Farmer keeps that field
 - **/crew:round <worker>**: a Hauler does a round now
 - **/crew:haul <worker> <from> <to> [items]**: a Hauler moves things from one chest to another
+- **/crew:sift <worker>**: set a Sifter working at the sieve you are looking at
 - **/crew:allow <worker> <player>**: let a friend give orders
 - **/crew:setplace "name"**: save the chest you're looking at as a named drop-off (add **true** to share it with everyone)
 - **/crew:places**: list saved places
