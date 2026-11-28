@@ -37,7 +37,7 @@ import { getPlaces, getRegistry, saveRegistry } from "./store.js";
  */
 
 export const BELL = "minecraft:bell";
-export const CAP_DEFAULT = 6;
+export const CAP_DEFAULT = 8;
 /** A worker further than this from the viewer counts as far away in the roster. */
 const FAR = 96;
 /** How many player-placed bells are remembered (oldest forgotten first). */

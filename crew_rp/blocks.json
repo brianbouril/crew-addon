@@ -2,5 +2,9 @@
   "crew:sieve": {
     "sound": "metal",
     "textures": "crew_sieve"
+  },
+  "crew:forge": {
+    "sound": "metal",
+    "textures": "crew_forge"
   }
 }

@@ -74,7 +74,7 @@ check("no netherrack input", outcome("minecraft:netherrack", 0) === null);
 check("no soul soil input", outcome("minecraft:soul_soil", 0) === null);
 check("no red sand input", !LOOT["minecraft:red_sand"]);
 check("no grass input", !LOOT["minecraft:grass_block"]);
-check("cap default stays 6", CAP_DEFAULT === 6);
+check("cap default is 8", CAP_DEFAULT === 8);
 
 // ---- build and cap ----
 world.setDynamicProperty("crew:cap", 1);

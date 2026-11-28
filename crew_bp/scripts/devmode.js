@@ -7,6 +7,7 @@ import { show } from "./forms.js";
 import { setEnergy, setHome } from "./life.js";
 import { STAKE, giveStake } from "./marker.js";
 import { getCap } from "./settlement.js";
+import { FORGE } from "./smith.js";
 import { ROLE_LIST } from "./tools.js";
 import { tell } from "./util.js";
 import { later, roleOf, setRole, spawnWorker } from "./workers.js";
@@ -21,13 +22,18 @@ export const DEV_MORNING = 1000;
 export const DEV_NIGHT = 13000;
 
 /** Spawn order. The menu and "one of each" use this list. */
-export const DEV_ROLES = ["Digger", "Miner", "Hauler", "Woodcutter", "Farmer", "Sifter"];
+export const DEV_ROLES = ["Digger", "Miner", "Hauler", "Woodcutter", "Farmer", "Sifter", "Smith"];
 
 const SIEVE = "crew:sieve";
 
 /** What "Give every test item" puts in the operator's inventory. The stake is separate (only one). */
 const GIVE = [
   [SIEVE, 4],
+  [FORGE, 2],
+  ["minecraft:anvil", 1],
+  ["minecraft:coal", 16],
+  ["minecraft:raw_iron", 16],
+  ["minecraft:iron_ingot", 16],
   ["minecraft:iron_pickaxe", 1],
   ["minecraft:diamond_pickaxe", 1],
   ["minecraft:iron_shovel", 1],
@@ -82,6 +88,7 @@ const STOCK = {
     ["minecraft:water_bucket", 1],
   ],
   Sifter: [[SIEVE, 1], ["minecraft:gravel", 64], ["minecraft:sand", 32], ["minecraft:dirt", 32], ["minecraft:soul_sand", 16]],
+  Smith: [[FORGE, 1], ["minecraft:coal", 16], ["minecraft:raw_iron", 16], ["minecraft:iron_ingot", 8], ["minecraft:oak_planks", 16], ["minecraft:stick", 8]],
 };
 
 const OFF = "Dev mode is off. A server operator turns it on with /crew:dev on.";
@@ -227,7 +234,7 @@ function moveItem(inv, slot, id) {
 /**
  * Stores the role name. When the pack's role list includes it, the normal tag and skin index run.
  * Dev mode does not pick a skin index of its own: syncRole follows ROLE_LIST
- * (Hauler 4, Sifter 5, and the four tool roles stay 0-3).
+ * (Hauler 4, Sifter 5, Smith 6, and the four tool roles stay 0-3).
  * @param {import("@minecraft/server").Entity} e
  * @param {string} role
  */
@@ -276,7 +283,9 @@ export function spawnDevWorker(player, role) {
     ? [new ItemStack("minecraft:bundle", 1), new ItemStack("minecraft:leather_boots", 1)]
     : role === "Sifter"
       ? [new ItemStack(SIEVE, 1)]
-      : (HELD[role] ?? []).map((id) => new ItemStack(id, 1));
+      : role === "Smith"
+        ? [new ItemStack("minecraft:anvil", 1)]
+        : (HELD[role] ?? []).map((id) => new ItemStack(id, 1));
   const { e } = spawnWorker(dim, { x: camp.stand.x + 0.5, y: camp.stand.y, z: camp.stand.z + 0.5 }, { id: player.id, name: player.name }, role, held, role);
   const inv = e.getComponent("minecraft:inventory")?.container;
   if (role === "Hauler" && inv) {
@@ -287,6 +296,7 @@ export function spawnDevWorker(player, role) {
   setEnergy(e, 100);
   setHome(e, { dim: dim.id, head: camp.head, foot: camp.foot, chest: camp.chest });
   let sievePlaced = false;
+  let forgePlaced = false;
   if (role === "Sifter") {
     try {
       if (BlockTypes.get(SIEVE)) {
@@ -297,7 +307,17 @@ export function spawnDevWorker(player, role) {
       sievePlaced = false;
     }
   }
-  const where = sievePlaced ? " A sieve block is beside the chest." : "";
+  if (role === "Smith") {
+    try {
+      if (BlockTypes.get(FORGE)) {
+        dim.setBlockType(camp.sieve, FORGE);
+        forgePlaced = dim.getBlock(camp.sieve)?.typeId === FORGE;
+      }
+    } catch {
+      forgePlaced = false;
+    }
+  }
+  const where = sievePlaced ? " A sieve block is beside the chest." : forgePlaced ? " A forge is beside the chest." : "";
   return {
     ok: true,
     message: `Dev mode: ${e.getDynamicProperty("crew:name")} is here as a ${role}, with a home chest.${where}`,
@@ -305,6 +325,7 @@ export function spawnDevWorker(player, role) {
     role,
     chest: camp.chest,
     sieve: sievePlaced ? camp.sieve : undefined,
+    forge: forgePlaced ? camp.sieve : undefined,
   };
 }
 

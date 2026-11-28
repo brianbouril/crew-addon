@@ -18,9 +18,10 @@ or pick "How workers work" in any worker's menu.
 13. [Stop and continue](#stop-and-continue)
 14. [Sharing and good manners](#sharing-and-good-manners)
 15. [The Sifter](#the-sifter)
-16. [Dev mode](#dev-mode)
-17. [Commands](#commands)
-18. [Tips](#tips)
+16. [The Smith](#the-smith)
+17. [Dev mode](#dev-mode)
+18. [Commands](#commands)
+19. [Tips](#tips)
 
 ## Build a worker
 
@@ -36,6 +37,7 @@ The **first tool you put in the barrel decides its job**:
 - an **axe** makes a **Woodcutter**: it keeps a forest (see Forests and fields).
 - a **hoe** makes a **Farmer**: it keeps a field (see Forests and fields).
 - a **sieve** makes a **Sifter**. See "The Sifter". The sieve is used up.
+- an **anvil** makes a **Smith**. See "The Smith". The anvil is used up.
 No tools at all, but a **bundle** and **leather boots**? That makes a **Hauler**: it carries, it doesn't dig (see Haulers).
 Each worker only takes its own jobs. Workers from before this update are Diggers now.
 
@@ -114,7 +116,7 @@ Before it digs, it builds a small wooden entrance (posts, a beam, a lantern if y
 
 The ore chest is an ordinary chest. A Hauler will collect it like any other drop-off. Gravel, sand, dirt and ores in that chest are ordinary items, so a Sifter can use the chest as a material source.
 
-It stops for the night and starts again in the morning, when it runs out of pickaxes, when the quota is met, or when the claim is mined out. It says which. Out of pickaxes, with a crafting table within 8 blocks of its bed and the materials in the home chest, it makes a replacement no better than the one it lost.
+It stops for the night and starts again in the morning, when it runs out of pickaxes, when the quota is met, or when the claim is mined out. It says which. Out of pickaxes, it walks to the Smith's chest and takes a replacement no better than the one it lost. No Smith, or no tool it may take: it waits and tells you. It does not craft one at home.
 
 Branch mines still can't be ordered on their own. One a worker had already started can still be continued.
 
@@ -177,7 +179,7 @@ Crouch-tap the bell any time for the settlement menu:
 
 A plain tap still rings the bell. Village bells aren't yours to claim (for now).
 
-Workers belong to the settlement (on paper, to its founder), so someone who leaves takes none with them. A settlement can have **6 workers for each person in it**; on your own you can have 6. A server operator can change the 6 to keep the server running smoothly.
+Workers belong to the settlement (on paper, to its founder), so someone who leaves takes none with them. A settlement can have **8 workers for each person in it**; on your own you can have 8. A server operator can change the 8 to keep the server running smoothly.
 
 ## Haulers
 
@@ -227,13 +229,29 @@ Most pieces yield nothing. About 1 in 10 gravel gives flint. Nuggets show up a f
 
 Anything that isn't gravel, sand, dirt, or soul sand stays in the input chest, ore included. Red sand and grass are left alone. The Miner and the Hauler can fill that top chest; the sieve only reads it.
 
+## The Smith
+
+Craft a **forge**: three coal along the bottom, a furnace in the middle, and iron ingots in the other six squares. The picture has a black outline.
+
+1. Place the forge. Put a **chest on top** for fuel and materials, and a **chest underneath** for what it makes.
+2. Put an **anvil** in a barrel and a carved pumpkin on top. That builds a **Smith**. The anvil is used up. It counts toward your worker limit.
+3. Look at the forge and pick **Work the forge I'm looking at**, or type **/crew:smith**.
+
+On its own it smelts raw iron, gold, and copper ore into ingots, and it leaves **two wooden tools** for each Digger, Miner, Woodcutter, and Farmer. You can also order a tool, a sword, armor, horse armor, a repair, or a smelt. Fuel is coal, charcoal, a lava bucket, wood, or planks. A lava bucket comes back empty.
+
+It takes ore and metal from your depot and your settlement chests, and from the chest on top. It never takes from a home chest. Ingots and finished pieces go in the chest under the forge. In a settlement that chest counts in Storage.
+
+When a worker breaks its last tool, it walks to that chest and takes one of the same kind, no better than the one it lost. If there is no Smith, or nothing it may take, it waits and tells you. It does not make a tool at its own crafting table.
+
+It sleeps at night and picks the forge up in the morning. Stop pauses it. Continue starts it again.
+
 ## Dev mode
 
 For testing. It is off unless a server operator turns it on, and it does nothing while it is off.
 
 **/crew:dev on** turns it on. **/crew:dev off** turns it off. **/crew:dev** opens the menu. **/crew:dev morning** and **/crew:dev night** skip the clock.
 
-The menu is labelled **Dev mode**. It gives a Survey Stake, sieves, and the tools and supplies each job uses, and it can spawn a Digger, Miner, Hauler, Woodcutter, Farmer, or Sifter with a home chest.
+The menu is labelled **Dev mode**. It gives a Survey Stake, sieves, forges, and the tools and supplies each job uses, and it can spawn a Digger, Miner, Hauler, Woodcutter, Farmer, Sifter, or Smith with a home chest.
 
 While it is on, the worker limit is lifted for the world. Skip to morning or night only works while it is on. Turning it off does not rewind the clock, and workers already spawned stay. The limit applies again.
 
@@ -246,7 +264,8 @@ While it is on, the worker limit is lifted for the world. Skip to morning or nig
 - **/crew:status <worker>**: what it's doing
 - **/crew:come <worker>**: call it to you
 - **/crew:halt <worker>**: stop it
-- **/crew:continue <worker>**: pick its dig, forest, field, sifting, or a Hauler's round back up
+- **/crew:continue <worker>**: pick its dig, forest, field, sifting, forge, or a Hauler's round back up
+- **/crew:smith <worker>**: set a Smith working at the forge you are looking at
 - **/crew:forest <worker> <from> <to> [deposit]**: a Woodcutter keeps that forest
 - **/crew:field <worker> <from> <to> [deposit]**: a Farmer keeps that field
 - **/crew:round <worker>**: a Hauler does a round now

@@ -138,6 +138,18 @@ export const JOBS = {
     description: "Hauler only. One of its daily rounds.",
     params: { slot: { type: "enum", values: ["morning", "midday", "evening", "now", "extra"], default: "now", description: "Which round." } },
   },
+  smith: {
+    roles: ["Smith"],
+    description:
+      "Smith only. Work the forge at `at`. stock (the default) smelts raw ore into ingots and keeps two wooden tools for each tool-using worker. craft, repair, and smelt are orders. Materials come from the depot and settlement chests, never a home chest. Fuel is coal, charcoal, lava, wood, and planks. Results go in the chest under the forge.",
+    params: {
+      at: { type: "vec3", required: true, description: "The forge block. A chest on top holds fuel. A chest underneath receives tools, ingots, and armor." },
+      action: { type: "enum", values: ["stock", "craft", "repair", "smelt"], default: "stock", description: "stock keeps wooden tools and smelts ore. craft makes one item. repair spends materials on a damaged piece. smelt turns ore into ingots." },
+      item: { type: "string", description: "For craft or repair: a kind (pickaxe, shovel, axe, hoe, sword, helmet, chestplate, leggings, boots, horse) or a full item id. For smelt: an input id such as minecraft:raw_iron, or ore." },
+      tier: { type: "enum", values: ["wooden", "stone", "copper", "iron", "golden", "diamond", "netherite", "leather"], description: "Material. Stock uses wooden. Leather is armor only." },
+      count: { type: "int", min: 1, max: 64, default: 1, description: "How many to craft or smelt, or how many repair materials to spend." },
+    },
+  },
   sift: {
     roles: ["Sifter"],
     description:
@@ -159,8 +171,8 @@ export const roleTakes = (jobName, role) => !JOBS[jobName]?.roles || /** @type {
 /** Why a worker refuses a job that isn't its role's. @param {string} name @param {string} role @param {string} jobName */
 export function roleRefusal(name, role, jobName) {
   const who = JOBS[jobName]?.roles?.[0] ?? "other";
-  const tool = { Digger: "a shovel", Miner: "a pickaxe", Woodcutter: "an axe", Farmer: "a hoe", Hauler: "a bundle and leather boots", Sifter: "a sieve" }[who] ?? "the right tool";
-  const what = jobName === "quarry" ? "Quarries are" : jobName === "branch_mine" ? "Branch mines are" : jobName === "prospect" ? "Prospecting is" : jobName === "forest" ? "Forests are" : jobName === "field" ? "Fields are" : jobName === "sift" ? "Sifting is" : jobName === "haul_now" || jobName === "round" ? "Rounds are" : `'${jobName}' is`;
+  const tool = { Digger: "a shovel", Miner: "a pickaxe", Woodcutter: "an axe", Farmer: "a hoe", Hauler: "a bundle and leather boots", Sifter: "a sieve", Smith: "an anvil" }[who] ?? "the right tool";
+  const what = jobName === "quarry" ? "Quarries are" : jobName === "branch_mine" ? "Branch mines are" : jobName === "prospect" ? "Prospecting is" : jobName === "forest" ? "Forests are" : jobName === "field" ? "Fields are" : jobName === "sift" ? "Sifting is" : jobName === "smith" ? "The forge is" : jobName === "haul_now" || jobName === "round" ? "Rounds are" : `'${jobName}' is`;
   // a Hauler's role comes from its build, so neither side can switch to or from it in the menu
   const change = who === "Hauler" || role === "Hauler" ? "" : `, or change ${name}'s role in its menu`;
   return `${name} is a ${role}. ${what} a ${who}'s job: build a ${who} (put ${tool} in the barrel first)${change}.`;

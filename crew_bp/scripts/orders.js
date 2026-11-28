@@ -7,6 +7,7 @@ import { getRegistry, resolvePlace } from "./store.js";
 import { canCommand, findWorker, loadedWorkers, meta, roleOf } from "./workers.js";
 import { isResting, keepUp, pausedJob, resumeJob, startJob, stopJob, statusText } from "./runner.js";
 import { SIEVE, linkSieve, pauseSieve, resumeSieve, sieveStatusLine } from "./sift.js";
+import { FORGE, linkForge, smithStatusLine } from "./smith.js";
 import { bedAt, bedClaimedBy, bedSafety, bedside, chestNear, getHome, setHome } from "./life.js";
 import { getSeen, peopleOf, queueOrder, rosterOf } from "./settlement.js";
 
@@ -62,7 +63,7 @@ function dispatchOne(by, order) {
   const byRef = { id: by.id, name: by.name, console: !!by.console };
   // an order that gives it something to do wakes it, and at night it stays up to do it
   // (go_home isn't here on purpose: sent at night, the worker walks home and the routine puts it to bed)
-  if (["come", "drop_off", "resume", "quarry", "branch_mine", "prospect", "forest", "field", "haul", "haul_now"].includes(v.job)) keepUp(e);
+  if (["come", "drop_off", "resume", "quarry", "branch_mine", "prospect", "forest", "field", "haul", "haul_now", "smith"].includes(v.job)) keepUp(e);
   const hauler = roleOf(e) === "Hauler";
   if (hauler && ["resume", "haul_now", "round"].includes(v.job)) e.setDynamicProperty("crew:hold", undefined);
 
@@ -72,6 +73,7 @@ function dispatchOne(by, order) {
       pauseSieve(e);
       // a stopped Hauler starts no rounds by itself until Continue or Do a round now
       if (hauler) e.setDynamicProperty("crew:haulOff", true);
+      if (roleOf(e) === "Smith") e.setDynamicProperty("crew:smithOff", true);
       stopJob(e, `stopped by ${by.name}.`);
       return { ok: true, message: `${m.name} stopped.` };
     case "set_home": {
@@ -94,7 +96,17 @@ function dispatchOne(by, order) {
       setHome(e, undefined);
       return { ok: true, message: `${m.name} no longer has a home. It will sleep wherever it is at night.` };
     case "status":
-      return { ok: true, message: `${m.name} (${roleOf(e)}): ${statusText(e)}${sieveStatusLine(e)}` };
+      return { ok: true, message: `${m.name} (${roleOf(e)}): ${statusText(e)}${sieveStatusLine(e)}${smithStatusLine(e)}` };
+    case "smith": {
+      const block = e.dimension.getBlock(p.at);
+      if (block?.typeId !== FORGE) return { ok: false, message: `There's no forge at ${fmt(p.at)}. Place one, put fuel in a chest on top, and a chest underneath for what it makes.` };
+      if ((p.action === "craft" || p.action === "repair") && !p.item) return { ok: false, message: `${m.name} needs to know what to ${p.action}.` };
+      e.setDynamicProperty("crew:smithOff", undefined);
+      linkForge(e, p.at);
+      const doing = p.action === "craft" ? `make ${p.count ?? 1} ${p.tier ? p.tier + " " : ""}${p.item}` : p.action === "repair" ? `repair ${p.item}` : p.action === "smelt" ? `smelt ${p.count ?? 1} ${p.item || "ore"}` : "smelt ore and keep a couple of wooden tools for each worker";
+      startJob(e, { type: "smith", id: newId(), by: byRef, at: p.at, action: p.action ?? "stock", item: p.item, tier: p.tier, count: p.count ?? 1 });
+      return { ok: true, message: `${m.name} will ${doing} at the forge at ${fmt(p.at)}. Fuel goes in the chest on top. What it makes goes in the chest underneath.` };
+    }
     case "sift": {
       const block = e.dimension.getBlock(p.at);
       if (block?.typeId !== SIEVE) return { ok: false, message: `There's no sieve at ${fmt(p.at)}. Place one, put a chest of gravel, sand, dirt, or soul sand on top, and a chest underneath.` };
@@ -131,6 +143,10 @@ function dispatchOne(by, order) {
       if (hauler) {
         e.setDynamicProperty("crew:haulOff", undefined);
         if (!paused) return { ok: true, message: `${m.name} is back on its rounds.${siftLine ? ` ${siftLine}` : ""}` };
+      }
+      if (roleOf(e) === "Smith") {
+        e.setDynamicProperty("crew:smithOff", undefined);
+        if (!paused) return { ok: true, message: `${m.name} is back at the forge.` };
       }
       if (!paused && !siftLine) return { ok: false, message: `${m.name} has no stopped job to continue.` };
       if (paused) {

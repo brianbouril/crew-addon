@@ -20,6 +20,7 @@ import { addMember, bellRefusal, bellTap, foundSettlement, getCap, getSeen, make
 import { show } from "./forms.js";
 import { openGuide } from "./guide.js";
 import { SIEVE, linkedSieve, pausedSieve, sieveStatusLine } from "./sift.js";
+import { FORGE, smithStatusLine } from "./smith.js";
 import { DEFAULTS, MAX_SIDE, MAX_TRUNK_WIDTH } from "./catalog.js";
 
 /**
@@ -52,6 +53,7 @@ const ROLE_JOBS = {
   Farmer: " (keeps a field)",
   Hauler: " (carries what the settlement's diggers drop off to the depot, three rounds a day)",
   Sifter: " (sifts gravel, sand, dirt and soul sand)",
+  Smith: " (smelts ore and makes tools, weapons, and armor)",
 };
 
 /** @param {Player} p @param {Entity} e */
@@ -61,7 +63,7 @@ export async function openMenu(p, e) {
   const m = meta(e);
   const can = canCommand(by, m), manage = canManage(by, m);
   const hauler = roleOf(e) === "Hauler";
-  const body = `${roleOf(e)}${ROLE_JOBS[roleOf(e)] ?? ""}. Owner: ${m.ownerName}.\n${statusText(e)}${sieveStatusLine(e)}${carriedLine(e)}${hauler ? `\n${depotText(e)}` : ""}`;
+  const body = `${roleOf(e)}${ROLE_JOBS[roleOf(e)] ?? ""}. Owner: ${m.ownerName}.\n${statusText(e)}${sieveStatusLine(e)}${smithStatusLine(e)}${carriedLine(e)}${hauler ? `\n${depotText(e)}` : ""}`;
   if (!can) return menu(p, m.name, `${body}\n\nOnly ${m.ownerName} and the players they allow can give ${m.name} orders.`, [["How workers work", () => openGuide(p)], ["Close", () => {}]]);
   /** @type {[string, () => any][]} */
   const b = [];
@@ -96,6 +98,7 @@ export async function openMenu(p, e) {
   if (roleOf(e) === "Farmer") b.push(["Field", () => digForm(p, by, e, "field")]);
   if ((roleOf(e) === "Woodcutter" || roleOf(e) === "Farmer") && !hasStake(p)) b.push(["Get a Survey Stake", () => tell(p, giveStake(p))]);
   if (roleOf(e) === "Sifter") b.push(["Sift the sieve I'm looking at", () => siftLooking(p, by, e)]);
+  if (roleOf(e) === "Smith") b.push(["Work the forge I'm looking at", () => smithLooking(p, by, e)]);
   b.push(["Come here", () => say(p, dispatch(by, { worker: m.name, job: "come", params: {} }))]);
   if ((isWorking(e) || linkedSieve(e)) && !resting) b.push(["Stop", () => stopMenu(p, by, e)]);
   const n = carried(e).reduce((a, x) => a + x.item.amount, 0);
@@ -130,6 +133,35 @@ function siftLooking(p, by, e) {
     return;
   }
   say(p, dispatch(by, { worker: m.name, job: "sift", params: { at: block.location } }));
+}
+
+/** Opens the forge order for the Smith, aimed at the forge the player is looking at. @param {Player} p @param {Commander} by @param {Entity} e */
+function smithLooking(p, by, e) {
+  const m = meta(e);
+  const hit = p.getBlockFromViewDirection?.({ maxDistance: 6 });
+  const block = hit?.block;
+  if (block?.typeId !== FORGE) {
+    tell(p, `Look at a forge, then try again. You can also type /crew:smith ${m.name}.`);
+    return;
+  }
+  const actions = ["stock", "craft", "repair", "smelt"];
+  const actionLabels = ["Keep tools stocked and smelt ore", "Make something", "Repair something", "Smelt ore"];
+  const items = ["pickaxe", "shovel", "axe", "hoe", "sword", "helmet", "chestplate", "leggings", "boots", "horse"];
+  const tiers = ["wooden", "stone", "copper", "iron", "golden", "diamond", "netherite", "leather"];
+  const f = new ModalFormData().title(`${m.name}: forge`)
+    .dropdown("Order", actionLabels)
+    .dropdown("Item (for make or repair)", items)
+    .dropdown("Material", tiers, { defaultValueIndex: 3 })
+    .textField("How many", "1", { defaultValue: "1" })
+    .submitButton("Start");
+  show(p, f).then((r) => {
+    if (!r?.formValues) return;
+    const action = actions[Number(r.formValues[0])] ?? "stock";
+    const item = items[Number(r.formValues[1])] ?? "pickaxe";
+    const tier = tiers[Number(r.formValues[2])] ?? "iron";
+    const count = Math.max(1, Math.min(64, Math.round(Number(r.formValues[3])) || 1));
+    say(p, dispatch(by, { worker: m.name, job: "smith", params: { at: block.location, action, item: action === "stock" ? undefined : item, tier, count } }));
+  });
 }
 
 /**
@@ -460,16 +492,16 @@ async function pickupMenu(p, by, e) {
 async function roleForm(p, e) {
   const m = meta(e);
   // Hauler stays off this list: its role comes from the bundle and boots, not the menu.
-  const menuRoles = [...TOOL_ROLES, "Sifter"];
+  const menuRoles = [...TOOL_ROLES, "Sifter", "Smith"];
   if (isWorking(e)) return menu(p, m.name, `Stop ${m.name} before changing its role.`, [["OK", () => {}]]);
   const f = new ModalFormData().title(`${m.name}: role`)
-    .dropdown("Role: Digger digs quarries; Miner prospects for ore; Woodcutter keeps a forest; Farmer keeps a field; Sifter runs a sieve", menuRoles, { defaultValueIndex: Math.max(0, menuRoles.indexOf(roleOf(e))) })
+    .dropdown("Role: Digger digs quarries; Miner prospects for ore; Woodcutter keeps a forest; Farmer keeps a field; Sifter runs a sieve; Smith works a forge", menuRoles, { defaultValueIndex: Math.max(0, menuRoles.indexOf(roleOf(e))) })
     .submitButton("Save");
   const r = await show(p, f);
   if (!r?.formValues) return;
   const role = menuRoles[Number(r.formValues[0])];
   setRole(e, role);
-  const note = role === "Digger" ? " It digs quarries." : role === "Miner" ? " It prospects for ore." : role === "Sifter" ? " It sifts at a sieve." : role === "Woodcutter" ? " It keeps a forest." : role === "Farmer" ? " It keeps a field." : "";
+  const note = role === "Digger" ? " It digs quarries." : role === "Miner" ? " It prospects for ore." : role === "Sifter" ? " It sifts at a sieve." : role === "Smith" ? " It works a forge." : role === "Woodcutter" ? " It keeps a forest." : role === "Farmer" ? " It keeps a field." : "";
   tell(p, `${m.name} is now a ${role}.${note}`);
 }
 

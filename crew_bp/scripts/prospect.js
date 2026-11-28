@@ -288,6 +288,8 @@ function placeBlock(dim, pos, id, states) {
 }
 
 // ---------- a replacement pickaxe (Brian, Nov 14) ----------
+// The job loop does not call this (Brian, Nov 27: the Smith makes tools, and a worker
+// waits if there is no Smith). The recipe caps stay here so the old checks still run.
 const PICKS = [
   { tier: 3, id: "minecraft:diamond_pickaxe", label: "Diamond Pickaxe", need: { "minecraft:diamond": 3, "minecraft:stick": 2 } },
   { tier: 2, id: "minecraft:iron_pickaxe", label: "Iron Pickaxe", need: { "minecraft:iron_ingot": 3, "minecraft:stick": 2 } },

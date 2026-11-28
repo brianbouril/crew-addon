@@ -241,8 +241,8 @@ run(100);
 check("a queued order runs once the worker is loaded", String(later.getDynamicProperty("crew:job") ?? "").includes('"come"') && takeQueued(later.id).length === 0);
 
 // ---- worker cap ----
-check("default cap is 6", getCap() === 6);
-check("a non-operator can't change it", !setCap(asBy(brian), 3).ok && getCap() === 6);
+check("default cap is 8", getCap() === 8);
+check("a non-operator can't change it", !setCap(asBy(brian), 3).ok && getCap() === 8);
 check("an operator can", setCap(asBy(op), 3).ok && getCap() === 3);
 /** Builds a worker the way a player does: tools in a barrel, then a pumpkin on top. */
 function build(who, at) {

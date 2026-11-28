@@ -21,6 +21,29 @@ server, which runs as SYSTEM: `C:\Windows\System32\config\systemprofile\AppData\
 
 ## Next release (0.4.1, unreleased)
 
+**Smith (built with this branch, mock-tested; staging first)**
+- [ ] S1. Craft a forge (iron ingots around a furnace, three coal along the bottom). The icon has a
+      black outline. Place it with coal in a chest on top and an empty chest underneath.
+- [ ] S2. Build a Smith (an anvil in a barrel, carved pumpkin on top). It counts toward the worker
+      limit (8 by default), the name tag says Smith, and the skin is the dark cap and soot-stained
+      apron. Look at the forge and pick "Work the forge I'm looking at" (or `/crew:smith`).
+- [ ] S3. Put raw iron in the depot or a settlement chest, and coal on the forge. Ingots show up in
+      the chest under the forge. One coal smelts several. A log smelts one. A lava bucket comes
+      back empty. Beef and sand are not smelted. Ore in a home chest stays there.
+- [ ] S4. Order an iron sword, a piece of armor, and a repair of a damaged pick. The counts match
+      what you put in, and nothing is duplicated. With no order, two wooden tools appear for each
+      Digger, Miner, Woodcutter, and Farmer, and not a third.
+- [ ] S5. Break a Miner's last wooden pick while a Smith has a wooden pick and a diamond pick in
+      its chest. The Miner walks over and takes the wooden one. The diamond stays. With no Smith,
+      and with planks and a crafting table by the bed, the Miner waits and says so. It does not
+      craft a pick at home.
+- [ ] S6. At night the Smith sleeps and the forge pauses. In the morning it continues. Stop, then
+      Continue, picks up the same forge. A Digger refuses `/crew:smith`. A Smith refuses a quarry.
+- [ ] S7. Dev mode, on: Spawn a Smith places a Smith and a forge. Give every test item includes a
+      forge and an anvil. The worker limit is 8 again after `/crew:dev off` (unless you set another
+      number). No new script errors over a 30 minute run. Brian: is the chest-on-top / chest-under
+      setup obvious, and does a short run of iron tools feel fair?
+
 **Sifter (built with this branch, mock-tested; staging first)**
 - [ ] 14. Craft a sieve (eight iron bars around a stick). The icon has a black outline. Place it
       with a chest of gravel on top and an empty chest underneath. Use it once by hand: one gravel
@@ -155,11 +178,11 @@ a full server restart: `reload` refuses to re-register it.
 - [ ] D2. As an operator, `/crew:dev` before turning it on says dev mode is off. `/crew:dev on`
       says Dev mode is ON. `/crew:dev` opens a menu titled Dev mode. `/crew:dev off` says it is off.
 - [ ] D3. From that menu, give every test item. You get one Survey Stake (a second time does not
-      give another), sieves, a pickaxe, shovel, axe and hoe, a bundle, leather boots, torches,
+      give another), sieves, a forge, an anvil, a pickaxe, shovel, axe and hoe, a bundle, leather boots, torches,
       planks, seeds, wood, gravel, and a water bucket.
-- [ ] D4. Spawn one of each: Digger, Miner, Hauler, Woodcutter, Farmer, and Sifter stand beside you.
+- [ ] D4. Spawn one of each: Digger, Miner, Hauler, Woodcutter, Farmer, Sifter, and Smith stand beside you.
       Each has the tool or gear for that job and a home chest with torches plus that job's supplies
-      (pickaxes, seeds, wood, gravel, and the rest). A Sifter has a sieve.
+      (pickaxes, seeds, wood, gravel, and the rest). A Sifter has a sieve. A Smith has a forge.
 - [ ] D5. Set the limit to 1 with `/crew:cap 1` while dev mode is on and spawn more than one: they
       spawn, and `/crew:cap` still shows 1. Turn dev mode off: a barrel build past the limit is
       refused and the barrel keeps its tool. The extra workers stay. `/crew:cap` still shows 1.

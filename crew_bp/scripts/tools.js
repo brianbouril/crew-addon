@@ -14,8 +14,8 @@ export const MATERIALS = {
   netherite: { tier: 4, speed: 9, name: "Netherite" },
 };
 export const ROLES = { pickaxe: "Miner", shovel: "Digger", axe: "Woodcutter", hoe: "Farmer" };
-/** Roles in skin order (the entity's crew:role property). The Hauler isn't tool-based: built from a bundle and leather boots. The Sifter is built from a sieve. */
-export const ROLE_LIST = ["Miner", "Digger", "Woodcutter", "Farmer", "Hauler", "Sifter"];
+/** Roles in skin order (the entity's crew:role property). The Hauler isn't tool-based: built from a bundle and leather boots. The Sifter is built from a sieve. The Smith is built from an anvil. */
+export const ROLE_LIST = ["Miner", "Digger", "Woodcutter", "Farmer", "Hauler", "Sifter", "Smith"];
 /** The roles a player can switch between in the menu (the tool roles). */
 export const TOOL_ROLES = ["Miner", "Digger", "Woodcutter", "Farmer"];
 /** A Hauler carries 18 stacks (half a player's 36): cargo in slots 5-22; supplies (food, chests) from 23. */

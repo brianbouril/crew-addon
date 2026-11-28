@@ -219,6 +219,27 @@ export function registerCommands(reg) {
   cmd(reg, { name: "crew:continue", description: "Continue a worker's stopped dig or sifting where it left off.", permissionLevel: ANY, mandatoryParameters: [{ name: "worker", type: T.String }] },
     (by, worker) => order(by, { worker, job: "resume", params: {} }));
 
+  reg.registerEnum("crew:smith_action", ["stock", "craft", "repair", "smelt"]);
+  reg.registerEnum("crew:smith_tier", ["wooden", "stone", "copper", "iron", "golden", "diamond", "netherite", "leather"]);
+  cmd(reg, { name: "crew:smith", description: "Have a Smith work the forge you are looking at.", permissionLevel: ANY,
+    mandatoryParameters: [{ name: "worker", type: T.String }],
+    optionalParameters: [
+      { name: "at", type: T.Location },
+      { name: "crew:smith_action", type: T.Enum },
+      { name: "item", type: T.String },
+      { name: "crew:smith_tier", type: T.Enum },
+      { name: "count", type: T.Integer },
+    ] },
+    (by, worker, at, action, item, tier, count) => {
+      let pos = at;
+      if (!pos && by.player?.getBlockFromViewDirection) {
+        const hit = by.player.getBlockFromViewDirection({ maxDistance: 6 });
+        if (hit?.block?.typeId === "crew:forge") pos = hit.block.location;
+      }
+      if (!pos) return answer(by, false, "Look at a forge, or give its coordinates: /crew:smith <worker> <x y z>.");
+      order(by, { worker, job: "smith", params: { at: pos, action: action ?? "stock", item, tier, count } });
+    });
+
   cmd(reg, { name: "crew:sift", description: "Have a Sifter work the sieve you are looking at.", permissionLevel: ANY,
     mandatoryParameters: [{ name: "worker", type: T.String }],
     optionalParameters: [{ name: "at", type: T.Location }] },

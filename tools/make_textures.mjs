@@ -128,6 +128,19 @@ const ROLES = {
       return shirt;
     },
   },
+  smith: {
+    // dark cap, rolled sleeves, soot-stained leather apron. Its own hat, not a lamp and not black.
+    hat: [58, 53, 50, 255], hatD: [42, 38, 36, 255], lamp: [42, 38, 36, 255],
+    sleeve: [92, 64, 48, 255], pants: [48, 44, 40, 255], pantsD: [36, 32, 30, 255],
+    roll: 5,
+    torso: (x, y, fw, face) => {
+      const apron = [74, 64, 56, 255], soot = [46, 40, 36, 255], shirt = [92, 64, 48, 255];
+      if (y === 11) return [42, 32, 26, 255];
+      if (face === "north" && y >= 2 && y <= 10 && x >= 1 && x <= fw - 2) return (x + y) % 4 === 0 ? soot : apron;
+      if ((face === "east" || face === "west") && y >= 4 && y <= 10) return apron;
+      return shirt;
+    },
+  },
   sifter: {
     // slate cap (not a lamp), brown shirt, iron-mesh apron. Hat color is this role's own.
     hat: [90, 106, 120, 255], hatD: [60, 74, 86, 255], lamp: [90, 106, 120, 255],
@@ -184,7 +197,7 @@ function worker(path, r) {
     const sleeve = r.sleeve === "plaid" ? plaid(x, y) : r.sleeve;
     if (face === "up") return sleeve;
     if (face === "down") return SKIN;
-    return y >= 7 ? SKIN : sleeve;
+    return y >= (r.roll ?? 7) ? SKIN : sleeve;
   });
   // legs: trousers, boots at the bottom (a Hauler's leather boots come up higher)
   box(0, 22, 4, 12, 4, (face, x, y) => {
@@ -252,6 +265,27 @@ function icon(path) {
 }
 
 // 32x32 sieve icon: black outline, stake wood, iron mesh. Same picture for the item and the block.
+// 32x32 forge: black outline, dark stone, an orange mouth. Same picture for the item and the block.
+function forgeIcon(path) {
+  const { px, set } = canvas(32, 32);
+  const BLACK = [0, 0, 0, 255], STONE = [58, 58, 66, 255], STONE_D = [36, 36, 42, 255];
+  const MOUTH = [224, 112, 32, 255], GLOW = [255, 176, 64, 255], COAL = [48, 44, 40, 255];
+  const edge = (x, y, x0, y0, x1, y1) => x === x0 || y === y0 || x === x1 || y === y1;
+  for (let y = 6; y <= 27; y++) for (let x = 6; x <= 25; x++) {
+    if (edge(x, y, 6, 6, 25, 27)) set(x, y, BLACK);
+    else if (edge(x, y, 7, 7, 24, 26)) set(x, y, x > 18 || y > 20 ? STONE_D : STONE);
+    else if (y >= 22) set(x, y, (x + y) % 2 === 0 ? COAL : STONE_D);
+    else set(x, y, (x + y) % 5 === 0 ? STONE_D : STONE);
+  }
+  for (let y = 12; y <= 20; y++) for (let x = 11; x <= 20; x++) {
+    if (edge(x, y, 11, 12, 20, 20)) set(x, y, BLACK);
+    else set(x, y, (x + y) % 3 === 0 ? GLOW : MOUTH);
+  }
+  for (let y = 2; y <= 6; y++) for (let x = 12; x <= 15; x++) {
+    set(x, y, edge(x, y, 12, 2, 15, 6) ? BLACK : STONE_D);
+  }
+  png(path, 32, 32, px);
+}
 function sieveIcon(path) {
   const { px, set } = canvas(32, 32);
   const BLACK = [0, 0, 0, 255], WOOD = [140, 95, 50, 255], WOOD_D = [100, 65, 35, 255];
@@ -272,6 +306,8 @@ for (const [name, r] of Object.entries(ROLES)) worker(join(ROOT, `crew_rp/textur
 stake(join(ROOT, "crew_rp/textures/items/crew_survey_stake.png"));
 sieveIcon(join(ROOT, "crew_rp/textures/items/crew_sieve.png"));
 sieveIcon(join(ROOT, "crew_rp/textures/blocks/crew_sieve.png"));
+forgeIcon(join(ROOT, "crew_rp/textures/items/crew_forge.png"));
+forgeIcon(join(ROOT, "crew_rp/textures/blocks/crew_forge.png"));
 icon(join(ROOT, "crew_rp/pack_icon.png"));
 icon(join(ROOT, "crew_bp/pack_icon.png"));
 console.log("textures written");

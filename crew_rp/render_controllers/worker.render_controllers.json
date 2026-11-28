@@ -4,7 +4,7 @@
     "controller.render.crew_worker": {
       "arrays": {
         "textures": {
-          "Array.skins": ["Texture.miner", "Texture.digger", "Texture.woodcutter", "Texture.farmer", "Texture.hauler", "Texture.sifter"]
+          "Array.skins": ["Texture.miner", "Texture.digger", "Texture.woodcutter", "Texture.farmer", "Texture.hauler", "Texture.sifter", "Texture.smith"]
         }
       },
       "geometry": "Geometry.default",
