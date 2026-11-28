@@ -49,3 +49,5 @@ Brian, 2026-11-27 (art-director): `shipped` means the pull request is merged and
 - `CLAUDE.md` branch flow does not use the words "pull request". It says the lead merges after the reviewer, the mock tests, the changelog, and `docs/QA.md`.
 
 Brian, 2026-11-27 (art-director): a pull request may be opened while the spec status is `building`. The status stays `building` while that pull request is open. It moves to `shipped` only after the pull request is merged and then tagged. Do not follow kickoff skill step 4 when it sets the status to `in review` at the moment the pull request opens.
+
+On `main` at `13d0b05`, `specs/hauler.md`, `specs/woodcutter-farmer.md`, `specs/sifter.md`, and `specs/miner-prospecting.md` still say **building**. `specs/settlement-layer.md` still says **ready**. Tags on that commit are no newer than `v0.4.0`. The woodcutter spec's Open questions section says none are left. Brian answered the water layout and the remaining crops on 2026-11-27. The flag line from `2026-11-27T18:21:12Z` that said those questions were still open is stale. That line was not rewritten.
