@@ -35,7 +35,13 @@ README's dedicated-server steps are the player-facing install: stop, back up, re
 
 `CLAUDE.md` rule 6: the same change updates `CHANGELOG.md` under "Unreleased" and `docs/QA.md` under "Next release". If players see it, edit `crew_bp/scripts/guide_pages.js` and run `node tools/make_guide.mjs`.
 
-`README.md` is behind that standard. It still says the shovel, axe, and hoe roles have no jobs, and its known-limits list says Digger has no jobs. `PLAYER_GUIDE.md` and `catalog.js` do not. Flagged. Do not "fix" the README by reverting the Digger split.
+`README.md` is behind that standard. It still says the shovel, axe, and hoe roles have no jobs, and its known-limits list says Digger has no jobs. `PLAYER_GUIDE.md` and `catalog.js` do not. It also has no settlement or bell text, while `CHANGELOG.md` and `guide_pages.js` ("Your settlement") do, after commit `6ef219c`. Both are flagged. Do not "fix" the README from a curator run, and do not revert the Digger split.
+
+Settlement facts taken from `settlement.js` and `specs/settlement-layer.md` (Brian, 2026-11-16 and 2026-11-17). The spec is the decision list. This is only what those files already say:
+
+- A settlement is founded at a vanilla bell the player placed (`minecraft:bell`). There is no new bell item.
+- The player-facing group name is "settlement". The `crew:` prefix and `/crew:` commands stay.
+- `crew:cap` defaults to 6. An operator changes it in the settlement menu or with `/crew:cap`. The command is registered in `commands.js`.
 
 ## Open questions
 
